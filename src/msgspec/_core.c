@@ -22831,8 +22831,10 @@ static struct PyModuleDef_Slot module_slots[] = {
 #if PY313_PLUS
     {Py_mod_gil, Py_MOD_GIL_NOT_USED},
 #endif
-    {Py_mod_exec, _core_exec},
+#if PY312_PLUS
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
+#endif
+    {Py_mod_exec, _core_exec},
     {0, NULL}
 };
 
