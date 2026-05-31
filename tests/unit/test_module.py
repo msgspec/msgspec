@@ -12,7 +12,10 @@ class TestSubinterpreterGuard:
 
         interp = interpreters.create()
         try:
-            with pytest.raises(interpreters.RunFailedError, match=".*does not support loading in subinterpreters"):
+            with pytest.raises(
+                interpreters.RunFailedError,
+                match=".*does not support loading in subinterpreters",
+            ):
                 interp.run("import msgspec._core")
         finally:
             interp.close()
