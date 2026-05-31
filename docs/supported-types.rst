@@ -1051,6 +1051,12 @@ determine whether a field was left unset, or explicitly set to ``None``
 types. It is an error to use `msgspec.UNSET` or `msgspec.UnsetType` anywhere
 other than a field for one of these types.
 
+Omission of ``UNSET`` fields applies to `msgspec.json.encode`,
+`msgspec.msgpack.encode`, `msgspec.yaml.encode`, `msgspec.toml.encode`, and
+`msgspec.to_builtins`. `msgspec.structs.asdict` and `msgspec.structs.astuple`
+always include every field, so ``UNSET`` values appear in their output
+unchanged - see :ref:`to-builtins-vs-asdict`.
+
 ``Enum`` / ``IntEnum`` / ``StrEnum``
 ------------------------------------
 
@@ -1143,6 +1149,7 @@ purpose, but with a `typing.Literal` the decoded values are literal `int` or
 A literal can be composed of any of the following objects:
 
 - `None`
+- `bool` values (`True` and `False`)
 - `int` values
 - `str` values
 - Nested `typing.Literal` types
@@ -1169,6 +1176,12 @@ values, or doesn't match any of their component types.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
+
+    >>> msgspec.json.decode(b'true', type=Literal[True])
+    True
+
+    >>> msgspec.json.decode(b'false', type=Literal[True, False])
+    False
 
 ``NewType``
 -----------
