@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import (
     Annotated,
     Any,
+    Dict,
     Final,
     FrozenSet,
     Generic,
@@ -262,14 +263,14 @@ def test_sequence(kw, typ, info_type, has_item_type):
     assert mi.type_info(typ) == sol
 
 
-@pytest.mark.parametrize("typ", [tuple, tuple])
+@pytest.mark.parametrize("typ", [tuple, Tuple])
 def test_tuple(typ):
     assert mi.type_info(typ[()]) == mi.TupleType(())
     assert mi.type_info(typ[int]) == mi.TupleType((mi.IntType(),))
     assert mi.type_info(typ[int, float]) == mi.TupleType((mi.IntType(), mi.FloatType()))
 
 
-@pytest.mark.parametrize("typ", [dict, dict])
+@pytest.mark.parametrize("typ", [dict, Dict])
 @pytest.mark.parametrize("kw", [{}, dict(min_length=0), dict(max_length=3)])
 @pytest.mark.parametrize("has_args", [False, True])
 def test_dict(typ, kw, has_args):
