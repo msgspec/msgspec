@@ -9,10 +9,15 @@ from dataclasses import dataclass
 from typing import (
     Annotated,
     Any,
+    Dict,
+    FrozenSet,
     Generic,
+    List,
     Literal,
     NamedTuple,
     NewType,
+    Set,
+    Tuple,
     TypedDict,
     TypeVar,
     Union,
@@ -168,24 +173,24 @@ def test_newtype():
     }
 
 
-@pytest.mark.parametrize("typ", [list, tuple, list, tuple])
+@pytest.mark.parametrize("typ", [list, tuple, List, Tuple])
 def test_sequence_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array"}
 
 
-@pytest.mark.parametrize("cls", [list, tuple, list, tuple])
+@pytest.mark.parametrize("cls", [list, tuple, List, Tuple])
 def test_sequence_typed(cls):
-    args = (int, ...) if cls in (tuple, tuple) else int
+    args = (int, ...) if cls in (tuple, Tuple) else int
     typ = cls[args]
     assert msgspec.json.schema(typ) == {"type": "array", "items": {"type": "integer"}}
 
 
-@pytest.mark.parametrize("typ", [set, frozenset, set, frozenset])
+@pytest.mark.parametrize("typ", [set, frozenset, Set, FrozenSet])
 def test_set_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array", "uniqueItems": True}
 
 
-@pytest.mark.parametrize("cls", [set, frozenset, set, frozenset])
+@pytest.mark.parametrize("cls", [set, frozenset, Set, FrozenSet])
 def test_set_typed(cls):
     typ = cls[int]
     assert msgspec.json.schema(typ) == {
@@ -195,7 +200,7 @@ def test_set_typed(cls):
     }
 
 
-@pytest.mark.parametrize("cls", [tuple, tuple])
+@pytest.mark.parametrize("cls", [tuple, Tuple])
 def test_tuple(cls):
     typ = cls[int, float, str]
     assert msgspec.json.schema(typ) == {
@@ -211,7 +216,7 @@ def test_tuple(cls):
     }
 
 
-@pytest.mark.parametrize("cls", [tuple, tuple])
+@pytest.mark.parametrize("cls", [tuple, Tuple])
 def test_empty_tuple(cls):
     typ = cls[()]
     assert msgspec.json.schema(typ) == {
@@ -221,12 +226,12 @@ def test_empty_tuple(cls):
     }
 
 
-@pytest.mark.parametrize("typ", [dict, dict])
+@pytest.mark.parametrize("typ", [dict, Dict])
 def test_dict_any(typ):
     assert msgspec.json.schema(typ) == {"type": "object"}
 
 
-@pytest.mark.parametrize("cls", [dict, dict])
+@pytest.mark.parametrize("cls", [dict, Dict])
 def test_dict_typed(cls):
     typ = cls[str, int]
     assert msgspec.json.schema(typ) == {
