@@ -7,8 +7,8 @@ from typing import (
     Type,
     TypeVar,
     Union,
-    overload,
     final,
+    overload,
 )
 
 from typing_extensions import Buffer
