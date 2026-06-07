@@ -131,7 +131,7 @@ just doc-serve
 
 ## Benchmarking
 
-You can run all [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) with the `bench` recipe, for example:
+You can run all [benchmarks](https://msgspec.dev/benchmarks.html) with the `bench` recipe, for example:
 
 ```
 just bench encodings
