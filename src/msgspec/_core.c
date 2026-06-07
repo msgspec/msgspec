@@ -9614,17 +9614,6 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    if (enc_hook == Py_None) {
-        enc_hook = NULL;
-    }
-    if (enc_hook != NULL) {
-        if (!PyCallable_Check(enc_hook)) {
-            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
-            return -1;
-        }
-        Py_INCREF(enc_hook);
-    }
-
     /* Process decimal format */
     if (decimal_format == NULL) {
         self->decimal_format = DECIMAL_FORMAT_STRING;
@@ -9686,6 +9675,17 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     /* Process order */
     self->order = parse_order_arg(order);
     if (self->order == ORDER_INVALID) return -1;
+
+    if (enc_hook == Py_None) {
+        enc_hook = NULL;
+    }
+    if (enc_hook != NULL) {
+        if (!PyCallable_Check(enc_hook)) {
+            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(enc_hook);
+    }
 
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
