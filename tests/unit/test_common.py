@@ -10,7 +10,6 @@ import sys
 import typing
 import uuid
 import weakref
-import zoneinfo
 from collections import namedtuple
 from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
@@ -3375,7 +3374,15 @@ class TestTime:
         assert res == sol
 
     def test_encode_time_zoneinfo(self):
-        x = datetime.time(1, 2, 3, 456789, zoneinfo.ZoneInfo("America/Chicago"))
+        import zoneinfo
+
+        try:
+            x = datetime.datetime(
+                2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
+            )
+        except zoneinfo.ZoneInfoNotFoundError:
+            # Some envs in CI do not have `tzdata`:
+            pytest.skip(reason="Failed to load timezone")
         sol = msgspec.json.encode(x.isoformat())
         res = msgspec.json.encode(x)
         assert res == sol

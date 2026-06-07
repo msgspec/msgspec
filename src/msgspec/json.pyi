@@ -3,6 +3,7 @@ from typing import (
     Any,
     Generic,
     Literal,
+    Type,
     TypeAlias,
     TypeVar,
     overload,
@@ -38,7 +39,7 @@ class Encoder:
     ) -> None: ...
 
 class Decoder(Generic[T]):
-    type: type[T]
+    type: Type[T]  # needed for mypy, because of the same name
     strict: bool
     dec_hook: dec_hook_sig
     float_hook: float_hook_sig
@@ -54,7 +55,7 @@ class Decoder(Generic[T]):
     @overload
     def __init__(
         self: Decoder[T],
-        type: type[T] = ...,
+        type: Type[T] = ...,
         *,
         strict: bool = True,
         dec_hook: dec_hook_sig = None,

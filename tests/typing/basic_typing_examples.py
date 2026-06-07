@@ -28,14 +28,14 @@ def check_unset() -> None:
 
 def check_unset_type_lowering(x: int | msgspec.UnsetType) -> None:
     if x is msgspec.UNSET:
-        reveal_type(x)  # assert "int" not in typ.lower()
+        reveal_type(x)  # assert "int" not in typ
     else:
-        reveal_type(x)  # assert "unset" not in typ.lower()
+        reveal_type(x)  # assert "unset" not in typ
 
 
 def check_unset_type_truthiness_lowering(x: str | msgspec.UnsetType) -> None:
     if x:
-        reveal_type(x)  # assert "unset" not in typ.lower()
+        reveal_type(x)  # assert "unset" not in typ
 
 
 def check_nodefault() -> None:
@@ -339,7 +339,7 @@ def check_struct_attributes() -> None:
         reveal_type(field)  # assert "str" in typ
 
     for field in Point.__match_args__:
-        reveal_type(field)  # assert "any" not in typ.lower()
+        reveal_type(field)  # assert "Any" not in typ
 
     p = Point(1, 2)
 
@@ -490,9 +490,9 @@ def check_fields() -> None:
 
     x = Test(1, 2)
     res1 = msgspec.structs.fields(x)
-    reveal_type(res1)  # assert "tuple" in typ.lower() and "FieldInfo" in typ
+    reveal_type(res1)  # assert "tuple" in typ and "FieldInfo" in typ
     res2 = msgspec.structs.fields(Test)
-    reveal_type(res2)  # assert "tuple" in typ.lower() and "FieldInfo" in typ
+    reveal_type(res2)  # assert "tuple" in typ and "FieldInfo" in typ
 
     for field in res1:
         reveal_type(field)  # assert "FieldInfo" in typ
@@ -630,8 +630,8 @@ def check_msgpack_Decoder_decode_typed() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = dec.decode(b)
 
-    reveal_type(dec)  # assert "Decoder" in typ and ("List" in typ or "list" in typ) and "int" in typ
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(dec)  # assert "Decoder" in typ and "list" in typ and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_msgpack_Decoder_decode_union() -> None:
@@ -647,8 +647,8 @@ def check_msgpack_Decoder_decode_type_comment() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = dec.decode(b)
 
-    reveal_type(dec)  # assert "Decoder" in typ and ("List" in typ or "list" in typ) and "int" in typ
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(dec)  # assert "Decoder" in typ and "list" in typ and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_msgpack_decode_any() -> None:
@@ -662,7 +662,7 @@ def check_msgpack_decode_typed() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = msgspec.msgpack.decode(b, type=list[int])
 
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_msgpack_decode_from_buffer() -> None:
@@ -697,14 +697,14 @@ def check_msgpack_order() -> None:
 def check_msgpack_Encoder_decimal_format() -> None:
     enc = msgspec.msgpack.Encoder(decimal_format="string")
     msgspec.msgpack.Encoder(decimal_format="number")
-    reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
+    reveal_type(enc.decimal_format)  # assert "string" in typ and "number" in typ
 
 
 def check_msgpack_Encoder_uuid_format() -> None:
     enc = msgspec.msgpack.Encoder(uuid_format="canonical")
     msgspec.msgpack.Encoder(uuid_format="hex")
     msgspec.msgpack.Encoder(uuid_format="bytes")
-    reveal_type(enc.uuid_format)  # assert all(s in typ.lower() for s in ("canonical", "hex", "bytes"))
+    reveal_type(enc.uuid_format)  # assert all(s in typ for s in ("canonical", "hex", "bytes"))
 
 
 def check_msgpack_decode_dec_hook() -> None:
@@ -730,7 +730,7 @@ def check_msgpack_Decoder_strict() -> None:
 
 def check_msgpack_decode_strict() -> None:
     out = msgspec.msgpack.decode(b'', type=list[int], strict=False)
-    reveal_type(out)  # assert "list" in typ.lower()
+    reveal_type(out)  # assert "list" in typ
 
 
 def check_msgpack_Ext() -> None:
@@ -787,8 +787,8 @@ def check_json_Decoder_decode_typed() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = dec.decode(b)
 
-    reveal_type(dec)  # assert "Decoder" in typ and ("List" in typ or "list" in typ) and "int" in typ
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(dec)  # assert "Decoder" in typ and "list" in typ and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_Decoder_decode_type_comment() -> None:
@@ -796,8 +796,8 @@ def check_json_Decoder_decode_type_comment() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = dec.decode(b)
 
-    reveal_type(dec)  # assert "Decoder" in typ and ("List" in typ or "list" in typ) and "int" in typ
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(dec)  # assert "Decoder" in typ and "list" in typ and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_Decoder_decode_union() -> None:
@@ -809,20 +809,20 @@ def check_json_Decoder_decode_union() -> None:
 def check_json_Decoder_decode_from_str() -> None:
     dec = msgspec.json.Decoder(list[int])
     o = dec.decode("[1, 2, 3]")
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_Decoder_decode_lines_any() -> None:
     dec = msgspec.json.Decoder()
     o = dec.decode_lines(b'1\n2\n3')
 
-    reveal_type(o)  # assert "list" in typ.lower() and "any" in typ.lower()
+    reveal_type(o)  # assert "list" in typ and "Any" in typ
 
 
 def check_json_Decoder_decode_lines_typed() -> None:
     dec = msgspec.json.Decoder(int)
     o = dec.decode_lines(b'1\n2\n3')
-    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ.lower()
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_decode_any() -> None:
@@ -836,7 +836,7 @@ def check_json_decode_typed() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b, type=list[int])
 
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_decode_typed_union() -> None:
@@ -848,7 +848,7 @@ def check_json_decode_from_str() -> None:
     msgspec.json.decode("[1, 2, 3]")
 
     o = msgspec.json.decode("[1, 2, 3]", type=list[int])
-    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_json_decode_from_buffer() -> None:
@@ -877,13 +877,13 @@ def check_json_order() -> None:
 def check_json_Encoder_decimal_format() -> None:
     enc = msgspec.json.Encoder(decimal_format="string")
     msgspec.json.Encoder(decimal_format="number")
-    reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
+    reveal_type(enc.decimal_format)  # assert "string" in typ and "number" in typ
 
 
 def check_json_Encoder_uuid_format() -> None:
     enc = msgspec.json.Encoder(uuid_format="canonical")
     msgspec.json.Encoder(uuid_format="hex")
-    reveal_type(enc.uuid_format)  # assert all(s in typ.lower() for s in ("canonical", "hex"))
+    reveal_type(enc.uuid_format)  # assert all(s in typ for s in ("canonical", "hex"))
 
 
 def check_json_decode_dec_hook() -> None:
@@ -909,7 +909,7 @@ def check_json_Decoder_strict() -> None:
 
 def check_json_decode_strict() -> None:
     out = msgspec.json.decode(b'', type=list[int], strict=False)
-    reveal_type(out)  # assert "list" in typ.lower()
+    reveal_type(out)  # assert "list" in typ
 
 
 def check_json_format() -> None:
@@ -935,7 +935,7 @@ def check_yaml_decode_any() -> None:
 
 def check_yaml_decode_typed() -> None:
     o = msgspec.yaml.decode(b"[1, 2, 3]", type=list[int])
-    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_yaml_decode_typed_union() -> None:
@@ -946,7 +946,7 @@ def check_yaml_decode_typed_union() -> None:
 def check_yaml_decode_from_str() -> None:
     msgspec.yaml.decode("[1, 2, 3]")
     o = msgspec.yaml.decode("[1, 2, 3]", type=list[int])
-    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ
+    reveal_type(o)  # assert "list" in typ and "int" in typ
 
 
 def check_yaml_decode_from_buffer() -> None:
@@ -972,7 +972,7 @@ def check_yaml_decode_dec_hook() -> None:
 
 def check_yaml_decode_strict() -> None:
     out = msgspec.yaml.decode(b'', type=list[int], strict=False)
-    reveal_type(out)  # assert "list" in typ.lower()
+    reveal_type(out)  # assert "list" in typ
 
 
 ##########################################################
@@ -992,13 +992,13 @@ def check_toml_decode_any() -> None:
 
 def check_toml_decode_typed() -> None:
     o = msgspec.toml.decode(b"a = 1", type=dict[str, int])
-    reveal_type(o)  # assert "dict" in typ.lower() and "int" in typ
+    reveal_type(o)  # assert "dict" in typ and "int" in typ
 
 
 def check_toml_decode_from_str() -> None:
     msgspec.toml.decode("a = 1")
     o = msgspec.toml.decode("a = 1", type=dict[str, int])
-    reveal_type(o)  # assert "dict" in typ.lower() and "int" in typ
+    reveal_type(o)  # assert "dict" in typ and "int" in typ
 
 
 def check_toml_decode_from_buffer() -> None:
@@ -1024,7 +1024,7 @@ def check_toml_decode_dec_hook() -> None:
 
 def check_toml_decode_strict() -> None:
     out = msgspec.toml.decode(b'', type=list[int], strict=False)
-    reveal_type(out)  # assert "list" in typ.lower()
+    reveal_type(out)  # assert "list" in typ
 
 
 ##########################################################
@@ -1042,10 +1042,10 @@ def check_inspect_type_info() -> None:
 
 def check_inspect_multi_type_info() -> None:
     o = msgspec.inspect.multi_type_info([int, float])
-    reveal_type(o)  # assert "Type" in typ and "tuple" in typ.lower()
+    reveal_type(o)  # assert "Type" in typ and "tuple" in typ
 
     o2 = msgspec.inspect.multi_type_info((int, float))
-    reveal_type(o2)  # assert "Type" in typ and "tuple" in typ.lower()
+    reveal_type(o2)  # assert "Type" in typ and "tuple" in typ
 
     msgspec.inspect.multi_type_info([int])
     msgspec.inspect.multi_type_info([int])
@@ -1064,7 +1064,7 @@ def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
             max_depth(t.value_type, depth + 1)
         )
     elif isinstance(t, msgspec.inspect.TupleType):
-        reveal_type(t.item_types)  # assert "Type" in typ and "tuple" in typ.lower()
+        reveal_type(t.item_types)  # assert "Type" in typ and "tuple" in typ
         return max(max_depth(a, depth + 1) for a in t.item_types)
     else:
         return depth
@@ -1073,12 +1073,12 @@ def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
 def check_consume_inspect_types() -> None:
     t = msgspec.inspect.type_info(list[int])
     o = max_depth(t)
-    reveal_type(o)  # assert "int" in typ.lower()
+    reveal_type(o)  # assert "int" in typ
 
     t = msgspec.inspect.UnionType(
         (msgspec.inspect.IntType(), msgspec.inspect.NoneType())
     )
-    reveal_type(t.includes_none)  # assert "bool" in typ.lower()
+    reveal_type(t.includes_none)  # assert "bool" in typ
 
 
 def check_inspect_is_struct() -> None:
@@ -1122,26 +1122,26 @@ def check_inspect_is_struct_type() -> None:
 
 def check_json_schema() -> None:
     o1 = msgspec.json.schema(list[int])
-    reveal_type(o1)  # assert ("Dict" in typ or "dict" in typ)
+    reveal_type(o1)  # assert "dict" in typ
 
     o2 = msgspec.json.schema(list[int], schema_hook=lambda t: {"type": "object"})
-    reveal_type(o2)  # assert ("Dict" in typ or "dict" in typ)
+    reveal_type(o2)  # assert "dict" in typ
 
 
 def check_json_schema_components() -> None:
     s1, c1 = msgspec.json.schema_components([list[int]])
-    reveal_type(s1)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
-    reveal_type(c1)  # assert ("dict" in typ.lower())
+    reveal_type(s1)  # assert ("dict" in typ) and ("tuple" in typ)
+    reveal_type(c1)  # assert ("dict" in typ)
 
     s2, c2 = msgspec.json.schema_components([list[int]], ref_template="#/definitions/{name}")
-    reveal_type(s2)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
-    reveal_type(c2)  # assert ("dict" in typ.lower())
+    reveal_type(s2)  # assert ("dict" in typ) and ("tuple" in typ)
+    reveal_type(c2)  # assert ("dict" in typ)
 
     s3, c3 = msgspec.json.schema_components(
         [list[int]], schema_hook=lambda t: {"type": "object"}
     )
-    reveal_type(s3)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
-    reveal_type(c3)  # assert ("dict" in typ.lower())
+    reveal_type(s3)  # assert ("dict" in typ) and ("tuple" in typ)
+    reveal_type(c3)  # assert ("dict" in typ)
 
 
 ##########################################################
@@ -1160,22 +1160,22 @@ def check_to_builtins() -> None:
 
 def check_convert() -> None:
     o1 = msgspec.convert(1, int)
-    reveal_type(o1)  # assert "int" in typ.lower()
+    reveal_type(o1)  # assert "int" in typ
 
     o2 = msgspec.convert([1, 2], list[float])
-    reveal_type(o2)  # assert "list" in typ.lower()
+    reveal_type(o2)  # assert "list" in typ
 
     o3 = msgspec.convert(1, int, strict=False)
-    reveal_type(o3)  # assert "int" in typ.lower()
+    reveal_type(o3)  # assert "int" in typ
 
     o4 = msgspec.convert(1, int, from_attributes=True)
-    reveal_type(o4)  # assert "int" in typ.lower()
+    reveal_type(o4)  # assert "int" in typ
 
     o5 = msgspec.convert(1, int, dec_hook=lambda typ, x: None)
-    reveal_type(o5)  # assert "int" in typ.lower()
+    reveal_type(o5)  # assert "int" in typ
 
     o6 = msgspec.convert(1, int, builtin_types=(bytes, bytearray, memoryview))
-    reveal_type(o6)  # assert "int" in typ.lower()
+    reveal_type(o6)  # assert "int" in typ
 
     o7 = msgspec.convert("1", int, str_keys=True)
-    reveal_type(o7)  # assert "int" in typ.lower()
+    reveal_type(o7)  # assert "int" in typ

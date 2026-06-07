@@ -11,7 +11,6 @@ import math
 import string
 import sys
 import uuid
-import zoneinfo
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, Any, Literal, NamedTuple, TypedDict, Union
@@ -829,9 +828,15 @@ class TestDatetime:
         assert s == expected
 
     def test_encode_datetime_zoneinfo(self):
-        x = datetime.datetime(
-            2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
-        )
+        import zoneinfo
+
+        try:
+            x = datetime.datetime(
+                2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
+            )
+        except zoneinfo.ZoneInfoNotFoundError:
+            # Some envs in CI do not have `tzdata`:
+            pytest.skip(reason="Failed to load timezone")
         sol = msgspec.json.encode(x.isoformat())
         res = msgspec.json.encode(x)
         assert res == sol
