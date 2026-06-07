@@ -904,8 +904,7 @@ _IntLookupHashmap_lookup(IntLookupHashmap *self, int64_t key) {
         if (entry->value == NULL) return entry;
         i = (i + 1) & mask;
     }
-    /* Unreachable */
-    return NULL;
+    Py_UNREACHABLE();
 }
 
 static void
@@ -1239,8 +1238,7 @@ _StrLookup_lookup(StrLookup *self, const char *key, Py_ssize_t size)
         perturb >>= 5;
         i = mask & (i*5 + perturb + 1);
     }
-    /* Unreachable */
-    return NULL;
+    Py_UNREACHABLE();
 }
 
 static int
