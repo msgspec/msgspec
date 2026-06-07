@@ -1,21 +1,21 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg">
-      <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-light.svg">
+      <img src="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
     </picture>
   </a>
 </p>
 
 <div align="center">
 
-[![CI](https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/jcrist/msgspec/actions/workflows/ci.yml)
+[![CI](https://github.com/msgspec/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/msgspec/msgspec/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jcristharif.com/msgspec/)
-[![License](https://img.shields.io/github/license/jcrist/msgspec.svg)](https://github.com/jcrist/msgspec/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/msgspec/msgspec.svg)](https://github.com/msgspec/msgspec/blob/main/LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
-[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/jcrist/msgspec)
+[![Code Coverage](https://codecov.io/gh/msgspec/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/msgspec/msgspec)
 
 </div>
 
@@ -101,7 +101,7 @@ encoding/decoding a message with `msgspec` can be
 
 <p align="center">
   <a href="https://jcristharif.com/msgspec/benchmarks.html">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/bench-validation.svg">
+    <img src="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
 
@@ -111,4 +111,4 @@ See [the documentation](https://jcristharif.com/msgspec/) for more information.
 ## LICENSE
 
 New BSD. See the
-[License File](https://github.com/jcrist/msgspec/blob/main/LICENSE).
+[License File](https://github.com/msgspec/msgspec/blob/main/LICENSE).
