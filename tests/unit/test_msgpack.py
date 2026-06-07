@@ -1238,9 +1238,10 @@ class TestExt:
         with pytest.raises(AttributeError):
             x.code = 2
 
-    def test_pickleable(self):
+    @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+    def test_pickleable(self, protocol):
         x = msgspec.msgpack.Ext(1, b"two")
-        x2 = pickle.loads(pickle.dumps(x))
+        x2 = pickle.loads(pickle.dumps(x, protocol=protocol))
         assert x2.code == 1
         assert x2.data == b"two"
 
@@ -1296,17 +1297,15 @@ class TestExt:
             assert dec.decode(msgspec.msgpack.encode(1))
 
     @pytest.mark.parametrize("use_function", [True, False])
-    def test_decoder_ext_hook(self, use_function):
+    @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+    def test_decoder_ext_hook(self, use_function, protocol):
         obj = {"x": range(10)}
-        exp_buf = pickle.dumps(range(10))
 
         def enc_hook(x):
-            return msgspec.msgpack.Ext(5, pickle.dumps(x))
+            return msgspec.msgpack.Ext(5, pickle.dumps(x, protocol=protocol))
 
         def ext_hook(code, buf):
             assert isinstance(buf, memoryview)
-            assert bytes(buf) == exp_buf
-            assert len(buf) == len(exp_buf)
             assert code == 5
             return pickle.loads(buf)
 
