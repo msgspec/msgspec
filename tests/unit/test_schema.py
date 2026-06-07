@@ -9,15 +9,10 @@ from dataclasses import dataclass
 from typing import (
     Annotated,
     Any,
-    Dict,
-    FrozenSet,
     Generic,
-    List,
     Literal,
     NamedTuple,
     NewType,
-    Set,
-    Tuple,
     TypedDict,
     TypeVar,
     Union,
@@ -173,24 +168,24 @@ def test_newtype():
     }
 
 
-@pytest.mark.parametrize("typ", [list, tuple, List, Tuple])
+@pytest.mark.parametrize("typ", [list, tuple, list, tuple])
 def test_sequence_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array"}
 
 
-@pytest.mark.parametrize("cls", [list, tuple, List, Tuple])
+@pytest.mark.parametrize("cls", [list, tuple, list, tuple])
 def test_sequence_typed(cls):
-    args = (int, ...) if cls in (tuple, Tuple) else int
+    args = (int, ...) if cls in (tuple, tuple) else int
     typ = cls[args]
     assert msgspec.json.schema(typ) == {"type": "array", "items": {"type": "integer"}}
 
 
-@pytest.mark.parametrize("typ", [set, frozenset, Set, FrozenSet])
+@pytest.mark.parametrize("typ", [set, frozenset, set, frozenset])
 def test_set_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array", "uniqueItems": True}
 
 
-@pytest.mark.parametrize("cls", [set, frozenset, Set, FrozenSet])
+@pytest.mark.parametrize("cls", [set, frozenset, set, frozenset])
 def test_set_typed(cls):
     typ = cls[int]
     assert msgspec.json.schema(typ) == {
@@ -200,7 +195,7 @@ def test_set_typed(cls):
     }
 
 
-@pytest.mark.parametrize("cls", [tuple, Tuple])
+@pytest.mark.parametrize("cls", [tuple, tuple])
 def test_tuple(cls):
     typ = cls[int, float, str]
     assert msgspec.json.schema(typ) == {
@@ -216,7 +211,7 @@ def test_tuple(cls):
     }
 
 
-@pytest.mark.parametrize("cls", [tuple, Tuple])
+@pytest.mark.parametrize("cls", [tuple, tuple])
 def test_empty_tuple(cls):
     typ = cls[()]
     assert msgspec.json.schema(typ) == {
@@ -226,12 +221,12 @@ def test_empty_tuple(cls):
     }
 
 
-@pytest.mark.parametrize("typ", [dict, Dict])
+@pytest.mark.parametrize("typ", [dict, dict])
 def test_dict_any(typ):
     assert msgspec.json.schema(typ) == {"type": "object"}
 
 
-@pytest.mark.parametrize("cls", [dict, Dict])
+@pytest.mark.parametrize("cls", [dict, dict])
 def test_dict_typed(cls):
     typ = cls[str, int]
     assert msgspec.json.schema(typ) == {
@@ -303,9 +298,9 @@ def test_struct_object():
     class Polygon(msgspec.Struct):
         """An example docstring"""
 
-        vertices: List[Point]
-        name: Union[str, None] = None
-        metadata: Dict[str, str] = {}
+        vertices: list[Point]
+        name: str | None = None
+        metadata: dict[str, str] = {}
 
     assert msgspec.json.schema(Polygon) == {
         "$ref": "#/$defs/Polygon",
@@ -354,8 +349,8 @@ def test_struct_array_like(forbid_unknown_fields):
 
         a: int
         b: str
-        c: List[int] = []
-        d: Dict[str, int] = {}
+        c: list[int] = []
+        d: dict[str, int] = {}
 
     sol = {
         "$ref": "#/$defs/Example",
@@ -553,7 +548,7 @@ def test_generic_namedtuple():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -662,7 +657,7 @@ def test_generic_typeddict():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -716,9 +711,9 @@ def test_dataclass_or_attrs(module):
     class Polygon:
         """An example docstring"""
 
-        vertices: List[Point]
-        name: Union[str, None] = None
-        metadata: Dict[str, str] = factory_default
+        vertices: list[Point]
+        name: str | None = None
+        metadata: dict[str, str] = factory_default
 
     assert msgspec.json.schema(Polygon) == {
         "$ref": "#/$defs/Polygon",
@@ -766,7 +761,7 @@ def test_generic_dataclass_or_attrs(module):
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -808,10 +803,7 @@ def test_union(use_union_operator):
         y: int
 
     if use_union_operator:
-        try:
-            typ = int | str | Example
-        except TypeError:
-            pytest.skip("Union operator not supported")
+        typ = int | str | Example
     else:
         typ = Union[int, str, Example]
 
@@ -840,7 +832,7 @@ def test_struct_tagged_union():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D]) == {
+    assert msgspec.json.schema(Point | Point3D) == {
         "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
         "discriminator": {
             "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
@@ -870,6 +862,9 @@ def test_struct_tagged_union():
             },
         },
     }
+    assert msgspec.json.schema(Point | Point3D) == msgspec.json.schema(
+        Union[Point, Point3D]
+    )
 
 
 def test_struct_tagged_union_mixed_types():
@@ -880,7 +875,7 @@ def test_struct_tagged_union_mixed_types():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D, int, float]) == {
+    assert msgspec.json.schema(Point | Point3D | int | float) == {
         "anyOf": [
             {"type": "integer"},
             {"type": "number"},
@@ -926,7 +921,7 @@ def test_struct_array_union():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D]) == {
+    assert msgspec.json.schema(Point | Point3D) == {
         "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
         "$defs": {
             "Point": {
@@ -956,7 +951,7 @@ def test_struct_array_union():
 
 def test_struct_unset_fields():
     class Ex(msgspec.Struct):
-        x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+        x: int | msgspec.UnsetType = msgspec.UNSET
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -976,7 +971,7 @@ def test_generic_struct():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -1052,7 +1047,7 @@ def test_generic_struct_tagged_union():
             },
         },
     }
-    res = msgspec.json.schema(Union[Point[int], Point3D[int]])
+    res = msgspec.json.schema(Point[int] | Point3D[int])
     assert res == sol
 
 
@@ -1094,7 +1089,7 @@ def test_string_metadata(field, val, constraint):
 )
 def test_dict_key_metadata(field, val, constraint):
     typ = Annotated[str, Meta(**{field: val})]
-    assert msgspec.json.schema(Dict[typ, int]) == {
+    assert msgspec.json.schema(dict[typ, int]) == {
         "type": "object",
         "additionalProperties": {"type": "integer"},
         "propertyNames": {constraint: val},
@@ -1206,19 +1201,19 @@ def test_schema_components_collects_subtypes():
         A = 1
 
     class ExStruct(msgspec.Struct):
-        b: Union[Set[FrozenSet[ExEnum]], int]
+        b: set[frozenset[ExEnum]] | int
 
     class ExDict(TypedDict):
-        c: Tuple[ExStruct, ...]
+        c: tuple[ExStruct, ...]
 
     class ExTuple(NamedTuple):
-        d: List[ExDict]
+        d: list[ExDict]
 
     @dataclass
     class ExDataclass:
-        e: List[ExTuple]
+        e: list[ExTuple]
 
-    (s,), components = msgspec.json.schema_components([Dict[str, ExDataclass]])
+    (s,), components = msgspec.json.schema_components([dict[str, ExDataclass]])
 
     r1 = {"$ref": "#/$defs/ExEnum"}
     r2 = {"$ref": "#/$defs/ExStruct"}

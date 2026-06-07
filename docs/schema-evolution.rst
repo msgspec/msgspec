@@ -26,13 +26,11 @@ For example, suppose we had a `msgspec.Struct` type representing a user:
 
     >>> import msgspec
 
-    >>> from typing import Set, Optional
-
     >>> class User(msgspec.Struct):
     ...     """A struct representing a user"""
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
 
 Then suppose we wanted to add a new ``phone`` field to this struct in a way
 that wouldn't break clients/servers still using the prior definition. To
@@ -44,9 +42,9 @@ accomplish this, we add ``phone`` as an _optional_ field (defaulting to
     >>> class User2(msgspec.Struct):
     ...     """An updated version of the User struct, now with a phone number"""
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
-    ...     phone : Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
+    ...     phone : str | None = None
 
 Messages serialized using both the old and new schemas can still be exchanged
 without error. If an old message is deserialized using the new schema, the

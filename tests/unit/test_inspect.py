@@ -11,16 +11,11 @@ from dataclasses import dataclass, field
 from typing import (
     Annotated,
     Any,
-    Dict,
     Final,
-    FrozenSet,
     Generic,
-    List,
     Literal,
     NamedTuple,
     NewType,
-    Set,
-    Tuple,
     TypedDict,
     TypeVar,
     Union,
@@ -76,7 +71,7 @@ def test_typevar():
 
 
 def test_bound_typevar():
-    T = TypeVar("T", bound=Union[int, str])
+    T = TypeVar("T", bound=int | str)
     assert mi.type_info(T) == mi.UnionType((mi.IntType(), mi.StrType()))
 
 
@@ -199,9 +194,9 @@ def test_newtype():
 @pytest.mark.parametrize(
     "src, typ",
     [
-        ("type Ex = str | None", Union[str, None]),
-        ("type Ex[T] = tuple[T, int]", Tuple[Any, int]),
-        ("type Temp[T] = tuple[T, int]; Ex = Temp[str]", Tuple[str, int]),
+        ("type Ex = str | None", str | None),
+        ("type Ex[T] = tuple[T, int]", tuple[Any, int]),
+        ("type Temp[T] = tuple[T, int]; Ex = Temp[str]", tuple[str, int]),
     ],
 )
 def test_typealias(src, typ):
@@ -239,10 +234,10 @@ def test_custom():
         (tuple, mi.VarTupleType),
         (set, mi.SetType),
         (frozenset, mi.FrozenSetType),
-        (List, mi.ListType),
-        (Tuple, mi.VarTupleType),
-        (Set, mi.SetType),
-        (FrozenSet, mi.FrozenSetType),
+        (list, mi.ListType),
+        (tuple, mi.VarTupleType),
+        (set, mi.SetType),
+        (frozenset, mi.FrozenSetType),
     ],
 )
 @pytest.mark.parametrize("has_item_type", [False, True])
@@ -263,14 +258,14 @@ def test_sequence(kw, typ, info_type, has_item_type):
     assert mi.type_info(typ) == sol
 
 
-@pytest.mark.parametrize("typ", [Tuple, tuple])
+@pytest.mark.parametrize("typ", [tuple, tuple])
 def test_tuple(typ):
     assert mi.type_info(typ[()]) == mi.TupleType(())
     assert mi.type_info(typ[int]) == mi.TupleType((mi.IntType(),))
     assert mi.type_info(typ[int, float]) == mi.TupleType((mi.IntType(), mi.FloatType()))
 
 
-@pytest.mark.parametrize("typ", [Dict, dict])
+@pytest.mark.parametrize("typ", [dict, dict])
 @pytest.mark.parametrize("kw", [{}, dict(min_length=0), dict(max_length=3)])
 @pytest.mark.parametrize("has_args", [False, True])
 def test_dict(typ, kw, has_args):
@@ -328,10 +323,7 @@ def test_abstract_mapping(typ):
 @pytest.mark.parametrize("use_union_operator", [False, True])
 def test_union(use_union_operator):
     if use_union_operator:
-        try:
-            typ = int | str
-        except TypeError:
-            pytest.skip("Union operator not supported")
+        typ = int | str
     else:
         typ = Union[int, str]
 
@@ -340,6 +332,7 @@ def test_union(use_union_operator):
 
     assert not sol.includes_none
     assert mi.type_info(Union[int, None]).includes_none
+    assert mi.type_info(int | None).includes_none
 
 
 def test_int_literal():
@@ -449,7 +442,7 @@ def test_struct_encode_name():
 def test_generic_struct():
     class Example(msgspec.Struct, Generic[T]):
         a: T
-        b: List[T]
+        b: list[T]
 
     sol = mi.StructType(
         Example,
@@ -506,7 +499,7 @@ def test_generic_namedtuple():
 
     class Example(NamedTuple, Generic[T]):
         a: T
-        b: List[T]
+        b: list[T]
 
     sol = mi.NamedTupleType(
         Example,
@@ -582,7 +575,7 @@ def test_generic_typeddict():
 
     class Example(TypedDict, Generic[T]):
         a: T
-        b: List[T]
+        b: list[T]
 
     sol = mi.TypedDictType(
         Example,
@@ -649,7 +642,7 @@ def test_generic_dataclass_or_attrs(module):
     @decorator
     class Example(Generic[T]):
         a: T
-        b: List[T]
+        b: list[T]
 
     sol = mi.DataclassType(
         Example,
@@ -675,20 +668,20 @@ def test_unset_fields(kind):
     if kind == "struct":
 
         class Ex(msgspec.Struct):
-            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+            x: int | msgspec.UnsetType = msgspec.UNSET
 
     elif kind == "dataclass":
 
         @dataclass
         class Ex:
-            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+            x: int | msgspec.UnsetType = msgspec.UNSET
 
     elif kind == "attrs":
         attrs = pytest.importorskip("attrs")
 
         @attrs.define
         class Ex:
-            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+            x: int | msgspec.UnsetType = msgspec.UNSET
 
     res = mi.type_info(Ex)
     assert res.fields == (mi.Field("x", "x", mi.IntType(), required=False),)
@@ -783,7 +776,7 @@ def test_multi_type_info():
 
     assert mi.multi_type_info([]) == ()
 
-    res = mi.multi_type_info([Example, List[Example]])
+    res = mi.multi_type_info([Example, list[Example]])
     assert res == (ex_type, mi.ListType(ex_type))
     assert res[0] is res[1].item_type
 

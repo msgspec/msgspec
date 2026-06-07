@@ -5,7 +5,7 @@ import typing
 from typing import _AnnotatedAlias  # noqa: F401
 
 try:
-    from typing_extensions import get_type_hints as _get_type_hints
+    from typing import get_type_hints as _get_type_hints
 except Exception:
     from typing import get_type_hints as _get_type_hints
 

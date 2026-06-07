@@ -5126,7 +5126,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             PyTuple_GET_SIZE(PyTuple_GET_ITEM(args, 0)) == 0
         ) {
             /* XXX: this case handles a weird compatibility issue:
-             * - Tuple[()].__args__ == ((),)
+             * - typing.Tuple[()].__args__ == ((),)
              * - tuple[()].__args__ == ()
              */
             out = typenode_collect_array(
