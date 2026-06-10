@@ -14,6 +14,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    final,
     overload,
 )
 
@@ -68,12 +69,14 @@ class StructMeta(type):
 
 T = TypeVar("T")
 
+@final
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
     def __bool__(self) -> Literal[False]: ...
 
 UNSET = UnsetType.UNSET
 
+@final
 class _NoDefault(enum.Enum):
     NODEFAULT = "NODEFAULT"
 
@@ -152,6 +155,7 @@ def defstruct(
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
 # places where an object that implements the buffer protocol is valid
+@final
 class Raw(bytes):
     @overload
     def __new__(cls) -> "Raw": ...
@@ -159,6 +163,7 @@ class Raw(bytes):
     def __new__(cls, msg: Union[Buffer, str]) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
+@final
 class Meta:
     def __init__(
         self,

@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar, Union, final
 
 from . import NODEFAULT, Struct
 
@@ -8,7 +8,7 @@ def replace(struct: S, /, **changes: Any) -> S: ...
 def asdict(struct: Struct) -> dict[str, Any]: ...
 def astuple(struct: Struct) -> tuple[Any, ...]: ...
 def force_setattr(struct: Struct, name: str, value: Any) -> None: ...
-
+@final
 class StructConfig:
     frozen: bool
     eq: bool

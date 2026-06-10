@@ -15,7 +15,7 @@ def proto(request):
 
 
 def test_decode_naive_datetime(proto):
-    """See https://github.com/jcrist/msgspec/issues/408"""
+    """See https://github.com/msgspec/msgspec/issues/408"""
     dt = datetime.datetime(2001, 2, 3, 4, 5, 6, 7)
     msg = proto.encode(dt)
 
@@ -27,7 +27,7 @@ def test_decode_naive_datetime(proto):
 
 
 def test_decode_naive_time(proto):
-    """See https://github.com/jcrist/msgspec/issues/408"""
+    """See https://github.com/msgspec/msgspec/issues/408"""
     dt = datetime.time(12, 20)
     msg = proto.encode(dt)
 

@@ -47,9 +47,10 @@ def as_tuple(x):
 
 
 @pytest.mark.parametrize("obj, str_obj", [(UNSET, "UNSET"), (NODEFAULT, "NODEFAULT")])
-def test_singletons(obj, str_obj):
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_singletons(obj, str_obj, protocol):
     assert str(obj) == str_obj
-    assert pickle.loads(pickle.dumps(obj)) is obj
+    assert pickle.loads(pickle.dumps(obj, protocol=protocol)) is obj
 
     cls = type(obj)
     assert cls() is obj
@@ -1277,17 +1278,18 @@ class TestStructDealloc:
 
 
 @pytest.mark.parametrize("kw_only", [False, True])
-def test_struct_pickle(kw_only):
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_struct_pickle(kw_only, protocol):
     cls = PointKWOnly if kw_only else Point
     a = cls(x=1, y=2)
     b = cls(x=3, y=4)
 
-    assert pickle.loads(pickle.dumps(a)) == a
-    assert pickle.loads(pickle.dumps(b)) == b
+    assert pickle.loads(pickle.dumps(a, protocol=protocol)) == a
+    assert pickle.loads(pickle.dumps(b, protocol=protocol)) == b
 
     del a.x
     with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
-        pickle.dumps(a)
+        pickle.dumps(a, protocol=protocol)
 
 
 def test_struct_handles_missing_attributes():
