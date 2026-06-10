@@ -1,5 +1,6 @@
 name: CI capability policy
 
+
 on:
   pull_request_target:
     branches:
