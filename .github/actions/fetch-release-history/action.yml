@@ -4,6 +4,10 @@ inputs:
   github-token:
     description: The GitHub token to use for the API
     required: true
+  ref:
+    description: The ref to fetch when deepening the checkout
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -12,10 +16,11 @@ runs:
     env:
       GH_TOKEN: ${{ inputs.github-token }}
       REPOSITORY: ${{ github.repository }}
-      SHA: ${{ github.sha }}
-      REF: ${{ github.ref }}
+      REF: ${{ inputs.ref || github.ref }}
     shell: bash
     run: |-
+      SHA="$(git rev-parse HEAD)"
+
       latest_tag=$(
         gh api "repos/${REPOSITORY}/releases/latest" \
           --jq '.tag_name'

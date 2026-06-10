@@ -50,7 +50,7 @@ jobs:
             ignore:
             # Trusted policy reads the proposed merge as data without executing it.
             - ci-capability-policy.yml
-            # workflow_run is intentionally retained for isolated docs deployment.
+            # Trusted orchestration isolates the untrusted docs build from deployment.
             - docs-deploy.yml
         EOF
 

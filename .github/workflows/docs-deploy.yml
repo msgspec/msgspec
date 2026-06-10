@@ -1,96 +1,42 @@
 name: docs deploy
 
 on:
-  workflow_run:
-    workflows:
-    - docs
+  push:
+    branches:
+    - main
+  pull_request_target:
+    branches:
+    - main
     types:
-    - completed
+    - opened
+    - reopened
+    - synchronize
 
 permissions: {}
 
+concurrency:
+  group: docs-deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  identify:
-    name: Identify deployment
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      (
-        (
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.head_branch == 'main'
-        ) ||
-        github.event.workflow_run.event == 'pull_request'
-      )
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  docs:
+    name: Build and check docs
+    uses: ./.github/workflows/docs.yml
     permissions:
       actions: read
-      pull-requests: read
-    outputs:
-      branch: "${{ steps.deployment.outputs.branch }}"
-      target: "${{ steps.deployment.outputs.target }}"
-    steps:
-    - name: Identify deployment
-      id: deployment
-      env:
-        EVENT: "${{ github.event.workflow_run.event }}"
-        GH_TOKEN: "${{ github.token }}"
-        HEAD_BRANCH: "${{ github.event.workflow_run.head_branch }}"
-        HEAD_REPOSITORY: "${{ github.event.workflow_run.head_repository.full_name }}"
-        HEAD_SHA: "${{ github.event.workflow_run.head_sha }}"
-        WORKFLOW_ID: "${{ github.event.workflow_run.workflow_id }}"
-      run: |
-        set -euo pipefail
-
-        expected_workflow_id="$(
-          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/docs.yml" --jq .id
-        )"
-        if [ "${WORKFLOW_ID}" != "${expected_workflow_id}" ]; then
-          echo "Unexpected upstream workflow ID: ${WORKFLOW_ID}" >&2
-          exit 1
-        fi
-
-        if [ "${EVENT}" = "push" ]; then
-          target="production"
-          branch="cf-pages"
-        else
-          head_owner="${HEAD_REPOSITORY%%/*}"
-          pulls="$(
-            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
-              -f state=open \
-              -f head="${head_owner}:${HEAD_BRANCH}" \
-              -f base=main
-          )"
-          matches="$(
-            jq --arg sha "${HEAD_SHA}" \
-              '[.[] | select(.head.sha == $sha and .base.ref == "main")]' \
-              <<< "${pulls}"
-          )"
-
-          if [ "$(jq 'length' <<< "${matches}")" -ne 1 ]; then
-            echo "Unable to identify one open pull request for ${HEAD_REPOSITORY}:${HEAD_BRANCH} at ${HEAD_SHA}" >&2
-            exit 1
-          fi
-
-          target="preview"
-          branch="pr-$(jq -r '.[0].number' <<< "${matches}")"
-        fi
-
-        echo "target=${target}" >> "${GITHUB_OUTPUT}"
-        echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+      contents: read
+    with:
+      cache-namespace: "${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || 'main' }}"
+      ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+      sha: "${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
   deploy:
-    name: Deploy ${{ needs.identify.outputs.target }}
-    needs: identify
-    if: needs.identify.result == 'success'
+    name: Deploy ${{ github.event_name == 'pull_request_target' && 'preview' || 'production' }}
+    needs: docs
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    concurrency:
-      group: docs-deploy-${{ needs.identify.outputs.branch }}
-      cancel-in-progress: true
     environment: cf-pages
     permissions:
-      actions: read
       contents: read
       deployments: write
     steps:
@@ -99,9 +45,6 @@ jobs:
       with:
         name: docs-site
         path: site
-        github-token: "${{ github.token }}"
-        repository: "${{ github.repository }}"
-        run-id: "${{ github.event.workflow_run.id }}"
 
     - name: Check docs entrypoint
       run: test -f site/index.html
@@ -127,19 +70,19 @@ jobs:
         command: >-
           pages deploy site
           --project-name=msgspec
-          --branch=${{ needs.identify.outputs.branch }}
-          --commit-hash=${{ github.event.workflow_run.head_sha }}
+          --branch=${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || 'cf-pages' }}
+          --commit-hash=${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
         gitHubToken: "${{ github.token }}"
         wranglerVersion: 4.98.0
 
     - name: Summarize production deployment
-      if: needs.identify.outputs.target == 'production'
+      if: github.event_name == 'push'
       env:
         DEPLOYMENT_URL: "${{ steps.deploy.outputs.deployment-url }}"
       run: echo "Production docs deployed to ${DEPLOYMENT_URL}" >> "${GITHUB_STEP_SUMMARY}"
 
     - name: Summarize preview deployment
-      if: needs.identify.outputs.target == 'preview'
+      if: github.event_name == 'pull_request_target'
       env:
         PREVIEW_URL: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
       run: echo "Pull request docs deployed to ${PREVIEW_URL}" >> "${GITHUB_STEP_SUMMARY}"
