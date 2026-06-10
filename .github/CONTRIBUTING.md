@@ -19,7 +19,7 @@ Before getting started, you will need to already have installed:
 Once you have those installed, you're ready to clone the repository:
 
 ```
-git clone https://github.com/jcrist/msgspec.git
+git clone https://github.com/msgspec/msgspec.git
 cd msgspec/
 ```
 
@@ -131,7 +131,7 @@ just doc-serve
 
 ## Benchmarking
 
-You can run all [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) with the `bench` recipe, for example:
+You can run all [benchmarks](https://msgspec.dev/benchmarks.html) with the `bench` recipe, for example:
 
 ```
 just bench encodings
@@ -225,4 +225,4 @@ and fix any issues that come up.
 
 `msgspec` has a code of conduct that must be followed by all contributors to
 the project. You may read the code of conduct
-[here](https://github.com/jcrist/msgspec/blob/main/.github/CODE_OF_CONDUCT.md).
+[here](https://github.com/msgspec/msgspec/blob/main/.github/CODE_OF_CONDUCT.md).

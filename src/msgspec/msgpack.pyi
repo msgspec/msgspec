@@ -7,6 +7,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    final,
     overload,
 )
 
@@ -18,6 +19,7 @@ enc_hook_sig = Optional[Callable[[Any], Any]]
 ext_hook_sig = Optional[Callable[[int, memoryview], Any]]
 dec_hook_sig = Optional[Callable[[type, Any], Any]]
 
+@final
 class Ext:
     code: int
     data: Union[bytes, bytearray, memoryview]
@@ -25,6 +27,7 @@ class Ext:
         self, code: int, data: Union[bytes, bytearray, memoryview]
     ) -> None: ...
 
+@final
 class Decoder(Generic[T]):
     type: Type[T]
     strict: bool
@@ -58,6 +61,7 @@ class Decoder(Generic[T]):
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> T: ...
 
+@final
 class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
