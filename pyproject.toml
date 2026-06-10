@@ -50,9 +50,9 @@ yaml = [
 ]
 
 [project.urls]
-Homepage = "https://jcristharif.com/msgspec/"
-"Issue Tracker" = "https://github.com/jcrist/msgspec/issues"
-Source = "https://github.com/jcrist/msgspec"
+Homepage = "https://msgspec.dev"
+"Issue Tracker" = "https://github.com/msgspec/msgspec/issues"
+Source = "https://github.com/msgspec/msgspec"
 
 [dependency-groups]
 bench = [
