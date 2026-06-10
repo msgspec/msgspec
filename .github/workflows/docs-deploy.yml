@@ -1,0 +1,145 @@
+name: docs deploy
+
+on:
+  workflow_run:
+    workflows:
+    - docs
+    types:
+    - completed
+
+permissions: {}
+
+jobs:
+  identify:
+    name: Identify deployment
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        (
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main'
+        ) ||
+        github.event.workflow_run.event == 'pull_request'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      pull-requests: read
+    outputs:
+      branch: "${{ steps.deployment.outputs.branch }}"
+      target: "${{ steps.deployment.outputs.target }}"
+    steps:
+    - name: Identify deployment
+      id: deployment
+      env:
+        EVENT: "${{ github.event.workflow_run.event }}"
+        GH_TOKEN: "${{ github.token }}"
+        HEAD_BRANCH: "${{ github.event.workflow_run.head_branch }}"
+        HEAD_REPOSITORY: "${{ github.event.workflow_run.head_repository.full_name }}"
+        HEAD_SHA: "${{ github.event.workflow_run.head_sha }}"
+        WORKFLOW_ID: "${{ github.event.workflow_run.workflow_id }}"
+      run: |
+        set -euo pipefail
+
+        expected_workflow_id="$(
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/docs.yml" --jq .id
+        )"
+        if [ "${WORKFLOW_ID}" != "${expected_workflow_id}" ]; then
+          echo "Unexpected upstream workflow ID: ${WORKFLOW_ID}" >&2
+          exit 1
+        fi
+
+        if [ "${EVENT}" = "push" ]; then
+          target="production"
+          branch="cf-pages"
+        else
+          head_owner="${HEAD_REPOSITORY%%/*}"
+          pulls="$(
+            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f state=open \
+              -f head="${head_owner}:${HEAD_BRANCH}" \
+              -f base=main
+          )"
+          matches="$(
+            jq --arg sha "${HEAD_SHA}" \
+              '[.[] | select(.head.sha == $sha and .base.ref == "main")]' \
+              <<< "${pulls}"
+          )"
+
+          if [ "$(jq 'length' <<< "${matches}")" -ne 1 ]; then
+            echo "Unable to identify one open pull request for ${HEAD_REPOSITORY}:${HEAD_BRANCH} at ${HEAD_SHA}" >&2
+            exit 1
+          fi
+
+          target="preview"
+          branch="pr-$(jq -r '.[0].number' <<< "${matches}")"
+        fi
+
+        echo "target=${target}" >> "${GITHUB_OUTPUT}"
+        echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+
+  deploy:
+    name: Deploy ${{ needs.identify.outputs.target }}
+    needs: identify
+    if: needs.identify.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: docs-deploy-${{ needs.identify.outputs.branch }}
+      cancel-in-progress: true
+    environment: cf-pages
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+    steps:
+    - name: Download docs
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
+      with:
+        name: docs-site
+        path: site
+        github-token: "${{ github.token }}"
+        repository: "${{ github.repository }}"
+        run-id: "${{ github.event.workflow_run.id }}"
+
+    - name: Check docs entrypoint
+      run: test -f site/index.html
+
+    # https://developers.cloudflare.com/pages/get-started/direct-upload/#functions
+    - name: Reject Pages Functions
+      run: |
+        set -euo pipefail
+
+        for path in site/_worker.js functions; do
+          if [ -e "${path}" ] || [ -L "${path}" ]; then
+            echo "::error::Pages Functions entrypoint is not allowed: ${path}"
+            exit 1
+          fi
+        done
+
+    - name: Deploy
+      id: deploy
+      uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0  # v4.0.0
+      with:
+        accountId: "${{ secrets.CF_ACCOUNT_ID }}"
+        apiToken: "${{ secrets.CF_PAGES_TOKEN }}"
+        command: >-
+          pages deploy site
+          --project-name=msgspec
+          --branch=${{ needs.identify.outputs.branch }}
+          --commit-hash=${{ github.event.workflow_run.head_sha }}
+        gitHubToken: "${{ github.token }}"
+        wranglerVersion: 4.98.0
+
+    - name: Summarize production deployment
+      if: needs.identify.outputs.target == 'production'
+      env:
+        DEPLOYMENT_URL: "${{ steps.deploy.outputs.deployment-url }}"
+      run: echo "Production docs deployed to ${DEPLOYMENT_URL}" >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Summarize preview deployment
+      if: needs.identify.outputs.target == 'preview'
+      env:
+        PREVIEW_URL: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
+      run: echo "Pull request docs deployed to ${PREVIEW_URL}" >> "${GITHUB_STEP_SUMMARY}"

@@ -16,23 +16,26 @@ runs:
     id: latest-release
     env:
       GH_TOKEN: ${{ inputs.github-token }}
+      REPOSITORY: ${{ github.repository }}
     shell: bash
     run: |-
       latest_release=$(
-        gh api "repos/${{ github.repository }}/releases/latest" \
+        gh api "repos/${REPOSITORY}/releases/latest" \
           --jq '.tag_name'
       )
       echo "Latest release: $latest_release"
-      echo "tag=$latest_release" >> $GITHUB_OUTPUT
+      echo "tag=$latest_release" >> "${GITHUB_OUTPUT}"
 
   - name: Fetch latest release on PyPI
     id: python-version
+    env:
+      LATEST_RELEASE: ${{ steps.latest-release.outputs.tag }}
+      RELEASE_EVENT: ${{ github.event_name == 'release' && github.event.action == 'published' }}
     shell: bash
     run: |-
       set -euo pipefail
 
-      release_event='${{ github.event_name == 'release' && github.event.action == 'published' }}'
-      if [[ "$release_event" == 'true' ]]; then
+      if [[ "${RELEASE_EVENT}" == 'true' ]]; then
         echo "Release workflow detected; selecting the latest stable version already available on PyPI."
         version=$(
           curl -fsS "https://pypi.org/pypi/msgspec/json" \
@@ -61,7 +64,7 @@ runs:
 
         echo "Selected PyPI release: $version"
       else
-        version='${{ steps.latest-release.outputs.tag }}'
+        version="${LATEST_RELEASE}"
         echo "Selected GitHub release: $version"
       fi
 
@@ -83,4 +86,4 @@ runs:
       )
 
       echo "Python version: $python_version"
-      echo "version=$python_version" >> $GITHUB_OUTPUT
+      echo "version=$python_version" >> "${GITHUB_OUTPUT}"
