@@ -624,6 +624,7 @@ static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbyt
         self->capacity = required * 1.5;
         char *new_buf = PyMem_Realloc(self->buffer, self->capacity);
         if (new_buf == NULL) {
+            PyErr_NoMemory();
             PyMem_Free(self->buffer);
             self->buffer = NULL;
             return false;
@@ -6384,7 +6385,10 @@ structmeta_construct_offsets(
     }
 
     info->offsets = PyMem_New(Py_ssize_t, PyTuple_GET_SIZE(info->fields));
-    if (info->offsets == NULL) return -1;
+    if (info->offsets == NULL) {
+        PyErr_NoMemory();
+        return -1;
+    }
 
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
         PyObject *field = PyTuple_GET_ITEM(info->fields, i);
@@ -10242,7 +10246,9 @@ ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *pat
     if (size > 4300) goto out_of_range;
     /* CPython int parsing routine requires NULL terminated buffer */
     char *temp = (char *)PyMem_Malloc(size + 1);
-    if (temp == NULL) return NULL;
+    if (temp == NULL) {
+        return PyErr_NoMemory();
+    }
     memcpy(temp, buf, size);
     temp[size] = '\0';
     PyObject *out = PyLong_FromString(temp, NULL, 10);

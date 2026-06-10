@@ -99,7 +99,7 @@ Used By
 -------
 
 ``msgspec`` is used by many organizations and `open source projects
-<https://github.com/jcrist/msgspec/network/dependents>`__, here we highlight a
+<https://github.com/msgspec/msgspec/network/dependents>`__, here we highlight a
 few:
 
 .. grid:: 2 2 4 4

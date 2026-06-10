@@ -9,6 +9,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    final,
     overload,
 )
 
@@ -21,6 +22,7 @@ dec_hook_sig = Optional[Callable[[type, Any], Any]]
 float_hook_sig = Optional[Callable[[str], Any]]
 schema_hook_sig = Optional[Callable[[type], dict[str, Any]]]
 
+@final
 class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
@@ -41,6 +43,7 @@ class Encoder:
         self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
     ) -> None: ...
 
+@final
 class Decoder(Generic[T]):
     type: Type[T]
     strict: bool

@@ -16,7 +16,7 @@ if sys.platform == "win32" and sys.maxsize == (2**31 - 1):
     `msgspec` currently doesn't support 32-bit Python windows builds. If
     this is important for your use case, please comment on this issue:
 
-    https://github.com/jcrist/msgspec/issues/845
+    https://github.com/msgspec/msgspec/issues/845
     ====================================================================
     """
     print(textwrap.dedent(error))

@@ -1,0 +1,5 @@
+rules:
+  dangerous-triggers:
+    ignore:
+    # The trusted default-branch policy reads the proposed merge as data.
+    - ci-capability-policy.yml
