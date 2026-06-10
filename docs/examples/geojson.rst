@@ -21,7 +21,7 @@ types, and :ref:`struct-tagged-unions` to differentiate between them. See the
 relevant docs for more information.
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/examples/geojson>`__.
+<https://github.com/msgspec/msgspec/tree/main/examples/geojson>`__.
 
 .. literalinclude:: ../../examples/geojson/msgspec_geojson.py
     :language: python
@@ -71,6 +71,6 @@ GeoJSON.  Compared to geojson_ (another validating geojson library for python),
 loading the data using ``msgspec`` was **15.3x faster**.
 
 .. _specification: https://datatracker.ietf.org/doc/html/rfc7946
-.. _example GeoJSON: https://github.com/jcrist/msgspec/blob/main/examples/geojson/canada.json
+.. _example GeoJSON: https://github.com/msgspec/msgspec/blob/main/examples/geojson/canada.json
 .. _orjson: https://github.com/ijl/orjson
 .. _geojson: https://github.com/jazzband/geojson
