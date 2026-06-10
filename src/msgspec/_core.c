@@ -6386,8 +6386,8 @@ structmeta_construct_offsets(
 
     info->offsets = PyMem_New(Py_ssize_t, PyTuple_GET_SIZE(info->fields));
     if (info->offsets == NULL) {
-      PyErr_NoMemory();
-      return -1;
+        PyErr_NoMemory();
+        return -1;
     }
 
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
