@@ -41,6 +41,7 @@ htmlcov/
 
 # Docs build
 site/
+/.wrangler/
 
 # Docs link check cache
 /.lycheecache

@@ -1,7 +1,7 @@
 {
   "name": "msgspec",
   "build": {
-    "cacheFrom": "ghcr.io/jcrist/msgspec",
+    "cacheFrom": "ghcr.io/msgspec/msgspec",
     "dockerfile": "Dockerfile"
   },
   "customizations": {

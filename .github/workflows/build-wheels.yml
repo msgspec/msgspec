@@ -15,6 +15,9 @@ jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
     runs-on: "${{ matrix.os }}"
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -37,30 +40,49 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+      with:
+        persist-credentials: false
 
     - name: Download source distribution
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6
       with:
         name: artifact-sdist
         path: dist
 
-    # TODO: Remove this once the action supports specifying extras, see:
-    # https://github.com/pypa/cibuildwheel/pull/2630
     - name: Install uv
-      if: runner.os != 'Linux'
-      uses: astral-sh/setup-uv@v7
-
-    - name: Build & Test Wheels
-      uses: pypa/cibuildwheel@v3.2.1
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
       with:
-        config-file: .cibuildwheel.toml
-        package-dir: dist/${{ inputs.sdist-name }}
+        enable-cache: false
+
+    # The upstream composite action calls actions/setup-python@v6, which is
+    # incompatible with the repository's full-SHA pinning requirement.
+    - name: Build & Test Wheels
+      if: runner.os != 'Windows'
       env:
         CIBW_ARCHS: "${{ matrix.archs }}"
+        PACKAGE_DIR: "dist/${{ inputs.sdist-name }}"
+      run: >-
+        uvx --from cibuildwheel==3.2.1
+        cibuildwheel
+        --config-file .cibuildwheel.toml
+        --output-dir wheelhouse
+        "${PACKAGE_DIR}"
+
+    - name: Build & Test Wheels
+      if: runner.os == 'Windows'
+      env:
+        CIBW_ARCHS: "${{ matrix.archs }}"
+        PACKAGE_DIR: "dist/${{ inputs.sdist-name }}"
+      run: >-
+        uvx --from cibuildwheel==3.2.1
+        cibuildwheel
+        --config-file .cibuildwheel.toml
+        --output-dir wheelhouse
+        "$env:PACKAGE_DIR"
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
       with:
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
         path: wheelhouse/*.whl
