@@ -72,7 +72,7 @@ def test_raw_copy():
 
 
 def test_raw_copy_doesnt_leak():
-    """See https://github.com/jcrist/msgspec/pull/709"""
+    """See https://github.com/msgspec/msgspec/pull/709"""
     script = textwrap.dedent(
         """
         import msgspec

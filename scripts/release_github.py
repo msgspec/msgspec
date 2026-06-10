@@ -27,7 +27,7 @@ def main():
         }
     )
 
-    url = f"https://github.com/jcrist/msgspec/releases/new?{params}"
+    url = f"https://github.com/msgspec/msgspec/releases/new?{params}"
     webbrowser.open_new_tab(url)
 
 
