@@ -35,10 +35,11 @@ jobs:
     needs: docs
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: cf-pages
+    environment:
+      name: cf-pages
+      url: "${{ github.event_name == 'pull_request_target' && steps.deploy.outputs.pages-deployment-alias-url || 'https://msgspec.dev' }}"
     permissions:
       contents: read
-      deployments: write
     steps:
     - name: Download docs
       uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
@@ -72,7 +73,6 @@ jobs:
           --project-name=msgspec
           --branch=${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || 'cf-pages' }}
           --commit-hash=${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
-        gitHubToken: "${{ github.token }}"
         wranglerVersion: 4.98.0
 
     - name: Summarize production deployment
