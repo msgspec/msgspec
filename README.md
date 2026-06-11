@@ -17,6 +17,7 @@
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
 [![Code Coverage](https://codecov.io/gh/msgspec/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/msgspec/msgspec)
 
+
 </div>
 
 `msgspec` is a *fast* serialization and validation library, with builtin
