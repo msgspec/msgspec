@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import enum
+import sys
 import typing
 import uuid
 from base64 import b64encode
@@ -29,6 +30,13 @@ import msgspec
 from msgspec import Meta
 
 from .utils import temp_module
+
+try:
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from _future_builtins_ import frozendict
+except ImportError:
+    pass
 
 T = TypeVar("T")
 
@@ -237,6 +245,20 @@ def test_dict_typed(cls):
     assert msgspec.json.schema(typ) == {
         "type": "object",
         "additionalProperties": {"type": "integer"},
+    }
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+def test_frozendict_any():
+    assert msgspec.json.schema(frozendict) == {"type": "object"}
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+def test_frozendict_typed():
+    typ = frozendict[str, bool]
+    assert msgspec.json.schema(typ) == {
+        "type": "object",
+        "additionalProperties": {"type": "boolean"},
     }
 
 

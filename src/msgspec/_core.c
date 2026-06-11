@@ -21,6 +21,7 @@
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
+#define PY315_PLUS (PY_VERSION_HEX >= 0x030f0000)
 
 /* In Python 3.14+, tuples cache their hash value in ob_hash. When a tuple is
  * allocated via tp_alloc (which zero-initializes memory), ob_hash is 0 — a
@@ -2824,6 +2825,9 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
 #define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
 #define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
+// Despite the fact that `frozendict` was added in 3.15,
+// this type is always defined for order consistency:
+#define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2869,7 +2873,7 @@ AssocList_Sort(AssocList* list) {
  * O | TYPEDDICT | DATACLASS |
  * O | NAMEDTUPLE |
  * O | STR_REGEX |
- * T | DICT [key, value] |
+ * T | DICT | FROZENDICT [key, value] |
  * T | LIST | SET | FROZENSET | VARTUPLE |
  * I | INT_MIN |
  * I | INT_MAX |
@@ -2898,7 +2902,7 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_03 (MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS)
 #define SLOT_04 MS_TYPE_NAMEDTUPLE
 #define SLOT_05 MS_CONSTR_STR_REGEX
-#define SLOT_06 MS_TYPE_DICT
+#define SLOT_06 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
 #define SLOT_07 (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)
 #define SLOT_08 MS_CONSTR_INT_MIN
 #define SLOT_09 MS_CONSTR_INT_MAX
@@ -3390,7 +3394,7 @@ TypeNode_get_traverse_ranges(
         /* Number of typenode details */
         n_type = ms_popcount(
             type->types & (
-                MS_TYPE_DICT |
+                MS_TYPE_DICT | MS_TYPE_FROZENDICT |
                 MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE
             )
         );
@@ -3493,7 +3497,8 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & (
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS | MS_TYPE_DICT
+            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
+            MS_TYPE_DICT | MS_TYPE_FROZENDICT
         )
     ) {
         if (!strbuilder_extend_literal(&builder, "object")) return NULL;
@@ -3868,7 +3873,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
             MS_TYPE_NAMEDTUPLE |
             MS_CONSTR_STR_REGEX |
-            MS_TYPE_DICT |
+            MS_TYPE_DICT | MS_TYPE_FROZENDICT |
             MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE |
             MS_CONSTR_INT_MIN |
             MS_CONSTR_INT_MAX |
@@ -4011,7 +4016,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         Py_INCREF(state->c_str_regex);
         out->details[e_ind++].pointer = state->c_str_regex;
     }
-    if (state->dict_key_obj != NULL) {
+    if (state->dict_key_obj != NULL && state->dict_val_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
         if (temp == NULL) goto error;
         out->details[e_ind++].pointer = temp;
@@ -4160,7 +4165,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS
         )
     );
-    if (state->types & MS_TYPE_DICT) {
+    if (state->types & (MS_TYPE_DICT | MS_TYPE_FROZENDICT)) {
         ndictlike++;
     }
     if (ndictlike > 1) {
@@ -4287,11 +4292,11 @@ typenode_collect_enum(TypeNodeCollectState *state, PyObject *obj) {
 }
 
 static int
-typenode_collect_dict(TypeNodeCollectState *state, PyObject *key, PyObject *val) {
-    if (state->dict_key_obj != NULL) {
+typenode_collect_dict(TypeNodeCollectState *state, uint64_t type, PyObject *key, PyObject *val) {
+    if (state->dict_key_obj != NULL || state->dict_val_obj != NULL) {
         return typenode_collect_err_unique(state, "dict");
     }
-    state->types |= MS_TYPE_DICT;
+    state->types |= type;
     Py_INCREF(key);
     state->dict_key_obj = key;
     Py_INCREF(val);
@@ -5075,10 +5080,23 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
         out = typenode_collect_dict(
             state,
+            MS_TYPE_DICT,
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
         );
     }
+#if PY315_PLUS
+    else if (origin == (PyObject*)(&PyFrozenDict_Type)) {
+        kind = CK_MAP;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
+        out = typenode_collect_dict(
+            state,
+            MS_TYPE_FROZENDICT,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
+        );
+    }
+#endif
     else if (origin == (PyObject*)(&PyList_Type)) {
         kind = CK_ARRAY;
         if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
@@ -13580,6 +13598,11 @@ mpack_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+#endif
     else {
         return mpack_encode_uncommon(self, type, obj);
     }
@@ -14688,6 +14711,11 @@ json_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return json_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return json_encode_dict(self, obj);
+    }
+#endif
     else {
         return json_encode_uncommon(self, type, obj);
     }
@@ -16086,6 +16114,20 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+mpack_decode_frozendict(
+    DecoderState *self, Py_ssize_t size, TypeNode *key_type,
+    TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = mpack_decode_dict(self, size, key_type, val_type, path);
+    if (dict == NULL) {
+        return NULL;
+    }
+    return PyFrozenDict_New(dict);
+}
+#endif
+
 static PyObject *
 mpack_decode_typeddict(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
@@ -16310,6 +16352,23 @@ mpack_decode_map(
     else if (type->types & MS_TYPE_DATACLASS) {
         return mpack_decode_dataclass(self, size, type, path);
     }
+#if PY315_PLUS
+    else if (type->types & MS_TYPE_FROZENDICT) {
+        if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
+            return NULL;
+        }
+        TypeNode *key, *val;
+        TypeNode type_any = {MS_TYPE_ANY};
+        if (type->types & MS_TYPE_ANY) {
+            key = &type_any;
+            val = &type_any;
+        }
+        else {
+            TypeNode_get_dict(type, &key, &val);
+        }
+        return mpack_decode_frozendict(self, size, key, val, path);
+    }
+#endif
     else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
         if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
             return NULL;
@@ -18563,6 +18622,19 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+json_decode_frozendict(
+    JSONDecoderState *self, TypeNode *type, TypeNode *key_type, TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = json_decode_dict(self, type, key_type, val_type, path);
+    if (dict == NULL) {
+        return NULL;
+    }
+    return PyFrozenDict_New(dict);
+}
+#endif
+
 static PyObject *
 json_decode_typeddict(
     JSONDecoderState *self, TypeNode *type, PathNode *path
@@ -18965,6 +19037,13 @@ json_decode_object(
         TypeNode_get_dict(type, &key, &val);
         return json_decode_dict(self, type, key, val, path);
     }
+#if PY315_PLUS
+    else if (type->types & MS_TYPE_FROZENDICT) {
+        TypeNode *key, *val;
+        TypeNode_get_dict(type, &key, &val);
+        return json_decode_frozendict(self, type, key, val, path);
+    }
+#endif
     else if (type->types & MS_TYPE_TYPEDDICT) {
         return json_decode_typeddict(self, type, path);
     }
@@ -20074,6 +20153,17 @@ cleanup:;
     return out;
 }
 
+#if PY315_PLUS
+static PyObject *
+to_builtins_frozendict(ToBuiltinsState *self, PyObject *obj) {
+    PyObject *dict = to_builtins_dict(self, obj);
+    if (dict == NULL) {
+        return NULL;
+    }
+    return PyFrozenDict_New(dict);
+}
+#endif
+
 static PyObject *
 to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
@@ -20353,6 +20443,11 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyDict_Check(obj)) {
         return to_builtins_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return to_builtins_frozendict(self, obj);
+    }
+#endif
     else if (ms_is_struct_type(type)) {
         return to_builtins_struct(self, obj, is_key);
     }
@@ -21535,6 +21630,19 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+convert_dict_to_frozendict(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *dict = convert_dict_to_dict(self, obj, type, path);
+    if (dict == NULL) {
+        return NULL;
+    }
+    return PyFrozenDict_New(dict);
+}
+#endif
+
 static PyObject *
 convert_mapping_to_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
@@ -21740,6 +21848,11 @@ convert_dict(
     if (type->types & MS_TYPE_DICT) {
         res = convert_dict_to_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (type->types & MS_TYPE_FROZENDICT) {
+        res = convert_dict_to_frozendict(self, obj, type, path);
+    }
+#endif
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
         res = convert_dict_to_struct(self, obj, info, path, false);
@@ -22056,8 +22169,19 @@ convert_other(
 
     /* Next try converting from a mapping or by attribute */
     bool is_mapping = PyMapping_Check(obj);
-    if (is_mapping && type->types & MS_TYPE_DICT) {
-        return convert_mapping_to_dict(self, obj, type, path);
+    if (is_mapping) {
+        if (type->types & MS_TYPE_DICT) {
+            return convert_mapping_to_dict(self, obj, type, path);
+        }
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            PyObject *dict = convert_mapping_to_dict(self, obj, type, path);
+            if (dict == NULL) {
+                return NULL;
+            }
+            return PyFrozenDict_New(dict);
+        }
+#endif
     }
 
     if (is_mapping || self->from_attributes) {
@@ -22126,6 +22250,11 @@ convert(
     else if (PyDict_Check(obj)) {
         return convert_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return convert_dict(self, obj, type, path);
+    }
+#endif
     else if (obj == Py_None) {
         return convert_none(self, obj, type, path);
     }

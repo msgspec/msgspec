@@ -142,7 +142,7 @@ def _collect_component_types(type_infos: Iterable[mi.Type]) -> dict[Any, mi.Type
         elif isinstance(t, mi.TupleType):
             for st in t.item_types:
                 collect(st)
-        elif isinstance(t, mi.DictType):
+        elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             collect(t.key_type)
             collect(t.value_type)
         elif isinstance(t, mi.UnionType):
@@ -308,7 +308,7 @@ class _SchemaGenerator:
             if t.item_types:
                 schema["prefixItems"] = [self.to_schema(i) for i in t.item_types]
                 schema["items"] = False
-        elif isinstance(t, mi.DictType):
+        elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             schema["type"] = "object"
             # If there are restrictions on the keys, specify them as propertyNames
             if isinstance(key_type := t.key_type, mi.StrType):
