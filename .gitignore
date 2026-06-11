@@ -41,6 +41,7 @@ htmlcov/
 
 # Docs build
 site/
+/.doctrees/
 /.wrangler/
 
 # Docs link check cache

@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: cf-pages
+      name: "${{ github.event_name == 'pull_request_target' && 'docs-preview' || 'docs-live' }}"
       url: "${{ github.event_name == 'pull_request_target' && steps.deploy.outputs.pages-deployment-alias-url || 'https://msgspec.dev' }}"
     permissions:
       contents: read
