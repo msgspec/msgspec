@@ -10,11 +10,15 @@ on:
         description: Minor version of Python to use for profiling
         type: string
 
+permissions: {}
+
 jobs:
   prepare:
     name: Prepare build
     if: inputs.version == ''
     uses: ./.github/workflows/prepare-build.yml
+    permissions:
+      contents: read
     with:
       run-static-analysis: false
       fetch-latest-python: false
@@ -25,6 +29,9 @@ jobs:
     needs:
     - prepare
     uses: ./.github/workflows/build-wheels.yml
+    permissions:
+      actions: read
+      contents: read
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
 
@@ -34,6 +41,9 @@ jobs:
     - build-wheels
     if: always() && (needs.build-wheels.result == 'success' || needs.build-wheels.result == 'skipped')
     uses: ./.github/workflows/profile.yml
+    permissions:
+      actions: read
+      contents: read
     with:
       version: "${{ inputs.version }}"
       python: "${{ inputs.python }}"

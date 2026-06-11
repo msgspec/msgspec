@@ -6,6 +6,7 @@ from typing import (
     Type,
     TypeAlias,
     TypeVar,
+    final,
     overload,
 )
 
@@ -18,6 +19,7 @@ dec_hook_sig: TypeAlias = Callable[[type, Any], Any] | None
 float_hook_sig: TypeAlias = Callable[[str], Any] | None
 schema_hook_sig: TypeAlias = Callable[[type], dict[str, Any]] | None
 
+@final
 class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
@@ -38,6 +40,7 @@ class Encoder:
         self, obj: Any, buffer: bytearray, offset: int | None = 0, /
     ) -> None: ...
 
+@final
 class Decoder(Generic[T]):
     type: Type[T]  # needed for mypy, because of the same name
     strict: bool

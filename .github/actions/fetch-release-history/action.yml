@@ -4,6 +4,10 @@ inputs:
   github-token:
     description: The GitHub token to use for the API
     required: true
+  ref:
+    description: The ref to fetch when deepening the checkout
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -11,16 +15,20 @@ runs:
   - name: Fetch release history
     env:
       GH_TOKEN: ${{ inputs.github-token }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ inputs.ref || github.ref }}
     shell: bash
     run: |-
+      SHA="$(git rev-parse HEAD)"
+
       latest_tag=$(
-        gh api "repos/${{ github.repository }}/releases/latest" \
+        gh api "repos/${REPOSITORY}/releases/latest" \
           --jq '.tag_name'
       )
       echo "Detected latest release tag: $latest_tag"
 
       ahead_by=$(
-        gh api "repos/${{ github.repository }}/compare/${latest_tag}...${{ github.sha }}" \
+        gh api "repos/${REPOSITORY}/compare/${latest_tag}...${SHA}" \
           --jq '.ahead_by'
       )
       echo "Commits since last release: $ahead_by"
@@ -30,7 +38,7 @@ runs:
         git -c protocol.version=2 fetch \
           --no-tags --no-recurse-submodules --filter=blob:none \
           --deepen="$ahead_by" origin \
-          "${{ github.ref }}" \
+          "${REF}" \
           "refs/tags/$latest_tag:refs/tags/$latest_tag"
       else
         echo "No commits since last release, fetching release tag only"

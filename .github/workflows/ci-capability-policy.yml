@@ -1,0 +1,183 @@
+name: CI capability policy
+
+on:
+  pull_request_target:
+    branches:
+    - main
+    types:
+    - opened
+    - ready_for_review
+    - reopened
+    - synchronize
+  merge_group:
+    types:
+    - checks_requested
+
+permissions: {}
+
+jobs:
+  policy:
+    name: CI capability policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout proposed repository
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+      with:
+        persist-credentials: false
+        # pull_request_target runs this trusted workflow from the default branch.
+        # The proposed merge is checked out only to parse its workflow YAML.
+        ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+
+    - name: Audit CI definitions
+      env:
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        set -euo pipefail
+
+        if grep -R -n -E 'zizmor:[[:space:]]*ignore' .github; then
+          echo "::error::Inline zizmor ignores are not allowed"
+          exit 1
+        fi
+
+        policy_root="${RUNNER_TEMP}/zizmor-policy"
+        mkdir -p "${policy_root}"
+        cat > "${policy_root}/zizmor.yml" <<'EOF'
+        rules:
+          dangerous-triggers:
+            ignore:
+            # Trusted policy reads the proposed merge as data without executing it.
+            - ci-capability-policy.yml
+            # Trusted orchestration isolates the untrusted docs build from deployment.
+            - docs-deploy.yml
+        EOF
+
+        docker run --rm \
+          --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+          --volume "${policy_root}:/policy:ro" \
+          --workdir /workspace \
+          --env GH_TOKEN \
+          ghcr.io/zizmorcore/zizmor:1.25.2@sha256:14ea7f5cc7c67933394a35b5a38a277397818d232602635edb2010b313afb110 \
+          --config /policy/zizmor.yml \
+          --strict-collection \
+          --collect all \
+          --persona regular \
+          --format github \
+          -- \
+          .github
+
+    - name: Check CI capabilities
+      env:
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        set -euo pipefail
+
+        workflow_root="${WORKFLOW_ROOT:-.github/workflows}"
+        deploy_workflow="${workflow_root}/docs-deploy.yml"
+        scan_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-capability-policy"
+        failed=false
+        declare -A scanned=()
+
+        mkdir -p "${scan_root}"
+
+        error() {
+          echo "::error::$1"
+          failed=true
+        }
+
+        scan_external_workflow() {
+          local repository="$1"
+          local path="$2"
+          local ref="$3"
+          local identity="external:${repository}/${path}@${ref}"
+          local file="${scan_root}/${ref}-${repository//\//-}-${path//\//-}"
+
+          if [ -n "${scanned["${identity}"]:-}" ]; then
+            return
+          fi
+
+          if ! gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "repos/${repository}/contents/${path}?ref=${ref}" > "${file}"; then
+            error "Unable to fetch external reusable workflow ${repository}/${path}@${ref}"
+            scanned["${identity}"]=true
+            return
+          fi
+
+          scan_workflow "${file}" "${identity}" "${repository}" "${ref}"
+        }
+
+        scan_workflow() {
+          local workflow="$1"
+          local identity="$2"
+          local repository="${3:-}"
+          local ref="${4:-}"
+
+          if [ -n "${scanned["${identity}"]:-}" ]; then
+            return
+          fi
+          scanned["${identity}"]=true
+
+          if ! yq -e '.' "${workflow}" > /dev/null 2>&1; then
+            error "Unable to parse workflow: ${identity}"
+            return
+          fi
+
+          if [ "${identity}" != "local:${deploy_workflow}" ] && yq -e '
+            explode(.)
+            | .jobs[]?
+            | select(tag == "!!map" and has("environment"))
+          ' "${workflow}" > /dev/null 2>&1; then
+            error "${identity} declares an environment; only local:${deploy_workflow} may access environment capabilities"
+          fi
+
+          mapfile -t reusable_workflows < <(
+            yq -r '
+              explode(.)
+              | .jobs[]?
+              | select(tag == "!!map" and has("uses"))
+              | .uses
+            ' "${workflow}"
+          )
+
+          for reusable_workflow in "${reusable_workflows[@]}"; do
+            case "${reusable_workflow}" in
+              ./.github/workflows/*.yml | ./.github/workflows/*.yaml)
+                local_path="${reusable_workflow#./}"
+                if [ -n "${repository}" ]; then
+                  scan_external_workflow "${repository}" "${local_path}" "${ref}"
+                elif [ -f "${local_path}" ]; then
+                  scan_workflow "${local_path}" "local:${local_path}"
+                else
+                  error "${identity} calls missing local reusable workflow ${reusable_workflow}"
+                fi
+                ;;
+              *)
+                if [[ "${reusable_workflow}" =~ ^([^/]+/[^/]+)/(\.github/workflows/.+\.ya?ml)@([0-9a-f]{40})$ ]]; then
+                  scan_external_workflow \
+                    "${BASH_REMATCH[1]}" \
+                    "${BASH_REMATCH[2]}" \
+                    "${BASH_REMATCH[3]}"
+                else
+                  error "${identity} calls external reusable workflow ${reusable_workflow} without a full commit SHA"
+                fi
+                ;;
+            esac
+          done
+        }
+
+        for workflow in "${workflow_root}"/*.yml "${workflow_root}"/*.yaml; do
+          if [ ! -f "${workflow}" ]; then
+            continue
+          fi
+
+          scan_workflow "${workflow}" "local:${workflow}"
+        done
+
+        if [ "${failed}" = true ]; then
+          exit 1
+        fi
+
+        echo "CI capability policy passed."
