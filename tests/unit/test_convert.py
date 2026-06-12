@@ -8,7 +8,16 @@ import uuid
 from base64 import b64encode
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Generic, Literal, NamedTuple, TypedDict, TypeVar
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    Generic,
+    Literal,
+    NamedTuple,
+    TypedDict,
+    TypeVar,
+)
 
 import pytest
 

@@ -2828,6 +2828,10 @@ AssocList_Sort(AssocList* list) {
 // Despite the fact that `frozendict` was added in 3.15,
 // this type is always defined for order consistency:
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+
+/* Aliases for commonly used types */
+#define MS_ANY_DICT                 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
+
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2902,7 +2906,7 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_03 (MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS)
 #define SLOT_04 MS_TYPE_NAMEDTUPLE
 #define SLOT_05 MS_CONSTR_STR_REGEX
-#define SLOT_06 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
+#define SLOT_06 MS_ANY_DICT
 #define SLOT_07 (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)
 #define SLOT_08 MS_CONSTR_INT_MIN
 #define SLOT_09 MS_CONSTR_INT_MAX
@@ -3394,7 +3398,7 @@ TypeNode_get_traverse_ranges(
         /* Number of typenode details */
         n_type = ms_popcount(
             type->types & (
-                MS_TYPE_DICT | MS_TYPE_FROZENDICT |
+                MS_ANY_DICT |
                 MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE
             )
         );
@@ -3498,7 +3502,7 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
-            MS_TYPE_DICT | MS_TYPE_FROZENDICT
+            MS_ANY_DICT
         )
     ) {
         if (!strbuilder_extend_literal(&builder, "object")) return NULL;
@@ -3873,7 +3877,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
             MS_TYPE_NAMEDTUPLE |
             MS_CONSTR_STR_REGEX |
-            MS_TYPE_DICT | MS_TYPE_FROZENDICT |
+            MS_ANY_DICT |
             MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE |
             MS_CONSTR_INT_MIN |
             MS_CONSTR_INT_MAX |
@@ -4165,7 +4169,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS
         )
     );
-    if (state->types & (MS_TYPE_DICT | MS_TYPE_FROZENDICT)) {
+    if (state->types & MS_ANY_DICT) {
         ndictlike++;
     }
     if (ndictlike > 1) {

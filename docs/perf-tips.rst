@@ -288,6 +288,49 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
     Example(my_first_field="some string", my_second_field=2)
 
 
+Think about type converion
+--------------------------
+
+When converting raw data into Python types, the internal machinery
+will treat different datastructures differently.
+Some type convertions are faster than others.
+
+For example, this model:
+
+.. code-block:: python
+
+  class Example(msgspec.Struct):
+      items: frozendict[str, int]  # requires Python3.15+ to be used
+
+  msg = b'{"items": {"pen": 1, "book": 2}}'
+  msgspec.json.decode(msg, type=Example)
+  # Example(items=frozendict({"pen": 1, "book": 2}))
+
+Will first parse ``items`` as a regular :class:`dict`
+and will then covert it to ``frozendict`` using ``O(n)`` complexity.
+Which might be slow on big dictionaries and consume more memory.
+Regular :class:`dict` would be faster to use.
+
+The same can be said for :class:`tuple` vs :class:`list`:
+
+.. code-block:: python
+
+    >>> class Example(msgspec.Struct):
+    ...     items: tuple[str, ...]
+
+    >>> msg = b'{"items": ["pen", "book"]}'
+
+    >>> msgspec.json.decode(msg, type=Example)
+    Example(items=("pen", "book"))
+
+We would first create a ``list`` object and then convert it to ``tuple``,
+using double the memory and ``O(n)`` time to do that.
+This is true for all convertion methods.
+
+To achive the best performace,
+use native ``json`` types: ``list`` and ``dict``.
+
+
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _line-delimited JSON: https://en.wikipedia.org/wiki/JSON_streaming#Line-delimited_JSON

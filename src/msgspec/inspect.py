@@ -84,6 +84,8 @@ __all__ = (
     "FrozenDictType",
 )
 
+_PY315_PLUS = sys.version_info >= (3, 15)
+
 
 def __dir__():
     return __all__
@@ -907,7 +909,7 @@ class _Translator:
                 min_length=min_length,
                 max_length=max_length,
             )
-        elif sys.version_info >= (3, 15) and t is frozendict:  # noqa: F821
+        elif _PY315_PLUS and t is frozendict:  # noqa: F821
             return FrozenDictType(
                 self.translate(args[0]) if args else AnyType(),
                 self.translate(args[1]) if args else AnyType(),
