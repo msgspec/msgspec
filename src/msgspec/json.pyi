@@ -12,27 +12,27 @@ from typing import (
 
 from typing_extensions import Buffer
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
-enc_hook_sig: TypeAlias = Callable[[Any], Any] | None
-dec_hook_sig: TypeAlias = Callable[[type, Any], Any] | None
-float_hook_sig: TypeAlias = Callable[[str], Any] | None
-schema_hook_sig: TypeAlias = Callable[[type], dict[str, Any]] | None
+_EncHookSig: TypeAlias = Callable[[Any], Any] | None
+_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
+_FloatHookSig: TypeAlias = Callable[[str], Any] | None
+_SchemaHookSig: TypeAlias = Callable[[type], dict[str, Any]] | None
 
 @final
 class Encoder:
-    enc_hook: enc_hook_sig
+    enc_hook: _EncHookSig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex"]
-    order: Literal[None, "deterministic", "sorted"]
+    order: Literal["deterministic", "sorted"] | None
 
     def __init__(
         self,
         *,
-        enc_hook: enc_hook_sig = None,
+        enc_hook: _EncHookSig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
-        order: Literal[None, "deterministic", "sorted"] = None,
+        order: Literal["deterministic", "sorted"] | None = None,
     ): ...
     def encode(self, obj: Any, /) -> bytes: ...
     def encode_lines(self, items: Iterable, /) -> bytes: ...
@@ -41,28 +41,20 @@ class Encoder:
     ) -> None: ...
 
 @final
-class Decoder(Generic[T]):
-    type: Type[T]  # needed for mypy, because of the same name
+class Decoder(Generic[_T]):
+    type: Type[_T]  # needed for mypy, because of the same name
     strict: bool
-    dec_hook: dec_hook_sig
-    float_hook: float_hook_sig
+    dec_hook: _DecHookSig
+    float_hook: _FloatHookSig
 
     @overload
     def __init__(
-        self: Decoder[Any],
+        self: Decoder[_T],
+        type: Type[_T],
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
-    ) -> None: ...
-    @overload
-    def __init__(
-        self: Decoder[T],
-        type: Type[T] = ...,
-        *,
-        strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        float_hook: _FloatHookSig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -70,29 +62,21 @@ class Decoder(Generic[T]):
         type: Any = ...,
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        float_hook: _FloatHookSig = None,
     ) -> None: ...
-    def decode(self, buf: Buffer | str, /) -> T: ...
-    def decode_lines(self, buf: Buffer | str, /) -> list[T]: ...
+    def decode(self, buf: Buffer | str, /) -> _T: ...
+    def decode_lines(self, buf: Buffer | str, /) -> list[_T]: ...
 
 @overload
 def decode(
     buf: Buffer | str,
     /,
     *,
+    type: type[_T],
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-) -> Any: ...
-@overload
-def decode(
-    buf: Buffer | str,
-    /,
-    *,
-    type: type[T] = ...,
-    strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-) -> T: ...
+    dec_hook: _DecHookSig = None,
+) -> _T: ...
 @overload
 def decode(
     buf: Buffer | str,
@@ -100,25 +84,25 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
+    dec_hook: _DecHookSig = None,
 ) -> Any: ...
 def encode(
     obj: Any,
     /,
     *,
-    enc_hook: enc_hook_sig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    enc_hook: _EncHookSig = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
 def schema(
     type: Any,
     *,
-    schema_hook: schema_hook_sig = None,
+    schema_hook: _SchemaHookSig = None,
     ref_template: str = "#/$defs/{name}",
 ) -> dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],
     *,
-    schema_hook: schema_hook_sig = None,
+    schema_hook: _SchemaHookSig = None,
     ref_template: str = "#/$defs/{name}",
 ) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]: ...
 @overload

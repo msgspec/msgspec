@@ -32,16 +32,8 @@ class Decoder(Generic[_T]):
     ext_hook: _ExtHookSig
     @overload
     def __init__(
-        self: Decoder[Any],
-        *,
-        strict: bool = True,
-        dec_hook: _DecHookSig = None,
-        ext_hook: _ExtHookSig = None,
-    ) -> None: ...
-    @overload
-    def __init__(
         self: Decoder[_T],
-        type: Type[_T] = ...,
+        type: Type[_T],
         *,
         strict: bool = True,
         dec_hook: _DecHookSig = None,
@@ -82,16 +74,7 @@ def decode(
     buf: Buffer,
     /,
     *,
-    strict: bool = True,
-    dec_hook: _DecHookSig = None,
-    ext_hook: _ExtHookSig = None,
-) -> Any: ...
-@overload
-def decode(
-    buf: Buffer,
-    /,
-    *,
-    type: type[_T] = ...,
+    type: type[_T],
     strict: bool = True,
     dec_hook: _DecHookSig = None,
     ext_hook: _ExtHookSig = None,
