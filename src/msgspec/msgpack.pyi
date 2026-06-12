@@ -14,9 +14,9 @@ from typing_extensions import Buffer
 
 _T = TypeVar("_T")
 
-_enc_hook_sig: TypeAlias = Callable[[Any], Any] | None
-_ext_hook_sig: TypeAlias = Callable[[int, memoryview], Any] | None
-_dec_hook_sig: TypeAlias = Callable[[type, Any], Any] | None
+_EncHookSig: TypeAlias = Callable[[Any], Any] | None
+_ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
+_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
 
 @final
 class Ext:
@@ -28,15 +28,15 @@ class Ext:
 class Decoder(Generic[_T]):
     type: Type[_T]  # needed for mypy, because of the same name
     strict: bool
-    dec_hook: _dec_hook_sig
-    ext_hook: _ext_hook_sig
+    dec_hook: _DecHookSig
+    ext_hook: _ExtHookSig
     @overload
     def __init__(
         self: Decoder[Any],
         *,
         strict: bool = True,
-        dec_hook: _dec_hook_sig = None,
-        ext_hook: _ext_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        ext_hook: _ExtHookSig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -44,8 +44,8 @@ class Decoder(Generic[_T]):
         type: Type[_T] = ...,
         *,
         strict: bool = True,
-        dec_hook: _dec_hook_sig = None,
-        ext_hook: _ext_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        ext_hook: _ExtHookSig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -53,21 +53,21 @@ class Decoder(Generic[_T]):
         type: Any = ...,
         *,
         strict: bool = True,
-        dec_hook: _dec_hook_sig = None,
-        ext_hook: _ext_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        ext_hook: _ExtHookSig = None,
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> _T: ...
 
 @final
 class Encoder:
-    enc_hook: _enc_hook_sig
+    enc_hook: _EncHookSig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex", "bytes"]
     order: Literal["deterministic", "sorted"] | None
     def __init__(
         self,
         *,
-        enc_hook: _enc_hook_sig = None,
+        enc_hook: _EncHookSig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal["deterministic", "sorted"] | None = None,
@@ -83,8 +83,8 @@ def decode(
     /,
     *,
     strict: bool = True,
-    dec_hook: _dec_hook_sig = None,
-    ext_hook: _ext_hook_sig = None,
+    dec_hook: _DecHookSig = None,
+    ext_hook: _ExtHookSig = None,
 ) -> Any: ...
 @overload
 def decode(
@@ -93,8 +93,8 @@ def decode(
     *,
     type: type[_T] = ...,
     strict: bool = True,
-    dec_hook: _dec_hook_sig = None,
-    ext_hook: _ext_hook_sig = None,
+    dec_hook: _DecHookSig = None,
+    ext_hook: _ExtHookSig = None,
 ) -> _T: ...
 @overload
 def decode(
@@ -103,13 +103,13 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: _dec_hook_sig = None,
-    ext_hook: _ext_hook_sig = None,
+    dec_hook: _DecHookSig = None,
+    ext_hook: _ExtHookSig = None,
 ) -> Any: ...
 def encode(
     obj: Any,
     /,
     *,
-    enc_hook: _enc_hook_sig = None,
+    enc_hook: _EncHookSig = None,
     order: Literal[None, "deterministic", "sorted"] = None,
 ) -> bytes: ...
