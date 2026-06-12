@@ -1,12 +1,11 @@
+from collections.abc import Callable
 from typing import (
     Any,
-    Callable,
     Generic,
     Literal,
-    Optional,
     Type,
+    TypeAlias,
     TypeVar,
-    Union,
     final,
     overload,
 )
@@ -15,21 +14,19 @@ from typing_extensions import Buffer
 
 T = TypeVar("T")
 
-enc_hook_sig = Optional[Callable[[Any], Any]]
-ext_hook_sig = Optional[Callable[[int, memoryview], Any]]
-dec_hook_sig = Optional[Callable[[type, Any], Any]]
+enc_hook_sig: TypeAlias = Callable[[Any], Any] | None
+ext_hook_sig: TypeAlias = Callable[[int, memoryview], Any] | None
+dec_hook_sig: TypeAlias = Callable[[type, Any], Any] | None
 
 @final
 class Ext:
     code: int
-    data: Union[bytes, bytearray, memoryview]
-    def __init__(
-        self, code: int, data: Union[bytes, bytearray, memoryview]
-    ) -> None: ...
+    data: bytes | bytearray | memoryview
+    def __init__(self, code: int, data: bytes | bytearray | memoryview) -> None: ...
 
 @final
 class Decoder(Generic[T]):
-    type: Type[T]
+    type: Type[T]  # needed for mypy, because of the same name
     strict: bool
     dec_hook: dec_hook_sig
     ext_hook: ext_hook_sig
@@ -77,7 +74,7 @@ class Encoder:
     ): ...
     def encode(self, obj: Any, /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
+        self, obj: Any, buffer: bytearray, offset: int | None = 0, /
     ) -> None: ...
 
 @overload
@@ -94,7 +91,7 @@ def decode(
     buf: Buffer,
     /,
     *,
-    type: Type[T] = ...,
+    type: type[T] = ...,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,

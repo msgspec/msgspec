@@ -23,7 +23,7 @@ Example
 
     import msgspec
     from msgspec import Struct, Meta
-    from typing import Annotated, Optional
+    from typing import Annotated
 
 
     # A float constrained to values > 0
@@ -43,7 +43,7 @@ Example
         name: str
         price: PositiveFloat
         tags: set[str] = set()
-        dimensions: Optional[Dimensions] = None
+        dimensions: Dimensions | None = None
 
 
     # Generate a schema for a list of products

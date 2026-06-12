@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, Union, final
+from typing import Any, TypeVar, final
 
 from . import NODEFAULT, Struct
 
@@ -8,6 +8,7 @@ def replace(struct: S, /, **changes: Any) -> S: ...
 def asdict(struct: Struct) -> dict[str, Any]: ...
 def astuple(struct: Struct) -> tuple[Any, ...]: ...
 def force_setattr(struct: Struct, name: str, value: Any) -> None: ...
+
 @final
 class StructConfig:
     frozen: bool
@@ -21,8 +22,8 @@ class StructConfig:
     weakref: bool
     dict: bool
     cache_hash: bool
-    tag: Union[str, int, None]
-    tag_field: Union[str, None]
+    tag: str | int | None
+    tag_field: str | None
 
 class FieldInfo(Struct):
     name: str

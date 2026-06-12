@@ -16,9 +16,9 @@ def test_raw_noargs():
     assert not r
 
 
-@pytest.mark.parametrize("type", [bytes, bytearray, memoryview, str])
-def test_raw_constructor(type):
-    msg = "test" if type is str else type(b"test")
+@pytest.mark.parametrize("typ", [bytes, bytearray, memoryview, str])
+def test_raw_constructor(typ):
+    msg = "test" if typ is str else typ(b"test")
     r = msgspec.Raw(msg)
     assert bytes(r) == b"test"
     assert len(r) == 4

@@ -102,7 +102,7 @@ test-doc *args: (
 [group: "Documentation"]
 doc-build: (
   env-run "doc"
-  "sphinx-build -b html docs site --fail-on-warning"
+  "sphinx-build -d .doctrees -b html docs site --fail-on-warning"
 )
 
 # Serve the documentation.

@@ -325,9 +325,9 @@ def test_struct_object():
     class Polygon(msgspec.Struct):
         """An example docstring"""
 
-        vertices: List[Point]
-        name: Union[str, None] = None
-        metadata: Dict[str, str] = {}
+        vertices: list[Point]
+        name: str | None = None
+        metadata: dict[str, str] = {}
 
     assert msgspec.json.schema(Polygon) == {
         "$ref": "#/$defs/Polygon",
@@ -376,8 +376,8 @@ def test_struct_array_like(forbid_unknown_fields):
 
         a: int
         b: str
-        c: List[int] = []
-        d: Dict[str, int] = {}
+        c: list[int] = []
+        d: dict[str, int] = {}
 
     sol = {
         "$ref": "#/$defs/Example",
@@ -575,7 +575,7 @@ def test_generic_namedtuple():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -684,7 +684,7 @@ def test_generic_typeddict():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -738,9 +738,9 @@ def test_dataclass_or_attrs(module):
     class Polygon:
         """An example docstring"""
 
-        vertices: List[Point]
-        name: Union[str, None] = None
-        metadata: Dict[str, str] = factory_default
+        vertices: list[Point]
+        name: str | None = None
+        metadata: dict[str, str] = factory_default
 
     assert msgspec.json.schema(Polygon) == {
         "$ref": "#/$defs/Polygon",
@@ -788,7 +788,7 @@ def test_generic_dataclass_or_attrs(module):
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -830,10 +830,7 @@ def test_union(use_union_operator):
         y: int
 
     if use_union_operator:
-        try:
-            typ = int | str | Example
-        except TypeError:
-            pytest.skip("Union operator not supported")
+        typ = int | str | Example
     else:
         typ = Union[int, str, Example]
 
@@ -862,7 +859,7 @@ def test_struct_tagged_union():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D]) == {
+    assert msgspec.json.schema(Point | Point3D) == {
         "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
         "discriminator": {
             "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
@@ -892,6 +889,9 @@ def test_struct_tagged_union():
             },
         },
     }
+    assert msgspec.json.schema(Point | Point3D) == msgspec.json.schema(
+        Union[Point, Point3D]
+    )
 
 
 def test_struct_tagged_union_mixed_types():
@@ -902,7 +902,7 @@ def test_struct_tagged_union_mixed_types():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D, int, float]) == {
+    assert msgspec.json.schema(Point | Point3D | int | float) == {
         "anyOf": [
             {"type": "integer"},
             {"type": "number"},
@@ -948,7 +948,7 @@ def test_struct_array_union():
     class Point3D(Point):
         z: int
 
-    assert msgspec.json.schema(Union[Point, Point3D]) == {
+    assert msgspec.json.schema(Point | Point3D) == {
         "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
         "$defs": {
             "Point": {
@@ -978,7 +978,7 @@ def test_struct_array_union():
 
 def test_struct_unset_fields():
     class Ex(msgspec.Struct):
-        x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+        x: int | msgspec.UnsetType = msgspec.UNSET
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -998,7 +998,7 @@ def test_generic_struct():
         """An example docstring"""
 
         x: T
-        y: List[T]
+        y: list[T]
 
     assert msgspec.json.schema(Ex) == {
         "$ref": "#/$defs/Ex",
@@ -1074,7 +1074,7 @@ def test_generic_struct_tagged_union():
             },
         },
     }
-    res = msgspec.json.schema(Union[Point[int], Point3D[int]])
+    res = msgspec.json.schema(Point[int] | Point3D[int])
     assert res == sol
 
 
@@ -1116,7 +1116,7 @@ def test_string_metadata(field, val, constraint):
 )
 def test_dict_key_metadata(field, val, constraint):
     typ = Annotated[str, Meta(**{field: val})]
-    assert msgspec.json.schema(Dict[typ, int]) == {
+    assert msgspec.json.schema(dict[typ, int]) == {
         "type": "object",
         "additionalProperties": {"type": "integer"},
         "propertyNames": {constraint: val},
@@ -1228,19 +1228,19 @@ def test_schema_components_collects_subtypes():
         A = 1
 
     class ExStruct(msgspec.Struct):
-        b: Union[Set[FrozenSet[ExEnum]], int]
+        b: set[frozenset[ExEnum]] | int
 
     class ExDict(TypedDict):
-        c: Tuple[ExStruct, ...]
+        c: tuple[ExStruct, ...]
 
     class ExTuple(NamedTuple):
-        d: List[ExDict]
+        d: list[ExDict]
 
     @dataclass
     class ExDataclass:
-        e: List[ExTuple]
+        e: list[ExTuple]
 
-    (s,), components = msgspec.json.schema_components([Dict[str, ExDataclass]])
+    (s,), components = msgspec.json.schema_components([dict[str, ExDataclass]])
 
     r1 = {"$ref": "#/$defs/ExEnum"}
     r2 = {"$ref": "#/$defs/ExStruct"}

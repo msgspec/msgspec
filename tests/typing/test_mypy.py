@@ -13,7 +13,7 @@ def get_lineno_type(line):
 
 
 def test_mypy(typing_examples_file):
-    with open(typing_examples_file, "r") as fil:
+    with open(typing_examples_file) as fil:
         ex_lines = fil.readlines()
 
     stdout, stderr, code = api.run([typing_examples_file])
