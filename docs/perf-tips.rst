@@ -306,10 +306,12 @@ For example, this model:
   msgspec.json.decode(msg, type=Example)
   # Example(items=frozendict({"pen": 1, "book": 2}))
 
-Will first parse ``items`` as a regular :class:`dict`
-and will then convert it to ``frozendict`` using ``O(n)`` complexity.
+As ``frozendict`` does not allow adding items one at a time,
+``msgspec`` will first parse ``items`` as a regular :class:`dict`,
+and will then convert it to ``frozendict``, which results in the
+total decoding operation having ``O(n*2)`` time complexity.
 Which might be slow on big dictionaries and consume more memory.
-Regular :class:`dict` would be faster to use.
+Regular :class:`dict` would be more efficient to use.
 
 The same can be said for :class:`tuple` vs :class:`list`:
 
@@ -323,12 +325,14 @@ The same can be said for :class:`tuple` vs :class:`list`:
     >>> msgspec.json.decode(msg, type=Example)
     Example(items=("pen", "book"))
 
-We would first create a ``list`` object and then convert it to ``tuple``,
-using double the memory and ``O(n)`` time to do that.
-This is true for all conversion methods.
+We would first create a ``list`` object and then convert
+it to variable-sized ``tuple``,
+using double the memory and ``O(n*2)`` time to do that.
+This is true for all conversions, that require an intermediate representation.
 
 To achieve the best performance,
-use native ``json`` types: ``list`` and ``dict``.
+use collection types that can be constructed natively:
+``list``, ``set``, ``frozenset``, fixed-sized ``tuple``, and ``dict``.
 
 
 .. _JSON: https://json.org
