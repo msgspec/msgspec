@@ -65,7 +65,7 @@ annotations:
     >>> alice == User("alice", groups={"admin", "engineering"})
     True
 
-Note that it is forbidden to override ``__init__``/``__new__`` in a struct
+Note that it is forbidden to override ``__init__`` / ``__new__`` in a struct
 definition, but other methods can be overridden or added as needed. If you need
 to customize the generated ``__init__``, see :ref:`struct-post-init`.
 

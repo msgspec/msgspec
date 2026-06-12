@@ -71,7 +71,7 @@ The libraries we're comparing are the following:
 - pydantic_ (both 1.10.13 and 2.5.2)
 - cattrs_ (23.2.3)
 
-Each benchmark creates a message containing one or more ``File``/``Directory``
+Each benchmark creates a message containing one or more ``File`` / ``Directory``
 instances, then serializes, deserializes, and validates it in a loop.
 
 The full benchmark source can be found
@@ -118,7 +118,7 @@ JSON Serialization
 ------------------
 
 ``msgspec`` includes its own high performance JSON library, which may be used
-by itself as a replacement for the standard library's `json.dumps`/`json.loads`
+by itself as a replacement for the standard library's `json.dumps` / `json.loads`
 functions. Here we compare msgspec's JSON implementation against several other
 popular Python JSON libraries.
 
@@ -248,8 +248,8 @@ For each library, the following operations are benchmarked:
   boilerplate add overhead when defining classes, slowing import times for
   libraries that make use of these classes.
 - Time to create an instance of that class.
-- Time to compare two instances for equality (``==``/``!=``).
-- Time to compare two instances for order (``<``/``>``/``<=``/``>=``)
+- Time to compare two instances for equality (``==`` / ``!=``).
+- Time to compare two instances for order (``<`` / ``>`` / ``<=`` / ``>=``)
 
 The full benchmark source can be found `here
 <https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_structs.py>`__.
