@@ -402,7 +402,10 @@ def check_defstruct_bases() -> None:
     class Base(msgspec.Struct):
         pass
 
-    msgspec.defstruct("Test", ["x", "y"], bases=(Base,))
+    class Mixin:
+        pass
+
+    msgspec.defstruct("Test", ["x", "y"], bases=(Mixin, Base))
     msgspec.defstruct("Test2", ["x", "y"], bases=None)
 
 
@@ -1091,11 +1094,11 @@ def check_inspect_is_struct() -> None:
     class Point(msgspec.Struct):
         x: int
 
-    obj: object = Point(1)
+    obj: Point | str = Point(1)
     if msgspec.inspect.is_struct(obj):
-        reveal_type(obj)  # assert "Struct" in typ
+        reveal_type(obj)  # assert "Point" in typ and "str" not in typ
     else:
-        reveal_type(obj)  # assert "Struct" not in typ
+        reveal_type(obj)  # assert "Point" not in typ and "str" in typ
 
     ns: object = object()
     if msgspec.inspect.is_struct(ns):
@@ -1108,11 +1111,14 @@ def check_inspect_is_struct_type() -> None:
     class Point(msgspec.Struct):
         x: int
 
-    tp: type[Any] = Point
+    class Other:
+        y: str
+
+    tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
-        reveal_type(tp)  # assert "type" in typ and "Struct" in typ
+        reveal_type(tp)  # assert "type" in typ and "Point" in typ and "Other" not in typ
     else:
-        reveal_type(tp)  # assert "Struct" not in typ
+        reveal_type(tp)  # assert "type" in typ and "Point" not in typ and "Other" in typ
 
     other: type[Any] = type("NotStruct", (), {})
     if msgspec.inspect.is_struct_type(other):
