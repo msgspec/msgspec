@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import array
 import datetime
 import enum
 import gc
@@ -1296,8 +1297,24 @@ class TestExt:
     def test_serialize_other_types(self, typ):
         buf = b"test"
         a = msgspec.msgpack.encode(msgspec.msgpack.Ext(1, buf))
-        b = msgspec.msgpack.encode(msgspec.msgpack.Ext(1, typ(buf)))
+
+        ext = msgspec.msgpack.Ext(1, typ(buf))
+        assert isinstance(ext.data, typ)
+        b = msgspec.msgpack.encode(ext)
         assert a == b
+
+        decoded = msgspec.msgpack.decode(b)
+        assert isinstance(decoded.data, bytes)
+        assert decoded.data == buf
+
+    def test_other_buffers(self):
+        buf = array.array("i", [1, 2, 3, 4])
+        out = msgspec.msgpack.decode(
+            msgspec.msgpack.encode(msgspec.msgpack.Ext(1, buf)),
+        )
+
+        assert isinstance(out.data, bytes)
+        assert array.array("i", out.data) == buf
 
     @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
     def test_roundtrip(self, size):
