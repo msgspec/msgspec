@@ -1,5 +1,6 @@
 # fmt: off
 from __future__ import annotations
+import array
 import decimal
 import pickle
 from typing import Annotated, Any, Final, Literal
@@ -736,7 +737,12 @@ def check_msgpack_decode_strict() -> None:
 def check_msgpack_Ext() -> None:
     ext = msgspec.msgpack.Ext(1, b"test")
     reveal_type(ext.code)  # assert "int" in typ
-    reveal_type(ext.data)  # assert "bytes" in typ
+    reveal_type(ext.data)  # assert "Buffer" in typ
+
+    # TODO: test that non buffers can't be used:
+    msgspec.msgpack.Ext(1, bytearray())
+    msgspec.msgpack.Ext(1, memoryview(b''))
+    msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3]))
 
 
 ##########################################################
