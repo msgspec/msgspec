@@ -739,7 +739,7 @@ def check_msgpack_Ext() -> None:
     reveal_type(ext.code)  # assert "int" in typ
     reveal_type(ext.data)  # assert "Buffer" in typ
 
-    # TODO: test that non buffers can be used:
+    # TODO: test that non buffers can't be used:
     msgspec.msgpack.Ext(1, bytearray())
     msgspec.msgpack.Ext(1, memoryview(b''))
     msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3]))
