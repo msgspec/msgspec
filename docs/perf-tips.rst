@@ -288,12 +288,12 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
     Example(my_first_field="some string", my_second_field=2)
 
 
-Think about type converion
---------------------------
+Think about type conversion
+---------------------------
 
 When converting raw data into Python types, the internal machinery
 will treat different datastructures differently.
-Some type convertions are faster than others.
+Some type conversions are faster than others.
 
 For example, this model:
 
@@ -307,7 +307,7 @@ For example, this model:
   # Example(items=frozendict({"pen": 1, "book": 2}))
 
 Will first parse ``items`` as a regular :class:`dict`
-and will then covert it to ``frozendict`` using ``O(n)`` complexity.
+and will then convert it to ``frozendict`` using ``O(n)`` complexity.
 Which might be slow on big dictionaries and consume more memory.
 Regular :class:`dict` would be faster to use.
 
@@ -325,9 +325,9 @@ The same can be said for :class:`tuple` vs :class:`list`:
 
 We would first create a ``list`` object and then convert it to ``tuple``,
 using double the memory and ``O(n)`` time to do that.
-This is true for all convertion methods.
+This is true for all conversion methods.
 
-To achive the best performace,
+To achieve the best performance,
 use native ``json`` types: ``list`` and ``dict``.
 
 
