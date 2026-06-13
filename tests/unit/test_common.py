@@ -39,6 +39,13 @@ except ImportError:
 import msgspec
 from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
+try:
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from _future_builtins_ import frozendict
+except ImportError:
+    pass
+
 UTC = datetime.timezone.utc
 
 PY311 = sys.version_info[:2] >= (3, 11)
@@ -1016,6 +1023,37 @@ class TestUnionTypeErrors:
             proto.Decoder(typ)
         assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    def test_err_union_frozendict_dict_like_types(self, proto):
+        for typ in [
+            frozendict | Person,
+            Person | frozendict,
+            PersonDict | frozendict,
+            Union[PersonDataclass, frozendict],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict-like type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    def test_err_union_frozendict_and_dict(self, proto):
+        for typ in [
+            frozendict | dict,
+            dict | frozendict,
+            dict[str, int] | frozendict,
+            frozendict[str, int] | dict,
+            frozendict[str, int] | dict[str, bool],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
         "typ",
@@ -4101,6 +4139,31 @@ class TestAbstractTypes:
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            typing.MutableMapping,
+            typing.Mapping,
+            collections.abc.MutableMapping,
+            collections.abc.Mapping,
+        ],
+    )
+    def test_abstract_mapping_frozendict(self, proto, typ):
+        sol = frozendict({"x": 1, "y": 2})
+        msg = proto.encode(sol)
+        res = proto.decode(msg, type=typ)
+        assert res == sol
+        assert type(res) is dict  # does not roundtrip
+        with pytest.raises(ValidationError, match="Expected `object`, got `str`"):
+            proto.decode(proto.encode("a"), type=typ)
+
+        assert proto.decode(msg, type=typ[str, int]) == sol
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode(frozendict({"a": "b"})), type=typ[str, int])
+
 
 class TestUnset:
     def test_unset_type_annotation_ignored(self, proto):
@@ -4222,6 +4285,39 @@ class TestOrder:
     def test_order_dict_unsortable(self, proto):
         with pytest.raises(TypeError):
             proto.encode({"x": 1, 1: 2}, order="deterministic")
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    @pytest.mark.parametrize("use_encoder", [False, True])
+    def test_order_frozendict(self, msg, order, use_encoder, proto):
+        if use_encoder:
+            res = proto.Encoder(order=order).encode(msg)
+        else:
+            res = proto.encode(msg, order=order)
+
+        if order is not None:
+            sol = proto.encode(frozendict(sorted(msg.items())))
+        else:
+            sol = proto.encode(msg)
+
+        assert res == sol
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    def test_order_frozendict_non_str_errors(self, proto):
+        with pytest.raises(TypeError, match="Only dicts with str keys"):
+            proto.encode(frozendict({"b": 2, 1: "a"}), order="deterministic")
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    def test_order_frozendict_unsortable(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode(frozendict({"x": 1, 1: 2}), order="deterministic")
 
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
@@ -4666,3 +4762,24 @@ class TestLax:
         typ = int | float | bool | datetime.date | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+class TestFrozendict:
+    def test_decode_frozendict_not_object(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode([])
+        with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
+            dec.decode(msg)
+
+    def test_decode_frozendict_typed(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode(frozendict({"abc": 1}))
+
+        res = dec.decode(msg)
+        assert res == {"abc": 1}
+        assert type(res) is frozendict
+
+        msg = proto.encode(frozendict({"abc": "xyz"}))
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            dec.decode(msg)
