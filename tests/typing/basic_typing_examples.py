@@ -22,8 +22,7 @@ def check_exceptions() -> None:
 
 def check_unset() -> None:
     assert_type(msgspec.UNSET, Literal[msgspec.UnsetType.UNSET])
-    if isinstance(msgspec.UNSET, msgspec.UnsetType):
-        print("True")
+    assert_type(type(msgspec.UNSET), type[msgspec.UnsetType])
     str(msgspec.UNSET)
     pickle.dumps(msgspec.UNSET)
 
@@ -59,6 +58,11 @@ def check_struct() -> None:
     assert_type(t, Test)
     assert_type(t.x, int)
     assert_type(t.y, str)
+
+    t2 = Test(x=2, y="bar")
+    assert_type(t2, Test)
+    assert_type(t2.x, int)
+    assert_type(t2.y, str)
 
 
 def check_struct_field() -> None:
@@ -116,11 +120,15 @@ def check_struct_final_fields() -> None:
     dataclass_transform"""
     class Test(msgspec.Struct):
         x: Final[int] = 0
+        y: Final = 1
 
-    t = Test()
-    t2 = Test(x=1)
+    t = Test(0, 1)
     assert_type(t.x, int)
+    assert_type(t.y, Literal[1])
+
+    t2 = Test(x=0, y=1)
     assert_type(t2.x, int)
+    assert_type(t2.y, Literal[1])
 
 
 def check_struct_repr_omit_defaults() -> None:
@@ -130,6 +138,7 @@ def check_struct_repr_omit_defaults() -> None:
 
     t = Test(1, "foo")
     assert_type(t.x, int)
+    assert_type(t.y, str)
 
 
 def check_struct_omit_defaults() -> None:
@@ -182,18 +191,12 @@ def check_struct_rename() -> None:
     class TestNone(msgspec.Struct, rename=None):
         x: int
 
-    o = sum(
-        [
-            TestLower(1).x,
-            TestUpper(2).x,
-            TestCamel(3).x,
-            TestPascal(4).x,
-            TestCallable(5).x,
-            TestNone(6).x,
-        ]
-    )
-
-    assert_type(o, int)
+    assert_type(TestLower(1).x, int)
+    assert_type(TestUpper(2).x, int)
+    assert_type(TestCamel(3).x, int)
+    assert_type(TestPascal(4).x, int)
+    assert_type(TestCallable(5).x, int)
+    assert_type(TestNone(6).x, int)
 
 
 def check_struct_array_like() -> None:
@@ -225,8 +228,7 @@ def check_struct_eq() -> None:
 
     t = Test(1, "foo")
     t2 = Test(1, "foo")
-    if t == t2:
-        print("Here")
+    assert_type(t == t2, bool)
     assert_type(t, Test)
     assert_type(t.x, int)
     assert_type(t.y, str)
@@ -272,6 +274,8 @@ def check_struct_dict() -> None:
 
     t = Test(1, "foo")
     assert_type(t, Test)
+    assert_type(t.x, int)
+    assert_type(t.y, str)
 
 
 def check_struct_cache_hash() -> None:
@@ -281,6 +285,8 @@ def check_struct_cache_hash() -> None:
 
     t = Test(1, "foo")
     assert_type(t, Test)
+    assert_type(t.x, int)
+    assert_type(t.y, str)
 
 
 def check_struct_tag_tag_field() -> None:
@@ -320,16 +326,12 @@ def check_struct_methods() -> None:
 
     a = Point(1, 2)
     b = Point(3, 4)
-    if a == b:
-        print("equal")
+    assert_type(a == b, bool)
     a.x = a.x + b.y
     repr(a)
 
     for item in a.__rich_repr__():
-        assert isinstance(item, tuple)
-        assert len(item) == 2
-        name, val = item
-        print(f"{name} = {val}")
+        assert_type(item, tuple[str, Any])
 
 
 def check_struct_attributes() -> None:
@@ -341,6 +343,8 @@ def check_struct_attributes() -> None:
         assert_type(field, str)
 
     for field in Point.__match_args__:
+        # mypy inferences `field` as `str`,
+        # pyright inferences `field` as `Literal['x', 'y']`
         _field_str: str = field
 
     p = Point(1, 2)
@@ -554,14 +558,13 @@ def check_meta_attributes() -> None:
 def check_meta_equal() -> None:
     c1 = msgspec.Meta()
     c2 = msgspec.Meta()
-    if c1 == c2:
-        print("ok")
+    assert_type(c1 == c2, bool)
 
 
 def check_meta_methods() -> None:
     c = msgspec.Meta()
-    for name, val in c.__rich_repr__():
-        print(f"{name} = {val}")
+    for field in c.__rich_repr__():
+        assert_type(field, tuple[str, Any])
 
 
 ##########################################################
@@ -585,10 +588,8 @@ def check_raw_copy() -> None:
 def check_raw_methods() -> None:
     r1 = msgspec.Raw(b"a")
     r2 = msgspec.Raw(b"b")
-    if r1 == r2:
-        print(r1)
-
-    m = memoryview(r1)  # buffer protocol
+    assert_type(r1 == r2, bool)
+    memoryview(r1)  # buffer protocol
 
 
 def check_raw_pass_to_decode() -> None:
@@ -909,7 +910,7 @@ def check_json_Decoder_float_hook() -> None:
     msgspec.json.Decoder(float_hook=float)
     dec = msgspec.json.Decoder(float_hook=decimal.Decimal)
     if dec.float_hook is not None:
-        dec.float_hook("1.5")
+        assert_type(dec.float_hook("1.5"), Any)
 
 
 def check_json_Decoder_strict() -> None:
@@ -960,24 +961,24 @@ def check_yaml_decode_from_str() -> None:
 
 
 def check_yaml_decode_from_buffer() -> None:
-    msgspec.yaml.decode(memoryview(b"[1, 2, 3]"))
+    assert_type(msgspec.yaml.decode(memoryview(b"[1, 2, 3]")), Any)
 
 
 def check_yaml_encode_enc_hook() -> None:
-    msgspec.yaml.encode(object(), enc_hook=lambda x: None)
+    assert_type(msgspec.yaml.encode(object(), enc_hook=lambda x: None), bytes)
 
 
 def check_yaml_encode_order() -> None:
-    msgspec.yaml.encode(object(), order=None)
-    msgspec.yaml.encode(object(), order="deterministic")
-    msgspec.yaml.encode(object(), order="sorted")
+    assert_type(msgspec.yaml.encode(object(), order=None), bytes)
+    assert_type(msgspec.yaml.encode(object(), order="deterministic"), bytes)
+    assert_type(msgspec.yaml.encode(object(), order="sorted"), bytes)
 
 
 def check_yaml_decode_dec_hook() -> None:
     def dec_hook(typ: type, obj: Any) -> Any:
         return typ(obj)
 
-    msgspec.yaml.decode(b"test", dec_hook=dec_hook)
+    assert_type(msgspec.yaml.decode(b"test", dec_hook=dec_hook), Any)
 
 
 def check_yaml_decode_strict() -> None:
@@ -1012,24 +1013,24 @@ def check_toml_decode_from_str() -> None:
 
 
 def check_toml_decode_from_buffer() -> None:
-    msgspec.toml.decode(memoryview(b"a = 1"))
+    assert_type(msgspec.toml.decode(memoryview(b"a = 1")), Any)
 
 
 def check_toml_encode_enc_hook() -> None:
-    msgspec.toml.encode(object(), enc_hook=lambda x: None)
+    assert_type(msgspec.toml.encode(object(), enc_hook=lambda x: None), bytes)
 
 
 def check_toml_encode_order() -> None:
-    msgspec.toml.encode(object(), order=None)
-    msgspec.toml.encode(object(), order="deterministic")
-    msgspec.toml.encode(object(), order="sorted")
+    assert_type(msgspec.toml.encode(object(), order=None), bytes)
+    assert_type(msgspec.toml.encode(object(), order="deterministic"), bytes)
+    assert_type(msgspec.toml.encode(object(), order="sorted"), bytes)
 
 
 def check_toml_decode_dec_hook() -> None:
     def dec_hook(typ: type, obj: Any) -> Any:
         return typ(obj)
 
-    msgspec.toml.decode(b"a = 1", dec_hook=dec_hook)
+    assert_type(msgspec.toml.decode(b"a = 1", dec_hook=dec_hook), Any)
 
 
 def check_toml_decode_strict() -> None:
@@ -1042,12 +1043,10 @@ def check_toml_decode_strict() -> None:
 ##########################################################
 
 def check_inspect_type_info() -> None:
-    o = msgspec.inspect.type_info(list[int])
-    assert_type(o, msgspec.inspect.Type)
-
-    msgspec.inspect.type_info(int)
-    msgspec.inspect.type_info(int)
-    msgspec.inspect.type_info(int)
+    assert_type(msgspec.inspect.type_info(list[int]), msgspec.inspect.Type)
+    assert_type(msgspec.inspect.type_info(int), msgspec.inspect.Type)
+    assert_type(msgspec.inspect.type_info(list), msgspec.inspect.Type)
+    assert_type(msgspec.inspect.type_info(None), msgspec.inspect.Type)
 
 
 def check_inspect_multi_type_info() -> None:
@@ -1056,10 +1055,6 @@ def check_inspect_multi_type_info() -> None:
 
     o2 = msgspec.inspect.multi_type_info((int, float))
     assert_type(o2, tuple[msgspec.inspect.Type, ...])
-
-    msgspec.inspect.multi_type_info([int])
-    msgspec.inspect.multi_type_info([int])
-    msgspec.inspect.multi_type_info([int])
 
 
 def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
