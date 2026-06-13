@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterable
+from types import GenericAlias
 from typing import (
     Any,
     Generic,
@@ -67,6 +68,7 @@ class Decoder(Generic[_T]):
     ) -> None: ...
     def decode(self, buf: Buffer | str, /) -> _T: ...
     def decode_lines(self, buf: Buffer | str, /) -> list[_T]: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
 @overload
 def decode(
