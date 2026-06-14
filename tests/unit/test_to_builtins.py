@@ -314,8 +314,9 @@ class TestToBuiltins:
         ):
             to_builtins(msg, str_keys=True)
 
-    def check_frozen(self, val, expected):
-        assert type(val) is type(expected)
+    def check_non_frozen(self, val, expected):
+        assert type(val) is dict
+        assert type(expected) is dict
         assert val == expected
 
     @pytest.mark.skipif(
@@ -332,15 +333,32 @@ class TestToBuiltins:
             in_type = frozendict
 
         msg = in_type({FruitStr.BANANA: 1, "b": [FruitInt.APPLE], 3: "three"})
-        sol = frozendict({"banana": 1, "b": [-1], 3: "three"})
 
         res = to_builtins(msg)
-        assert res == sol
-        assert type(res) is frozendict
+        self.check_non_frozen(res, {"banana": 1, "b": [-1], 3: "three"})
         assert res is not msg
 
-        res = to_builtins(in_type())
-        self.check_frozen(res, frozendict())
+        self.check_non_frozen(to_builtins(in_type()), {})
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+    )
+    def test_frozendict_builtin_types(self):
+        msg = to_builtins(frozendict({"test": 1}), builtin_types=(frozendict,))
+        assert type(msg) is frozendict
+        assert msg == frozendict({"test": 1})
+
+        msg = to_builtins(
+            frozendict(
+                {
+                    "test": frozendict({1: "a"}),
+                }
+            ),
+            builtin_types=(frozendict,),
+        )
+        assert type(msg) is frozendict
+        assert type(msg["test"]) is frozendict
+        assert msg == frozendict({"test": frozendict({1: "a"})})
 
     @pytest.mark.skipif(
         sys.version_info < (3, 15), reason="frozendict was added in 3.15"
@@ -350,7 +368,7 @@ class TestToBuiltins:
             pass
 
         msg = to_builtins(frozendict({mystr("test"): 1}))
-        self.check_frozen(msg, frozendict({"test": 1}))
+        self.check_non_frozen(msg, {"test": 1})
         assert type(list(msg.keys())[0]) is str
 
     @pytest.mark.skipif(
@@ -373,21 +391,21 @@ class TestToBuiltins:
         sys.version_info < (3, 15), reason="frozendict was added in 3.15"
     )
     def test_frozendict_str_keys(self):
-        self.check_frozen(
+        self.check_non_frozen(
             to_builtins(frozendict({FruitStr.BANANA: 1}), str_keys=True),
-            frozendict({"banana": 1}),
+            {"banana": 1},
         )
-        self.check_frozen(
+        self.check_non_frozen(
             to_builtins(frozendict({"banana": 1}), str_keys=True),
-            frozendict({"banana": 1}),
+            {"banana": 1},
         )
-        self.check_frozen(
+        self.check_non_frozen(
             to_builtins(frozendict({FruitInt.BANANA: 1}), str_keys=True),
-            frozendict({"2": 1}),
+            {"2": 1},
         )
-        self.check_frozen(
+        self.check_non_frozen(
             to_builtins(frozendict({2: 1}), str_keys=True),
-            frozendict({"2": 1}),
+            {"2": 1},
         )
 
     @pytest.mark.skipif(
@@ -395,7 +413,7 @@ class TestToBuiltins:
     )
     def test_frozendict_sequence_keys(self):
         msg = frozendict({frozenset([1, 2]): 1})
-        self.check_frozen(to_builtins(msg), frozendict({(1, 2): 1}))
+        self.check_non_frozen(to_builtins(msg), {(1, 2): 1})
 
         with pytest.raises(
             TypeError,

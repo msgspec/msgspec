@@ -134,6 +134,18 @@ PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
 }
 #endif // PY_VERSION_HEX < 0x030D00A1
 
+#if PY315_PLUS
+static inline PyObject *
+_PyFrozenDict_NewSteal(PyObject *dict) {
+    if (dict == NULL) {
+        return NULL;
+    }
+    PyObject *op = PyFrozenDict_New(dict);
+    Py_DECREF(dict);
+    return op;
+}
+#endif
+
 #if PY_VERSION_HEX < 0x030D00B3
 #  define Py_BEGIN_CRITICAL_SECTION(op) {
 #  define Py_END_CRITICAL_SECTION() }
@@ -16125,10 +16137,7 @@ mpack_decode_frozendict(
     TypeNode *val_type, PathNode *path
 ) {
     PyObject *dict = mpack_decode_dict(self, size, key_type, val_type, path);
-    if (dict == NULL) {
-        return NULL;
-    }
-    return PyFrozenDict_New(dict);
+    return _PyFrozenDict_NewSteal(dict);
 }
 #endif
 
@@ -16356,36 +16365,24 @@ mpack_decode_map(
     else if (type->types & MS_TYPE_DATACLASS) {
         return mpack_decode_dataclass(self, size, type, path);
     }
+    else if (type->types & (MS_ANY_DICT | MS_TYPE_ANY)) {
+        if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
+            return NULL;
+        }
+        TypeNode *key, *val;
+        TypeNode type_any = {MS_TYPE_ANY};
+        if (type->types & MS_TYPE_ANY) {
+            key = &type_any;
+            val = &type_any;
+        }
+        else {
+            TypeNode_get_dict(type, &key, &val);
+        }
 #if PY315_PLUS
-    else if (type->types & MS_TYPE_FROZENDICT) {
-        if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
-            return NULL;
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return mpack_decode_frozendict(self, size, key, val, path);
         }
-        TypeNode *key, *val;
-        TypeNode type_any = {MS_TYPE_ANY};
-        if (type->types & MS_TYPE_ANY) {
-            key = &type_any;
-            val = &type_any;
-        }
-        else {
-            TypeNode_get_dict(type, &key, &val);
-        }
-        return mpack_decode_frozendict(self, size, key, val, path);
-    }
 #endif
-    else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
-        if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
-            return NULL;
-        }
-        TypeNode *key, *val;
-        TypeNode type_any = {MS_TYPE_ANY};
-        if (type->types & MS_TYPE_ANY) {
-            key = &type_any;
-            val = &type_any;
-        }
-        else {
-            TypeNode_get_dict(type, &key, &val);
-        }
         return mpack_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
@@ -18632,10 +18629,7 @@ json_decode_frozendict(
     JSONDecoderState *self, TypeNode *type, TypeNode *key_type, TypeNode *val_type, PathNode *path
 ) {
     PyObject *dict = json_decode_dict(self, type, key_type, val_type, path);
-    if (dict == NULL) {
-        return NULL;
-    }
-    return PyFrozenDict_New(dict);
+    return _PyFrozenDict_NewSteal(dict);
 }
 #endif
 
@@ -19036,18 +19030,16 @@ json_decode_object(
         TypeNode type_any = {MS_TYPE_ANY};
         return json_decode_dict(self, type, &type_any, &type_any, path);
     }
-    else if (type->types & MS_TYPE_DICT) {
+    else if (type->types & MS_ANY_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return json_decode_frozendict(self, type, key, val, path);
+        }
+#endif
         return json_decode_dict(self, type, key, val, path);
     }
-#if PY315_PLUS
-    else if (type->types & MS_TYPE_FROZENDICT) {
-        TypeNode *key, *val;
-        TypeNode_get_dict(type, &key, &val);
-        return json_decode_frozendict(self, type, key, val, path);
-    }
-#endif
     else if (type->types & MS_TYPE_TYPEDDICT) {
         return json_decode_typeddict(self, type, path);
     }
@@ -19923,6 +19915,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 #define MS_BUILTIN_UUID       (1ull << 6)
 #define MS_BUILTIN_DECIMAL    (1ull << 7)
 #define MS_BUILTIN_TIMEDELTA  (1ull << 8)
+#define MS_BUILTIN_FROZENDICT (1ull << 9)
 
 typedef struct {
     MsgspecState *mod;
@@ -20156,17 +20149,6 @@ cleanup:;
     }
     return out;
 }
-
-#if PY315_PLUS
-static PyObject *
-to_builtins_frozendict(ToBuiltinsState *self, PyObject *obj) {
-    PyObject *dict = to_builtins_dict(self, obj);
-    if (dict == NULL) {
-        return NULL;
-    }
-    return PyFrozenDict_New(dict);
-}
-#endif
 
 static PyObject *
 to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
@@ -20449,7 +20431,8 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     }
 #if PY315_PLUS
     else if (PyFrozenDict_Check(obj)) {
-        return to_builtins_frozendict(self, obj);
+        if (self->builtin_types & MS_BUILTIN_FROZENDICT) goto builtin;
+        return to_builtins_dict(self, obj);
     }
 #endif
     else if (ms_is_struct_type(type)) {
@@ -20542,6 +20525,11 @@ ms_process_builtin_types(
         else if (type == (PyObject *)(&PyMemoryView_Type)) {
             *mask |= MS_BUILTIN_MEMORYVIEW;
         }
+#if PY315_PLUS
+        else if (type == (PyObject *)(&PyFrozenDict_Type)) {
+            *mask |= MS_BUILTIN_FROZENDICT;
+        }
+#endif
         else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
             *mask |= MS_BUILTIN_DATETIME;
         }
@@ -20620,7 +20608,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "builtin_types: Iterable[type], optional\n"
 "    An iterable of types to treat as additional builtin types. These types will\n"
 "    be passed through ``to_builtins`` unchanged. Currently supports `bytes`,\n"
-"    `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
+"    `bytearray`, `memoryview`, `frozendict`, `datetime.datetime`, `datetime.time`,\n"
 "    `datetime.date`, `datetime.timedelta`, `uuid.UUID`, `decimal.Decimal`,\n"
 "    and custom types.\n"
 "str_keys: bool, optional\n"
@@ -21640,10 +21628,7 @@ convert_dict_to_frozendict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     PyObject *dict = convert_dict_to_dict(self, obj, type, path);
-    if (dict == NULL) {
-        return NULL;
-    }
-    return PyFrozenDict_New(dict);
+    return _PyFrozenDict_NewSteal(dict);
 }
 #endif
 
@@ -22180,10 +22165,7 @@ convert_other(
 #if PY315_PLUS
         if (type->types & MS_TYPE_FROZENDICT) {
             PyObject *dict = convert_mapping_to_dict(self, obj, type, path);
-            if (dict == NULL) {
-                return NULL;
-            }
-            return PyFrozenDict_New(dict);
+            return _PyFrozenDict_NewSteal(dict);
         }
 #endif
     }
