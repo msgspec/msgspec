@@ -126,3 +126,23 @@ parentdir_prefix_version = "msgspec-"
 
 [tool.uv.config-settings]
 editable_mode = "compat"
+
+[tool.mypy]
+extra_checks = true
+strict = true
+strict_equality_for_none = true
+warn_unreachable = true
+
+[tool.pyright]
+include = ["tests/typing/"]
+# Strict mode:
+typeCheckingMode = "strict"
+reportImplicitStringConcatenation = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+# Don't use '# type: ignore' to suppress with pyright
+enableTypeIgnoreComments = false
+# Don't report unused variables and classes:
+reportUnusedVariable = false
+reportUnusedClass = false
+reportPrivateUsage = false

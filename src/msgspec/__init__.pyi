@@ -175,10 +175,10 @@ class Meta:
         tz: bool | None = None,
         title: str | None = None,
         description: str | None = None,
-        examples: list | None = None,
-        extra_json_schema: dict | None = None,
-        extra: dict | None = None,
-    ): ...
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
     gt: Final[int | float | None]
     ge: Final[int | float | None]
     lt: Final[int | float | None]
@@ -190,16 +190,16 @@ class Meta:
     tz: Final[int | None]
     title: Final[str | None]
     description: Final[str | None]
-    examples: Final[list | None]
-    extra_json_schema: Final[dict | None]
-    extra: Final[dict | None]
+    examples: Final[list[Any] | None]
+    extra_json_schema: Final[dict[str, Any] | None]
+    extra: Final[dict[str, Any] | None]
     def __rich_repr__(self) -> list[tuple[str, Any]]: ...
 
 def to_builtins(
     obj: Any,
     *,
     str_keys: bool = False,
-    builtin_types: Iterable[type] | None = None,
+    builtin_types: Iterable[type[Any]] | None = None,
     enc_hook: Callable[[Any], Any] | None = None,
     order: Literal[None, "deterministic", "sorted"] = None,
 ) -> Any: ...
@@ -210,8 +210,8 @@ def convert(
     *,
     strict: bool = True,
     from_attributes: bool = False,
-    dec_hook: Callable[[type, Any], Any] | None = None,
-    builtin_types: Iterable[type] | None = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+    builtin_types: Iterable[type[Any]] | None = None,
     str_keys: bool = False,
 ) -> _T: ...
 @overload
@@ -221,8 +221,8 @@ def convert(
     *,
     strict: bool = True,
     from_attributes: bool = False,
-    dec_hook: Callable[[type, Any], Any] | None = None,
-    builtin_types: Iterable[type] | None = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+    builtin_types: Iterable[type[Any]] | None = None,
     str_keys: bool = False,
 ) -> Any: ...
 

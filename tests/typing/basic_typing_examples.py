@@ -539,20 +539,8 @@ def check_meta_constructor() -> None:
 
 def check_meta_attributes() -> None:
     c = msgspec.Meta()
-    print(c.gt)
-    print(c.ge)
-    print(c.lt)
-    print(c.le)
-    print(c.multiple_of)
-    print(c.pattern)
-    print(c.min_length)
-    print(c.max_length)
-    print(c.tz)
-    print(c.title)
-    print(c.description)
-    print(c.examples)
-    print(c.extra_json_schema)
-    print(c.extra)
+    assert_type(c.title, str | None)
+    assert_type(c.description, str | None)
 
 
 def check_meta_equal() -> None:
@@ -649,7 +637,7 @@ def check_msgpack_Decoder_decode_union() -> None:
 
 
 def check_msgpack_Decoder_decode_type_comment() -> None:
-    dec = msgspec.msgpack.Decoder()  # type: msgspec.msgpack.Decoder[list[int]]
+    dec = msgspec.msgpack.Decoder()  # type: msgspec.msgpack.Decoder[list[int]]  # pyright: ignore[reportTypeCommentUsage]
     b = msgspec.msgpack.encode([1, 2, 3])
     o = dec.decode(b)
 
@@ -803,7 +791,7 @@ def check_json_Decoder_decode_typed() -> None:
 
 
 def check_json_Decoder_decode_type_comment() -> None:
-    dec = msgspec.json.Decoder()  # type: msgspec.json.Decoder[list[int]]
+    dec = msgspec.json.Decoder()  # type: msgspec.json.Decoder[list[int]]  # pyright: ignore[reportTypeCommentUsage]
     b = msgspec.json.encode([1, 2, 3])
     o = dec.decode(b)
 
@@ -1107,8 +1095,7 @@ def check_inspect_is_struct_type() -> None:
     class Point(msgspec.Struct):
         x: int
 
-    class Other:
-        y: str
+    class Other: ...
 
     tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
