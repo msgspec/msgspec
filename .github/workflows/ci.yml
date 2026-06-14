@@ -18,6 +18,7 @@ on:
     - .github/workflows/prepare-build.yml
     - .github/workflows/build-wheels.yml
     - .github/workflows/profile.yml
+    - .github/workflows/codspeed.yml
     - .github/actions/latest-supported-python/action.yml
     - .github/actions/fetch-release-history/action.yml
     - .cibuildwheel.toml
@@ -200,18 +201,6 @@ jobs:
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
       build-all: ${{ github.event_name == 'release' }}
-
-  profile:
-    name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
-    needs:
-    - prepare
-    - build-wheels
-    uses: ./.github/workflows/profile.yml
-    permissions:
-      actions: read
-      contents: read
-    with:
-      python: "${{ needs.prepare.outputs.latest-supported-python }}"
 
   upload-pypi:
     name: Upload artifacts to PyPI
