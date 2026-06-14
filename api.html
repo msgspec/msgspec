@@ -2015,7 +2015,7 @@ accepts either timezone-aware or timezone-naive values.</p>
 <dd><p>A union type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>types</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of possible types for this union.</p>
+<dd class="field-odd"><p><strong>types</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of possible types for this union.</p>
 </dd>
 </dl>
 <dl class="py property">
@@ -2119,7 +2119,7 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>item_types</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of types for each element in the tuple.</p>
+<dd class="field-odd"><p><strong>item_types</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of types for each element in the tuple.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2173,7 +2173,7 @@ is set.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding TypedDict type.</p></li>
-<li><p><strong>fields</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2187,7 +2187,7 @@ is set.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding NamedTuple type.</p></li>
-<li><p><strong>fields</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the NamedTuple.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the NamedTuple.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2201,7 +2201,7 @@ is set.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding dataclass type.</p></li>
-<li><p><strong>fields</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the dataclass.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the dataclass.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2215,7 +2215,7 @@ is set.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding Struct type.</p></li>
-<li><p><strong>fields</strong> (<em>Tuple</em><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the Struct.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the Struct.</p></li>
 <li><p><strong>tag_field</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – If set, the field name used for the tag in a tagged union.</p></li>
 <li><p><strong>tag</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, or </em><em>None</em><em>, </em><em>optional</em>) – If set, the value used for the tag in a tagged union.</p></li>
 <li><p><strong>array_like</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the struct is encoded as an array rather than an object.</p></li>
@@ -2298,7 +2298,7 @@ is set.</p></li>
           </div>
           <div class="right-details">
             <div class="icons">
-              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+              <a class="muted-link " href="https://github.com/msgspec/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
 </svg></a>
               

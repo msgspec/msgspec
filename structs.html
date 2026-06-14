@@ -320,13 +320,11 @@ optional arguments. Here we define a struct representing a user, with one
 required field and two optional fields.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
-
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct describing a user&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
-<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 </pre></div>
 </div>
 <ul class="simple">
@@ -370,7 +368,7 @@ annotations:</p>
 <span class="go">True</span>
 </pre></div>
 </div>
-<p>Note that it is forbidden to override <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> in a struct
+<p>Note that it is forbidden to override <code class="docutils literal notranslate"><span class="pre">__init__</span></code> / <code class="docutils literal notranslate"><span class="pre">__new__</span></code> in a struct
 definition, but other methods can be overridden or added as needed. If you need
 to customize the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, see <a class="reference internal" href="#struct-post-init"><span class="std std-ref">Post-Init Processing</span></a>.</p>
 <p>The struct fields are available via the <code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute (a
@@ -762,7 +760,7 @@ every struct type in the union. In this case <code class="docutils literal notra
 <span class="go">b&#39;{&quot;type&quot;:&quot;Get&quot;,&quot;key&quot;:&quot;my key&quot;}&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
-<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
 <span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;type&quot;: &quot;Put&quot;, &quot;key&quot;: &quot;my key&quot;, &quot;val&quot;: &quot;my val&quot;}&#39;</span><span class="p">)</span>
@@ -774,7 +772,7 @@ every struct type in the union. In this case <code class="docutils literal notra
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># A tagged union can also contain non-struct types.</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
 <span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;123&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">123</span>
 </pre></div>
@@ -832,7 +830,7 @@ for all struct types you wish to tag.</p>
 <span class="go">b&#39;{&quot;op&quot;:&quot;get&quot;,&quot;key&quot;:&quot;my key&quot;}&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
-<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
 <span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;op&quot;: &quot;put&quot;, &quot;key&quot;: &quot;my key&quot;, &quot;val&quot;: &quot;my val&quot;}&#39;</span><span class="p">)</span>
@@ -851,8 +849,8 @@ fields (those configured with a default value).</p>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
-<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
 
@@ -871,8 +869,8 @@ of the Struct definition:</p>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">omit_defaults</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
-<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
 
@@ -989,7 +987,7 @@ take a few different values:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>: PascalCase all fields (<code class="docutils literal notranslate"><span class="pre">ExampleField</span></code>)</p></li>
 <li><p>A mapping from field names to the renamed names. Field names missing from the
 mapping will not be renamed.</p></li>
-<li><p>A callable (signature <code class="docutils literal notranslate"><span class="pre">rename(name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[str]</span></code>) to use to
+<li><p>A callable (signature <code class="docutils literal notranslate"><span class="pre">rename(name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code>) to use to
 rename all field names. Note that <code class="docutils literal notranslate"><span class="pre">None</span></code> for a return value indicates the
 original field name should be used.</p></li>
 </ul>
@@ -1106,7 +1104,7 @@ array, and is used to determine which type in the union to use when decoding.</p
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
 <span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;[&quot;Put&quot;, &quot;my key&quot;, &quot;my val&quot;]&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">Put(key=&#39;my key&#39;, val=&#39;my val&#39;)</span>
 </pre></div>
@@ -1310,7 +1308,7 @@ collected (leading to a memory leak).</p>
           </div>
           <div class="right-details">
             <div class="icons">
-              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+              <a class="muted-link " href="https://github.com/msgspec/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
 </svg></a>
               

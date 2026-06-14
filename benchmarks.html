@@ -366,15 +366,15 @@ into user-friendly python objects.</p></li>
 </div>
 <p>The libraries we’re comparing are the following:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://msgspec.dev">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/Fatal1ty/mashumaro">mashumaro</a> (3.11)</p></li>
 <li><p><a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
 <li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> (23.2.3)</p></li>
 </ul>
-<p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code>
+<p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code> / <code class="docutils literal notranslate"><span class="pre">Directory</span></code>
 instances, then serializes, deserializes, and validates it in a loop.</p>
 <p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation">here</a>.</p>
+<a class="reference external" href="https://github.com/msgspec/msgspec/tree/main/benchmarks/bench_validation">here</a>.</p>
 <div id="bench-validate" style="width:75%"></div><p>In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~6x faster than <code class="docutils literal notranslate"><span class="pre">mashumaro</span></code>, ~10x faster
 than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, and ~12x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V2, and ~85x faster than
 <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V1.</p>
@@ -401,11 +401,11 @@ in-memory state means it uses a fraction of the memory of other tools.</p>
 <section id="json-serialization">
 <span id="json-benchmark"></span><h2>JSON Serialization<a class="headerlink" href="#json-serialization" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance JSON library, which may be used
-by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
+by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
 functions. Here we compare msgspec’s JSON implementation against several other
 popular Python JSON libraries.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://msgspec.dev">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a> (3.9.10)</p></li>
 <li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a> (5.9.0)</p></li>
 <li><p><a class="reference external" href="https://github.com/python-rapidjson/python-rapidjson">rapidjson</a> (1.13)</p></li>
@@ -413,7 +413,7 @@ popular Python JSON libraries.</p>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a> (standard library)</p></li>
 </ul>
 <p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_encodings.py">here</a>.</p>
+<a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_encodings.py">here</a>.</p>
 <div id="bench-json" style="width:75%"></div><p>In this case <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">structs</span></code> (which measures <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> with
 <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> schemas pre-defined) is the fastest. When used without
 schemas, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is on-par with <code class="docutils literal notranslate"><span class="pre">orjson</span></code> (the next fastest JSON library).</p>
@@ -428,7 +428,7 @@ which may be used by itself without requiring usage of any of msgspec’s
 validation machinery. Here we compare msgspec’s MessagePack implementation
 against several other popular Python MessagePack libraries.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://msgspec.dev">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a> (1.0.7)</p></li>
 <li><p><a class="reference external" href="https://github.com/ormsgpack/ormsgpack">ormsgpack</a> (1.4.1)</p></li>
 </ul>
@@ -443,7 +443,7 @@ against several other popular Python MessagePack libraries.</p>
 containing information on all the <code class="docutils literal notranslate"><span class="pre">noarch</span></code> packages in <a class="reference external" href="https://conda-forge.org/">conda-forge</a>. We
 compare the following libraries:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://msgspec.dev">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a> (3.9.10)</p></li>
 <li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a> (5.9.0)</p></li>
 <li><p><a class="reference external" href="https://github.com/python-rapidjson/python-rapidjson">rapidjson</a> (1.13)</p></li>
@@ -452,7 +452,7 @@ compare the following libraries:</p>
 </ul>
 <p>For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.</p>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_large_json.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_large_json.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -536,7 +536,7 @@ performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
 <li><p>Standard Python classes</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://msgspec.dev">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a> (23.1.0)</p></li>
 <li><p><a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> (2.5.2)</p></li>
 </ul>
@@ -546,10 +546,10 @@ performance against other similar libraries. The cases compared are:</p>
 boilerplate add overhead when defining classes, slowing import times for
 libraries that make use of these classes.</p></li>
 <li><p>Time to create an instance of that class.</p></li>
-<li><p>Time to compare two instances for equality (<code class="docutils literal notranslate"><span class="pre">==</span></code>/<code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p></li>
-<li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
+<li><p>Time to compare two instances for equality (<code class="docutils literal notranslate"><span class="pre">==</span></code> / <code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p></li>
+<li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code> / <code class="docutils literal notranslate"><span class="pre">&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code> / <code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
 </ul>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_structs.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_structs.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -620,7 +620,7 @@ of the benchmarked type, then measure:</p>
 <li><p>The amount of time it takes to do a full garbage collection (gc) pass</p></li>
 <li><p>The total amount of memory used by this data structure</p></li>
 </ul>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_gc.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_gc.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -670,7 +670,7 @@ composing dict can be skipped during GC traversal.</p></li>
 <span id="benchmark-library-size"></span><h2>Library Size<a class="headerlink" href="#library-size" title="Link to this heading">¶</a></h2>
 <p>Here we compare the on-disk size of <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> and <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>, its closest
 equivalent.</p>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_library_size.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_library_size.py">here</a>.</p>
 <p><strong>Results (smaller is better)</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -903,7 +903,7 @@ buildPlot('#bench-msgpack', results_msgpack, "Benchmark - MessagePack Serializat
           </div>
           <div class="right-details">
             <div class="icons">
-              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+              <a class="muted-link " href="https://github.com/msgspec/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
 </svg></a>
               

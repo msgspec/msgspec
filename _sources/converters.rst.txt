@@ -88,12 +88,12 @@ configuration options:
   string values exist. See :ref:`strict-vs-lax` for more information.
 
 - ``from_attributes``: `convert` only. If True, input objects may be coerced
-  to ``Struct``/``dataclass``/``attrs`` types by extracting attributes from the
+  to ``Struct`` / ``dataclass`` / ``attrs`` types by extracting attributes from the
   input matching fields in the output type. One use case is converting database
   query results (ORM or otherwise) to msgspec structured types. The default is
   False.
 
-- ``enc_hook``/``dec_hook``: the standard keyword arguments used for
+- ``enc_hook`` / ``dec_hook``: the standard keyword arguments used for
   :doc:`extending` msgspec to support additional types.
 
 -----
@@ -127,9 +127,9 @@ support by wrapping the standard library's `tomllib` module as follows:
 ``msgspec`` uses these APIs to implement ``toml`` and ``yaml`` support,
 wrapping external serialization libraries:
 
-- ``msgspec.toml`` (`code <https://github.com/jcrist/msgspec/blob/main/src/msgspec/toml.py>`__)
+- ``msgspec.toml`` (`code <https://github.com/msgspec/msgspec/blob/main/src/msgspec/toml.py>`__)
 
-- ``msgspec.yaml`` (`code <https://github.com/jcrist/msgspec/blob/main/src/msgspec/yaml.py>`__)
+- ``msgspec.yaml`` (`code <https://github.com/msgspec/msgspec/blob/main/src/msgspec/yaml.py>`__)
 
 The implementation in ``msgspec.toml`` is *almost* identical to the one above,
 with some additional code for error handling.

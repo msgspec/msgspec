@@ -378,11 +378,11 @@ string to non-string types for all values. Among other uses, this may be used
 to handle completely untyped protocols like URL querystrings, where only
 string values exist. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">from_attributes</span></code>: <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> only. If True, input objects may be coerced
-to <code class="docutils literal notranslate"><span class="pre">Struct</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclass</span></code>/<code class="docutils literal notranslate"><span class="pre">attrs</span></code> types by extracting attributes from the
+to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> / <code class="docutils literal notranslate"><span class="pre">dataclass</span></code> / <code class="docutils literal notranslate"><span class="pre">attrs</span></code> types by extracting attributes from the
 input matching fields in the output type. One use case is converting database
 query results (ORM or otherwise) to msgspec structured types. The default is
 False.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code>/<code class="docutils literal notranslate"><span class="pre">dec_hook</span></code>: the standard keyword arguments used for
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> / <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code>: the standard keyword arguments used for
 <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a> msgspec to support additional types.</p></li>
 </ul>
 <hr class="docutils" />
@@ -413,8 +413,8 @@ support by wrapping the standard library’s <a class="reference external" href=
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> uses these APIs to implement <code class="docutils literal notranslate"><span class="pre">toml</span></code> and <code class="docutils literal notranslate"><span class="pre">yaml</span></code> support,
 wrapping external serialization libraries:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/src/msgspec/toml.py">code</a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/src/msgspec/yaml.py">code</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> (<a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/src/msgspec/toml.py">code</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> (<a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/src/msgspec/yaml.py">code</a>)</p></li>
 </ul>
 <p>The implementation in <code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> is <em>almost</em> identical to the one above,
 with some additional code for error handling.</p>
@@ -458,7 +458,7 @@ with some additional code for error handling.</p>
           </div>
           <div class="right-details">
             <div class="icons">
-              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+              <a class="muted-link " href="https://github.com/msgspec/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
 </svg></a>
               
