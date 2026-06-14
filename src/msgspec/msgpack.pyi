@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from types import GenericAlias
 from typing import (
     Any,
     Generic,
@@ -49,6 +50,7 @@ class Decoder(Generic[_T]):
         ext_hook: _ExtHookSig = None,
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> _T: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
 @final
 class Encoder:
