@@ -117,9 +117,7 @@ class Struct(metaclass=StructMeta):
         dict: bool = False,
         cache_hash: bool = False,
     ) -> None: ...
-    def __rich_repr__(
-        self,
-    ) -> list[tuple[str, Any]]: ...
+    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
     def __replace__(self, **changes: Any) -> Self: ...
 
 def defstruct(
@@ -195,7 +193,7 @@ class Meta:
     examples: Final[list | None]
     extra_json_schema: Final[dict | None]
     extra: Final[dict | None]
-    def __rich_repr__(self) -> Iterable[tuple[str, Any]]: ...
+    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
 
 def to_builtins(
     obj: Any,
