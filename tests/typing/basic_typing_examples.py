@@ -499,9 +499,9 @@ def check_fields() -> None:
 
     x = Test(1, 2)
     res1 = msgspec.structs.fields(x)
-    assert_type(res1, tuple[msgspec.structs.FieldInfo])
+    assert_type(res1, tuple[msgspec.structs.FieldInfo, ...])
     res2 = msgspec.structs.fields(Test)
-    assert_type(res2, tuple[msgspec.structs.FieldInfo])
+    assert_type(res2, tuple[msgspec.structs.FieldInfo, ...])
 
     for field in res1:
         assert_type(field, msgspec.structs.FieldInfo)
