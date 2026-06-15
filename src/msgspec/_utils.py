@@ -133,7 +133,12 @@ def get_class_annotations(obj):
 
         mapping = typevar_mappings.get(cls)
         cls_locals = dict(vars(cls))
-        cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
+        try:
+            cls_module = cls.__module__
+        except AttributeError:
+            cls_globals = {}
+        else:
+            cls_globals = getattr(sys.modules.get(cls_module, None), "__dict__", {})
 
         ann = _get_class_annotations(cls)
         for name, value in ann.items():

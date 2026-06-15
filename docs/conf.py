@@ -70,7 +70,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/jcrist/msgspec",
+            "url": "https://github.com/msgspec/msgspec",
             "html": GITHUB_LOGO,
             "class": "",
         },
@@ -98,8 +98,8 @@ napoleon_use_rtype = False
 napoleon_custom_sections = [("Configuration", "params_style")]
 default_role = "obj"
 extlinks = {
-    "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #%s"),
-    "pr": ("https://github.com/jcrist/msgspec/pull/%s", "PR #%s"),
+    "issue": ("https://github.com/msgspec/msgspec/issues/%s", "Issue #%s"),
+    "pr": ("https://github.com/msgspec/msgspec/pull/%s", "PR #%s"),
 }
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: "
 copybutton_prompt_is_regexp = True

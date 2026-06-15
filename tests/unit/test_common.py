@@ -17,15 +17,11 @@ from typing import (
     Annotated,
     ClassVar,
     Deque,
-    Dict,
     Final,
     Generic,
-    List,
     Literal,
     NamedTuple,
     NewType,
-    Optional,
-    Tuple,
     TypedDict,
     TypeVar,
     Union,
@@ -45,11 +41,9 @@ from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
 UTC = datetime.timezone.utc
 
-PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 
-py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
@@ -197,7 +191,7 @@ class TestDecoder:
             assert typ is Custom
             return Custom(*obj)
 
-        dec = proto.Decoder(type=List[Custom], dec_hook=dec_hook)
+        dec = proto.Decoder(type=list[Custom], dec_hook=dec_hook)
         buf = proto.encode([[1, 2], [3, 4], [5, 6]])
         msg = dec.decode(buf)
         assert called
@@ -211,7 +205,7 @@ class TestDecoder:
             nonlocal called
             called = True
 
-        dec = proto.Decoder(type=Optional[Custom], dec_hook=dec_hook)
+        dec = proto.Decoder(type=Custom | None, dec_hook=dec_hook)
         msg = dec.decode(proto.encode(None))
         assert not called
         assert msg is None
@@ -231,7 +225,7 @@ class TestDecoder:
 
         msg = proto.encode(["some string"])
         with pytest.raises(msgspec.ValidationError, match=r"Oh no! - at `\$\[0\]`"):
-            proto.decode(msg, type=List[Custom], dec_hook=dec_hook)
+            proto.decode(msg, type=list[Custom], dec_hook=dec_hook)
 
     def test_decode_dec_hook_errors_passthrough(self, proto):
         def dec_hook(typ, obj):
@@ -244,7 +238,7 @@ class TestDecoder:
 
         msg = proto.encode(["some string"])
         with pytest.raises(NotImplementedError, match=r"Oh no!"):
-            proto.decode(msg, type=List[Custom], dec_hook=dec_hook)
+            proto.decode(msg, type=list[Custom], dec_hook=dec_hook)
 
     def test_decode_dec_hook_wrong_type(self, proto):
         dec = proto.Decoder(type=Custom, dec_hook=lambda t, o: o)
@@ -395,7 +389,7 @@ class TestThreadSafe:
             msg = base64.b64decode(obj)
             return Custom(dec.decode(msg))
 
-        dec = proto.Decoder(Tuple[Union[Custom, None], int], dec_hook=dec_hook)
+        dec = proto.Decoder(tuple[Custom | None, int], dec_hook=dec_hook)
         msg = proto.encode(
             (base64.b64encode(proto.encode((None, 1))).decode("utf-8"), 2)
         )
@@ -871,8 +865,8 @@ class TestLiterals:
         [
             Literal["ok", b"bad"],
             Literal[1, object()],
-            Literal[1, 2, List[int]],
-            Literal[1, 2, List],
+            Literal[1, 2, list[int]],
+            Literal[1, 2, list],
         ],
     )
     def test_invalid_values(self, typ):
@@ -914,7 +908,7 @@ class TestLiterals:
     def test_multiple_literals(self):
         integers = Literal[-1, -2, -3]
         strings = Literal["apple", "banana"]
-        both = Union[integers, strings]
+        both = integers | strings
 
         dec = msgspec.msgpack.Decoder(both)
 
@@ -971,17 +965,17 @@ class TestLiterals:
             dec.decode(msgspec.msgpack.encode(False))
 
     def test_mix_bool_and_bool_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal[True], bool])
+        dec = msgspec.msgpack.Decoder(Literal[True] | bool)
         assert dec.decode(msgspec.msgpack.encode(True)) is True
         assert dec.decode(msgspec.msgpack.encode(False)) is False
 
     def test_mix_int_and_int_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal[-1, 1], int])
+        dec = msgspec.msgpack.Decoder(Literal[-1, 1] | int)
         for x in [-1, 1, 10]:
             assert dec.decode(msgspec.msgpack.encode(x)) == x
 
     def test_mix_str_and_str_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal["a", "b"], str])
+        dec = msgspec.msgpack.Decoder(Literal["a", "b"] | str)
         for x in ["a", "b", "c"]:
             assert dec.decode(msgspec.msgpack.encode(x)) == x
 
@@ -1000,7 +994,7 @@ class TestUnionTypeErrors:
         with pytest.raises(TypeError):
             proto.Decoder(Test)
 
-    @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
+    @pytest.mark.parametrize("typ", [int | Deque, Deque | int])
     def test_err_union_with_custom_type(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1010,11 +1004,11 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ",
         [
-            Union[dict, Person],
-            Union[Person, dict],
-            Union[PersonDict, dict],
-            Union[PersonDataclass, dict],
-            Union[Person, PersonDict],
+            dict | Person,
+            Person | dict,
+            PersonDict | dict,
+            PersonDataclass | dict,
+            Person | PersonDict,
         ],
     )
     def test_err_union_with_multiple_dict_like_types(self, typ, proto):
@@ -1026,10 +1020,11 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ",
         [
+            PersonArray | list,
+            tuple | PersonArray,
+            PersonArray | PersonTuple,
+            PersonTuple | frozenset,
             Union[PersonArray, list],
-            Union[tuple, PersonArray],
-            Union[PersonArray, PersonTuple],
-            Union[PersonTuple, frozenset],
         ],
     )
     def test_err_union_with_struct_array_like_and_array(self, typ, proto):
@@ -1038,9 +1033,15 @@ class TestUnionTypeErrors:
         assert "more than one array-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
-    def test_err_union_with_multiple_int_like_types(self, types, proto):
-        typ = Union[types]
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            FruitInt | int,
+            FruitInt | Literal[1, 2],
+            Union[FruitInt, int],
+        ],
+    )
+    def test_err_union_with_multiple_int_like_types(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
         assert "int-like" in str(rec.value)
@@ -1058,7 +1059,7 @@ class TestUnionTypeErrors:
         ],
     )
     def test_err_union_with_multiple_str_like_types(self, typ, proto):
-        union = Union[FruitStr, typ]
+        union = FruitStr | typ
         with pytest.raises(TypeError) as rec:
             proto.Decoder(union)
         assert "str-like" in str(rec.value)
@@ -1067,15 +1068,15 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ,kind",
         [
-            (Union[FruitInt, VeggieInt], "int enum"),
-            (Union[FruitStr, VeggieStr], "str enum"),
-            (Union[Dict[int, float], dict], "dict"),
-            (Union[List[int], List[float]], "array-like"),
-            (Union[List[int], tuple], "array-like"),
-            (Union[set, tuple], "array-like"),
-            (Union[Tuple[int, ...], list], "array-like"),
-            (Union[Tuple[int, float, str], set], "array-like"),
-            (Union[Deque, int, Custom], "custom"),
+            (FruitInt | VeggieInt, "int enum"),
+            (FruitStr | VeggieStr, "str enum"),
+            (dict[int, float] | dict, "dict"),
+            (list[int] | list[float], "array-like"),
+            (list[int] | tuple, "array-like"),
+            (set | tuple, "array-like"),
+            (tuple[int, ...] | list, "array-like"),
+            (tuple[int, float, str] | set, "array-like"),
+            (Deque | int | Custom, "custom"),
         ],
     )
     def test_err_union_conflicts(self, typ, kind, proto):
@@ -1084,7 +1085,6 @@ class TestUnionTypeErrors:
         assert f"more than one {kind}" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @py310_plus
     def test_310_union_types(self, proto):
         dec = proto.Decoder(int | str | None)
         for msg in [1, "abc", None]:
@@ -1101,7 +1101,7 @@ class TestStructUnion:
         class Test2(Struct, tag=True, array_like=False):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1119,7 +1119,7 @@ class TestStructUnion:
         class Test2(Struct, array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1138,7 +1138,7 @@ class TestStructUnion:
 
         other = list if array_like else dict
 
-        typ = Union[Test1, Test2, other]
+        typ = Test1 | Test2 | other
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1158,7 +1158,7 @@ class TestStructUnion:
         class Test2(Struct, tag_field="bar", array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1175,7 +1175,7 @@ class TestStructUnion:
         class Test2(Struct, tag="two", array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1206,7 +1206,7 @@ class TestStructUnion:
         class Test3(Struct, tag=tags[2], array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2, Test3]
+        typ = Test1 | Test2 | Test3
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1233,7 +1233,7 @@ class TestStructUnion:
             x: int
             y: int
 
-        dec = proto.Decoder(Union[Test1, Test2])
+        dec = proto.Decoder(Test1 | Test2)
         enc = proto.Encoder()
 
         # Tag can be in any position
@@ -1291,7 +1291,7 @@ class TestStructUnion:
         class Test3(Struct, tag=tag3, array_like=True):
             pass
 
-        dec = proto.Decoder(Union[Test1, Test2, Test3])
+        dec = proto.Decoder(Test1 | Test2 | Test3)
         enc = proto.Encoder()
 
         # Decoding works
@@ -1339,7 +1339,7 @@ class TestStructUnion:
             x: int
             y: int
 
-        dec = proto.Decoder(Union[Test1, Test2, None, int, str])
+        dec = proto.Decoder(Test1 | Test2 | int | str | None)
         enc = proto.Encoder()
 
         for msg in [Test1(1, 2), Test2(3, 4), None, 5, 6]:
@@ -1366,9 +1366,9 @@ class TestStructUnion:
             x: int
             y: int
 
-        typ1 = Union[Test2, Test1]
-        typ2 = Union[Test1, Test2]
-        typ3 = Union[Test1, Test2, int, None]
+        typ1 = Test2 | Test1
+        typ2 = Test1 | Test2
+        typ3 = Test1 | Test2 | int | None
 
         for typ in [typ1, typ2, typ3]:
             for msg in [Test1(1, 2), Test2(3, 4)]:
@@ -1439,7 +1439,7 @@ class TestGenericStruct:
 
     def test_generic_struct_invalid_types_not_cached(self, proto):
         class Ex(Struct, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -1462,7 +1462,7 @@ class TestGenericStruct:
     def test_generic_struct(self, proto, array_like):
         class Ex(Struct, Generic[T], array_like=array_like):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -1473,7 +1473,7 @@ class TestGenericStruct:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -1493,7 +1493,7 @@ class TestGenericStruct:
 
         class Ex(Struct, Generic[T], array_like={array_like}):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -1514,14 +1514,14 @@ class TestGenericStruct:
     @pytest.mark.parametrize("array_like", [False, True])
     def test_generic_struct_union(self, proto, array_like):
         class Test1(Struct, Generic[T], tag=True, array_like=array_like):
-            a: Union[T, None]
+            a: T | None
             b: int
 
         class Test2(Struct, Generic[T], tag=True, array_like=array_like):
             x: T
             y: int
 
-        typ = Union[Test1[T], Test2[T]]
+        typ = Test1[T] | Test2[T]
 
         msg1 = Test1(1, 2)
         s1 = proto.encode(msg1)
@@ -1552,9 +1552,9 @@ class TestGenericStruct:
         assert loc in str(rec.value)
 
     def test_unbound_typevars_use_bound_if_set(self, proto):
-        T = TypeVar("T", bound=Union[int, str])
+        T = TypeVar("T", bound=int | str)
 
-        dec = proto.Decoder(List[T])
+        dec = proto.Decoder(list[T])
         sol = [1, "two", 3, "four"]
         msg = proto.encode(sol)
         assert dec.decode(msg) == sol
@@ -1569,7 +1569,7 @@ class TestGenericStruct:
     def test_unbound_typevars_with_constraints_unsupported(self, proto):
         T = TypeVar("T", int, str)
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(List[T])
+            proto.Decoder(list[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
 
@@ -1594,7 +1594,7 @@ class TestStructPostInit:
             class Ex2(Struct, array_like=array_like, tag=True):
                 pass
 
-            typ = Union[Ex, Ex2]
+            typ = Ex | Ex2
         else:
             typ = Ex
 
@@ -1623,7 +1623,7 @@ class TestStructPostInit:
             class Ex2(Struct, array_like=array_like, tag=True):
                 pass
 
-            typ = Union[Ex, Ex2]
+            typ = Ex | Ex2
         else:
             typ = Ex
 
@@ -1636,7 +1636,7 @@ class TestStructPostInit:
             expected = exc_class
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(msg, type=List[typ])
+            proto.decode(msg, type=list[typ])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -1676,7 +1676,7 @@ class TestGenericDataclassOrAttrs:
     def test_generic_invalid_types_not_cached(self, decorator, proto):
         @decorator
         class Ex(Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -1700,7 +1700,7 @@ class TestGenericDataclassOrAttrs:
         @decorator
         class Ex(Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -1711,7 +1711,7 @@ class TestGenericDataclassOrAttrs:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -1739,7 +1739,7 @@ class TestGenericDataclassOrAttrs:
         @decorator
         class Ex(Generic[T]):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -1755,9 +1755,9 @@ class TestGenericDataclassOrAttrs:
             assert "Expected `int`, got `str`" in str(rec.value)
 
     def test_unbound_typevars_use_bound_if_set(self, proto):
-        T = TypeVar("T", bound=Union[int, str])
+        T = TypeVar("T", bound=int | str)
 
-        dec = proto.Decoder(List[T])
+        dec = proto.Decoder(list[T])
         sol = [1, "two", 3, "four"]
         msg = proto.encode(sol)
         assert dec.decode(msg) == sol
@@ -1772,7 +1772,7 @@ class TestGenericDataclassOrAttrs:
     def test_unbound_typevars_with_constraints_unsupported(self, proto):
         T = TypeVar("T", int, str)
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(List[T])
+            proto.Decoder(list[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
 
@@ -1782,9 +1782,9 @@ class TestStructOmitDefaults:
         class Test(Struct, omit_defaults=True):
             a: int = 0
             b: bool = False
-            c: Optional[str] = None
+            c: str | None = None
             d: list = []
-            e: Union[list, set] = set()
+            e: list | set = set()
             f: dict = {}
 
         cases = [
@@ -2051,12 +2051,14 @@ class TestTypedDict:
             b: int
 
         with pytest.raises(TypeError, match="may not contain more than one TypedDict"):
+            proto.Decoder(Ex1 | Ex2)
+        with pytest.raises(TypeError, match="may not contain more than one TypedDict"):
             proto.Decoder(Union[Ex1, Ex2])
 
     def test_subtype_error(self, proto):
         class Ex(TypedDict):
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2069,7 +2071,7 @@ class TestTypedDict:
 
         class Ex(TypedDict):
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2269,7 +2271,7 @@ class TestTypedDict:
         TypedDict = pytest.importorskip("typing_extensions").TypedDict
 
         class Ex(TypedDict, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -2283,7 +2285,7 @@ class TestTypedDict:
 
         class Ex(TypedDict, Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(x=1, y=[1, 2])
         msg = proto.encode(sol)
@@ -2294,7 +2296,7 @@ class TestTypedDict:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -2315,7 +2317,7 @@ class TestTypedDict:
 
         class Ex(TypedDict, Generic[T]):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -2365,12 +2367,14 @@ class TestNamedTuple:
             b: int
 
         with pytest.raises(TypeError, match="may not contain more than one NamedTuple"):
+            proto.Decoder(Ex1 | Ex2)
+        with pytest.raises(TypeError, match="may not contain more than one NamedTuple"):
             proto.Decoder(Union[Ex1, Ex2])
 
     def test_subtype_error(self, proto):
         class Ex(NamedTuple):
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2383,7 +2387,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple):
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2488,7 +2492,7 @@ class TestNamedTuple:
         NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
 
         class Ex(NamedTuple, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -2502,7 +2506,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple, Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -2513,7 +2517,7 @@ class TestNamedTuple:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -2534,7 +2538,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple, Generic[T]):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -2603,7 +2607,6 @@ class TestDataclass:
         sol = proto.encode({"x": 1, "y": 2})
         assert res == sol
 
-    @py310_plus
     def test_encode_dataclass_slots(self, proto):
         @dataclass(slots=True)
         class Test:
@@ -2615,7 +2618,6 @@ class TestDataclass:
         sol = proto.encode({"x": 1, "y": 2})
         assert res == sol
 
-    @py310_plus
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_dataclass_missing_fields(self, proto, slots):
         @dataclass(slots=slots)
@@ -2632,7 +2634,6 @@ class TestDataclass:
             res = proto.decode(proto.encode(x))
             assert res == sol
 
-    @py310_plus
     @pytest.mark.parametrize("slots_base", [True, False])
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_dataclass_subclasses(self, proto, slots_base, slots):
@@ -2789,7 +2790,7 @@ class TestDataclass:
         @dataclass
         class Ex:
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2804,7 +2805,7 @@ class TestDataclass:
         @dataclass
         class Ex:
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2852,8 +2853,6 @@ class TestDataclass:
     @pytest.mark.parametrize("slots", [False, True])
     def test_decode_dataclass(self, proto, slots):
         if slots:
-            if not PY310:
-                pytest.skip(reason="Python 3.10+ required")
             kws = {"slots": True}
         else:
             kws = {}
@@ -2889,8 +2888,6 @@ class TestDataclass:
     @pytest.mark.parametrize("slots", [False, True])
     def test_decode_dataclass_defaults(self, proto, frozen, slots):
         if slots:
-            if not PY310:
-                pytest.skip(reason="Python 3.10+ required")
             kws = {"slots": True}
         else:
             kws = {}
@@ -2964,7 +2961,7 @@ class TestDataclass:
         )
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+            proto.decode(proto.encode([{"a": 1}]), type=list[Example])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -3168,7 +3165,7 @@ class TestAttrs:
         )
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+            proto.decode(proto.encode([{"a": 1}]), type=list[Example])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -3380,8 +3377,11 @@ class TestTime:
         import zoneinfo
 
         try:
-            x = datetime.time(1, 2, 3, 456789, zoneinfo.ZoneInfo("America/Chicago"))
+            x = datetime.datetime(
+                2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
+            )
         except zoneinfo.ZoneInfoNotFoundError:
+            # Some envs in CI do not have `tzdata`:
             pytest.skip(reason="Failed to load timezone")
         sol = msgspec.json.encode(x.isoformat())
         res = msgspec.json.encode(x)
@@ -4105,7 +4105,7 @@ class TestAbstractTypes:
 class TestUnset:
     def test_unset_type_annotation_ignored(self, proto):
         class Ex(Struct):
-            x: Union[int, UnsetType]
+            x: int | UnsetType
 
         dec = proto.Decoder(Ex)
         msg = proto.encode({"x": 1})
@@ -4120,23 +4120,23 @@ class TestUnset:
         if kind == "struct":
 
             class Ex(Struct):
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "attrs":
             attrs = pytest.importorskip("attrs")
 
             @attrs.define
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         res = proto.encode(Ex(1, UNSET))
         sol = proto.encode({"x": 1})
@@ -4152,8 +4152,8 @@ class TestUnset:
 
     def test_unset_encode_struct_omit_defaults(self, proto):
         class Ex(Struct, omit_defaults=True):
-            x: Union[int, UnsetType] = UNSET
-            y: Union[int, UnsetType] = UNSET
+            x: int | UnsetType = UNSET
+            y: int | UnsetType = UNSET
             z: int = 0
 
         for x, y in [(Ex(), {}), (Ex(y=2), {"y": 2}), (Ex(z=1), {"z": 1})]:
@@ -4282,21 +4282,21 @@ class TestOrder:
         if kind == "struct":
 
             class Ex(Struct):
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         else:
             attrs = pytest.importorskip("attrs")
 
             @attrs.define(slots=(kind == "attrs"))
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
 
         res = proto.encode(Ex(), order="sorted")
         sol = proto.encode({})
@@ -4374,7 +4374,7 @@ class TestFinal:
 class TestLax:
     @pytest.mark.parametrize("strict", [True, False])
     def test_strict_lax_decoder(self, proto, strict):
-        dec = proto.Decoder(List[int], strict=strict)
+        dec = proto.Decoder(list[int], strict=strict)
 
         assert dec.strict is strict
 
@@ -4620,13 +4620,13 @@ class TestLax:
         ],
     )
     def test_lax_union_valid(self, x, sol, proto):
-        typ = Union[int, float, bool, None]
+        typ = int | float | bool | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
 
     @pytest.mark.parametrize("x", ["1a", "1.5a", "falsx", "trux", "nulx"])
     def test_lax_union_invalid(self, x, proto):
-        typ = Union[int, float, bool, None]
+        typ = int | float | bool | None
         msg = proto.encode(x)
         with pytest.raises(
             ValidationError, match="Expected `int | float | bool | null`"
@@ -4647,10 +4647,7 @@ class TestLax:
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
         msg = proto.encode(x)
-        typ = Union[
-            Annotated[int, Meta(ge=0), Meta(le=1000)],
-            Annotated[float, Meta(le=100)],
-        ]
+        typ = Annotated[int, Meta(ge=0), Meta(le=1000)] | Annotated[float, Meta(le=100)]
         with pytest.raises(ValidationError, match=err):
             proto.decode(msg, type=typ, strict=False)
 
@@ -4666,6 +4663,6 @@ class TestLax:
         ],
     )
     def test_lax_union_extended(self, proto, x, sol):
-        typ = Union[int, float, bool, None, datetime.date]
+        typ = int | float | bool | datetime.date | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)

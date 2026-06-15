@@ -54,19 +54,18 @@ complete example enforcing the following constraints on a ``User`` struct:
 
 .. code-block:: python
 
-    from typing import Annotated
+    >>> from typing import Annotated
+    >>> from msgspec import Struct, Meta
 
-    from msgspec import Struct, Meta
+    >>> UnixName = Annotated[
+    ...     str, Meta(min_length=1, max_length=32, pattern="^[a-z_][a-z0-9_-]*$")
+    ... ]
 
-    UnixName = Annotated[
-        str, Meta(min_length=1, max_length=32, pattern="^[a-z_][a-z0-9_-]*$")
-    ]
-
-    class User(Struct):
-        name: UnixName
-        groups: Annotated[set[UnixName], Meta(max_length=16)] = set()
-        cpu_limit: Annotated[float, Meta(ge=0.1, le=8)] = 1
-        mem_limit: Annotated[int, Meta(ge=256, le=8192)] = 1024
+    >>> class User(Struct):
+    ...     name: UnixName
+    ...     groups: Annotated[set[UnixName], Meta(max_length=16)] = set()
+    ...     cpu_limit: Annotated[float, Meta(ge=0.1, le=8)] = 1
+    ...     mem_limit: Annotated[int, Meta(ge=256, le=8192)] = 1024
 
 As shown above, ``Annotated`` types can applied inline, or used to create type
 aliases and then reused elsewhere (as done with ``UnixName``).

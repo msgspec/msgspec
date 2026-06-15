@@ -1,7 +1,7 @@
 Installation
 ============
 
-``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.8
+``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.10
 is required. The basic install has no required dependencies.
 
 **pip**
@@ -72,11 +72,11 @@ Installing from GitHub
 
 If you want wish to use a feature that hasn't been released yet, you may
 install from the `development branch on GitHub
-<https://github.com/jcrist/msgspec>`__ using ``pip``:
+<https://github.com/msgspec/msgspec>`__ using ``pip``:
 
 .. code-block:: shell
 
-    pip install git+https://github.com/jcrist/msgspec.git
+    pip install git+https://github.com/msgspec/msgspec.git
 
 
 .. _YAML: https://yaml.org

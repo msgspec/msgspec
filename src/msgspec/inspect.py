@@ -9,7 +9,6 @@ from typing import (
     Any,
     Final,
     Literal,
-    Tuple,
     Type as typing_Type,
     TypeVar,
     Union,
@@ -107,8 +106,8 @@ class Metadata(Type):
     """
 
     type: Type
-    extra_json_schema: Union[dict, None] = None
-    extra: Union[dict, None] = None
+    extra_json_schema: dict | None = None
+    extra: dict | None = None
 
 
 class AnyType(Type):
@@ -140,11 +139,11 @@ class IntType(Type):
         If set, an instance of this type must be a multiple of ``multiple_of``.
     """
 
-    gt: Union[int, None] = None
-    ge: Union[int, None] = None
-    lt: Union[int, None] = None
-    le: Union[int, None] = None
-    multiple_of: Union[int, None] = None
+    gt: int | None = None
+    ge: int | None = None
+    lt: int | None = None
+    le: int | None = None
+    multiple_of: int | None = None
 
 
 class FloatType(Type):
@@ -164,11 +163,11 @@ class FloatType(Type):
         If set, an instance of this type must be a multiple of ``multiple_of``.
     """
 
-    gt: Union[float, None] = None
-    ge: Union[float, None] = None
-    lt: Union[float, None] = None
-    le: Union[float, None] = None
-    multiple_of: Union[float, None] = None
+    gt: float | None = None
+    ge: float | None = None
+    lt: float | None = None
+    le: float | None = None
+    multiple_of: float | None = None
 
 
 class StrType(Type):
@@ -187,9 +186,9 @@ class StrType(Type):
         Note that the pattern is treated as **unanchored**.
     """
 
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
-    pattern: Union[str, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
+    pattern: str | None = None
 
 
 class BytesType(Type):
@@ -205,8 +204,8 @@ class BytesType(Type):
         to ``max_length``.
     """
 
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
 class ByteArrayType(Type):
@@ -222,8 +221,8 @@ class ByteArrayType(Type):
         to ``max_length``.
     """
 
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
 class MemoryViewType(Type):
@@ -239,8 +238,8 @@ class MemoryViewType(Type):
         to ``max_length``.
     """
 
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
 class DateTimeType(Type):
@@ -255,7 +254,7 @@ class DateTimeType(Type):
         accepts either timezone-aware or timezone-naive values.
     """
 
-    tz: Union[bool, None] = None
+    tz: bool | None = None
 
 
 class TimeType(Type):
@@ -270,7 +269,7 @@ class TimeType(Type):
         accepts either timezone-aware or timezone-naive values.
     """
 
-    tz: Union[bool, None] = None
+    tz: bool | None = None
 
 
 class DateType(Type):
@@ -319,7 +318,7 @@ class LiteralType(Type):
         `str`, or `int` literals are supported.
     """
 
-    values: Union[Tuple[bool, ...], Tuple[str, ...], Tuple[int, ...]]
+    values: tuple[bool, ...] | tuple[str, ...] | tuple[int, ...]
 
 
 class CustomType(Type):
@@ -339,11 +338,11 @@ class UnionType(Type):
 
     Parameters
     ----------
-    types: Tuple[Type, ...]
+    types: tuple[type, ...]
         A tuple of possible types for this union.
     """
 
-    types: Tuple[Type, ...]
+    types: tuple[Type, ...]
 
     @property
     def includes_none(self) -> bool:
@@ -370,8 +369,8 @@ class CollectionType(Type):
     """
 
     item_type: Type
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
 class ListType(CollectionType):
@@ -443,11 +442,11 @@ class TupleType(Type):
 
     Parameters
     ----------
-    item_types: Tuple[Type, ...]
+    item_types: tuple[Type, ...]
         A tuple of types for each element in the tuple.
     """
 
-    item_types: Tuple[Type, ...]
+    item_types: tuple[Type, ...]
 
 
 class DictType(Type):
@@ -469,8 +468,8 @@ class DictType(Type):
 
     key_type: Type
     value_type: Type
-    min_length: Union[int, None] = None
-    max_length: Union[int, None] = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
 class Field(msgspec.Struct):
@@ -512,12 +511,12 @@ class TypedDictType(Type):
     ----------
     cls: type
         The corresponding TypedDict type.
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
         A tuple of fields in the TypedDict.
     """
 
     cls: type
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
 
 
 class NamedTupleType(Type):
@@ -527,12 +526,12 @@ class NamedTupleType(Type):
     ----------
     cls: type
         The corresponding NamedTuple type.
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
         A tuple of fields in the NamedTuple.
     """
 
     cls: type
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
 
 
 class DataclassType(Type):
@@ -542,12 +541,12 @@ class DataclassType(Type):
     ----------
     cls: type
         The corresponding dataclass type.
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
         A tuple of fields in the dataclass.
     """
 
     cls: type
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
 
 
 class StructType(Type):
@@ -557,7 +556,7 @@ class StructType(Type):
     ----------
     cls: type
         The corresponding Struct type.
-    fields: Tuple[Field, ...]
+    fields: tuple[Field, ...]
         A tuple of fields in the Struct.
     tag_field: str or None, optional
         If set, the field name used for the tag in a tagged union.
@@ -571,9 +570,9 @@ class StructType(Type):
     """
 
     cls: typing_Type[msgspec.Struct]
-    fields: Tuple[Field, ...]
-    tag_field: Union[str, None] = None
-    tag: Union[str, int, None] = None
+    fields: tuple[Field, ...]
+    tag_field: str | None = None
+    tag: str | int | None = None
     array_like: bool = False
     forbid_unknown_fields: bool = False
 
@@ -740,7 +739,7 @@ class _Translator:
         # First construct a decoder to validate the types are valid
         from ._core import MsgpackDecoder
 
-        MsgpackDecoder(Tuple[self.types])
+        MsgpackDecoder(tuple[self.types])
         return tuple(self.translate(t) for t in self.types)
 
     def translate(self, typ):

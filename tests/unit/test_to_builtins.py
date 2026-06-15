@@ -7,19 +7,17 @@ import sys
 import uuid
 import weakref
 from dataclasses import dataclass, make_dataclass
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple
 
 import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
-PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 
-py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 
-slots_params = [False, pytest.param(True, marks=[py310_plus])]
+slots_params = [False, True]
 
 
 class FruitInt(enum.IntEnum):
@@ -467,23 +465,23 @@ class TestToBuiltins:
         if kind == "struct":
 
             class Ex(Struct):
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "attrs":
             attrs = pytest.importorskip("attrs")
 
             @attrs.define
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         res = to_builtins(Ex(1, UNSET))
         assert res == {"x": 1}
@@ -607,21 +605,21 @@ class TestOrder:
         if kind == "struct":
 
             class Ex(Struct):
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         else:
             attrs = pytest.importorskip("attrs")
 
             @attrs.define(slots=(kind == "attrs"))
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
 
         res = to_builtins(Ex(), order="sorted")
         self.assert_eq(res, {})

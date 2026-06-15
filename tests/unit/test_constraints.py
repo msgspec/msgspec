@@ -2,7 +2,7 @@ import datetime
 import math
 import re
 from decimal import Decimal
-from typing import Annotated, Dict, List, Union
+from typing import Annotated
 
 import pytest
 
@@ -601,7 +601,7 @@ class TestStrConstraints:
         ],
     )
     def test_str_constraints_on_dict_keys(self, proto, meta, good, bad):
-        dec = proto.Decoder(Dict[Annotated[str, meta], int])
+        dec = proto.Decoder(dict[Annotated[str, meta], int])
 
         for x in good:
             assert dec.decode(proto.encode({x: 1})) == {x: 1}
@@ -801,7 +801,7 @@ class TestArrayConstraints:
 class TestMapConstraints:
     def test_min_length(self, proto):
         class Ex(msgspec.Struct):
-            x: Annotated[Dict[str, int], Meta(min_length=2)]
+            x: Annotated[dict[str, int], Meta(min_length=2)]
 
         dec = proto.Decoder(Ex)
 
@@ -817,7 +817,7 @@ class TestMapConstraints:
 
     def test_max_length(self, proto):
         class Ex(msgspec.Struct):
-            x: Annotated[Dict[str, int], Meta(max_length=2)]
+            x: Annotated[dict[str, int], Meta(max_length=2)]
 
         dec = proto.Decoder(Ex)
 
@@ -832,7 +832,7 @@ class TestMapConstraints:
 
     def test_combinations(self, proto):
         class Ex(msgspec.Struct):
-            x: Annotated[Dict[str, int], Meta(min_length=2, max_length=4)]
+            x: Annotated[dict[str, int], Meta(min_length=2, max_length=4)]
 
         dec = proto.Decoder(Ex)
 
@@ -849,10 +849,10 @@ class TestMapConstraints:
 class TestUnionConstraints:
     def test_mix_float_and_int(self, proto):
         class Ex(msgspec.Struct):
-            x: Union[
-                Annotated[int, Meta(ge=0, le=10)],
-                Annotated[float, Meta(ge=1000, le=2000)],
-            ]
+            x: (
+                Annotated[int, Meta(ge=0, le=10)]
+                | Annotated[float, Meta(ge=1000, le=2000)]
+            )
 
         dec = proto.Decoder(Ex)
 
@@ -865,11 +865,11 @@ class TestUnionConstraints:
 
     def test_mix_length_constraints(self, proto):
         class Ex(msgspec.Struct):
-            x: Union[
-                Annotated[Dict[str, int], Meta(min_length=1, max_length=2)],
-                Annotated[List[int], Meta(min_length=3, max_length=4)],
-                Annotated[str, Meta(min_length=5, max_length=6)],
-            ]
+            x: (
+                Annotated[dict[str, int], Meta(min_length=1, max_length=2)]
+                | Annotated[list[int], Meta(min_length=3, max_length=4)]
+                | Annotated[str, Meta(min_length=5, max_length=6)]
+            )
 
         dec = proto.Decoder(Ex)
 

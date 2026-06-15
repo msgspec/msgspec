@@ -5,25 +5,15 @@ from pathlib import Path
 
 
 def pytest_addoption(parser):
-    # Declaring additional command-line options within test suite-specific `conftest.py`
-    # files is documented as unsupported by pytest. See:
-    # https://docs.pytest.org/en/stable/reference/reference.html#pytest.hookspec.pytest_addoption.
-    #
-    # However, it seems to work in practice with the following limitations:
-    #   - The options only appear in the help text for suites that are configured in
-    #     the default `testpaths` configuration. This is undesirable because we don't
-    #     want a missing argument to trigger heavy tests like performance profiling.
-    #   - The options are parsed differently such that an equals sign is required for
-    #     options with a value rather than the more natural space-separated format.
-    #
-    # As a workaround, we parse the command line for options that match the patterns of
-    # the configurable test suites and add their options to the parser.
+    # Only register options for configurable test suites when those suites are selected.
+    # This keeps options for heavy tests like performance profiling out of normal test
+    # runs while still allowing their suites to be selected through `testpaths`.
     configurable_test_suites = {
         "tests/prof/perf": add_performance_profiling_options,
     }
 
     cwd = Path.cwd()
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent
     for test_suite_relpath, add_options_func in list(configurable_test_suites.items()):
         test_suite_path = project_root.joinpath(test_suite_relpath)
         if test_suite_path == cwd or test_suite_path in cwd.parents:

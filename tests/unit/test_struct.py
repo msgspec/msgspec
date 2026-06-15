@@ -8,7 +8,7 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 import pytest
 
@@ -47,9 +47,10 @@ def as_tuple(x):
 
 
 @pytest.mark.parametrize("obj, str_obj", [(UNSET, "UNSET"), (NODEFAULT, "NODEFAULT")])
-def test_singletons(obj, str_obj):
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_singletons(obj, str_obj, protocol):
     assert str(obj) == str_obj
-    assert pickle.loads(pickle.dumps(obj)) is obj
+    assert pickle.loads(pickle.dumps(obj, protocol=protocol)) is obj
 
     cls = type(obj)
     assert cls() is obj
@@ -178,7 +179,7 @@ def test_struct_subclass_forbidden_field_names():
 
 class TestMixins:
     def test_mixin_no_slots(self):
-        class Mixin(object):
+        class Mixin:
             def method(self):
                 pass
 
@@ -196,7 +197,7 @@ class TestMixins:
         assert Test2.__weakrefoffset__ != 0
 
     def test_mixin_slots(self):
-        class Mixin(object):
+        class Mixin:
             __slots__ = ()
 
             def method(self):
@@ -216,7 +217,7 @@ class TestMixins:
         assert Test2.__weakrefoffset__ != 0
 
     def test_mixin_nonempty_slots(self):
-        class Mixin(object):
+        class Mixin:
             __slots__ = "_state"
 
             def method(self):
@@ -236,7 +237,7 @@ class TestMixins:
         assert t.method() == 2
 
     def test_mixin_forbids_init(self):
-        class Mixin(object):
+        class Mixin:
             def __init__(self):
                 pass
 
@@ -246,7 +247,7 @@ class TestMixins:
                 pass
 
     def test_mixin_forbids_new(self):
-        class Mixin(object):
+        class Mixin:
             def __new__(self):
                 pass
 
@@ -902,7 +903,7 @@ def test_struct_defaults_from_field():
         req: int = field()
         x: int = field(default=1)
         y: int = field(default_factory=lambda: 2)
-        z: List[int] = field(default=default)
+        z: list[int] = field(default=default)
 
     t = Test(100)
     assert t.req == 100
@@ -1195,7 +1196,7 @@ class TestStructDealloc:
         called = set()
 
         class Node(Struct, gc=has_gc):
-            child: "Optional[Node]" = None
+            child: "Node | None" = None
 
             def __del__(self):
                 called.add(id(self))
@@ -1277,17 +1278,18 @@ class TestStructDealloc:
 
 
 @pytest.mark.parametrize("kw_only", [False, True])
-def test_struct_pickle(kw_only):
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_struct_pickle(kw_only, protocol):
     cls = PointKWOnly if kw_only else Point
     a = cls(x=1, y=2)
     b = cls(x=3, y=4)
 
-    assert pickle.loads(pickle.dumps(a)) == a
-    assert pickle.loads(pickle.dumps(b)) == b
+    assert pickle.loads(pickle.dumps(a, protocol=protocol)) == a
+    assert pickle.loads(pickle.dumps(b, protocol=protocol)) == b
 
     del a.x
     with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
-        pickle.dumps(a)
+        pickle.dumps(a, protocol=protocol)
 
 
 def test_struct_handles_missing_attributes():
@@ -2328,7 +2330,7 @@ class TestReplace:
     def test_replace_gc_delayed_tracking(self, replace):
         class Test(msgspec.Struct):
             x: int
-            y: Optional[List[int]]
+            y: list[int] | None
 
         obj = Test(1, None)
         assert not gc.is_tracked(replace(obj))
@@ -2344,7 +2346,7 @@ class TestReplace:
     def test_replace_gc_false(self, replace):
         class Test(msgspec.Struct, gc=False):
             x: int
-            y: List[int]
+            y: list[int]
 
         res = replace(Test(1, [1, 2]), x=3)
         assert res == Test(3, [1, 2])
