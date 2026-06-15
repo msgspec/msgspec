@@ -526,9 +526,7 @@ class TestDecimalConstraints:
 
         dec = proto.Decoder(Ex)
         assert dec.decode(proto.encode(Ex(Decimal("1")))).x == Decimal("1")
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `Decimal` >="
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `Decimal` >="):
             dec.decode(proto.encode(Ex(Decimal("0.5"))))
 
 
