@@ -29,7 +29,7 @@ def check_unset() -> None:
 
 def check_unset_type_lowering(x: int | msgspec.UnsetType) -> None:
     if x is msgspec.UNSET:
-        # this is a bug in `pyrefly`:
+        # this is a bug in `pyrefly` https://github.com/facebook/pyrefly/issues/3820:
         assert_type(x, Literal[msgspec.UnsetType.UNSET])  # pyrefly: ignore[assert-type]
     else:
         assert_type(x, int)
@@ -1102,7 +1102,7 @@ def check_inspect_is_struct_type() -> None:
 
     tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
-        # this is a bug in `pyrefly`:
+        # this is a bug in `pyrefly` https://github.com/facebook/pyrefly/issues/3821:
         assert_type(tp, type[Point])  # pyrefly: ignore[assert-type]
     else:
         assert_type(tp, type[Other])
