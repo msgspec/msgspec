@@ -541,10 +541,10 @@ msgspec_get_state(PyObject *module)
 
 /*
 With multi-phase init PyState_FindModule is not usable.
-since we declare MULTIPLE_INTERPRETERS_NOT_SUPPORTED, we are guaranteed to have
-at most one live module instance per process, so we can cache its state here.
-state is populated in _core_exec and cleared and freed by m_clear and m_free
-respectively.
+We declare Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED (on 3.12+), so in practice
+there is a single live module instance whose state we cache here. The pointer is
+set in _core_exec and reset in m_free; m_clear only Py_CLEARs the per-module
+state fields and does not touch this pointer.
 */
 static MsgspecState *_core_state = NULL;
 
@@ -22823,11 +22823,6 @@ static int _core_exec(PyObject *m)
     if (st->StructType == NULL) return -1;
     Py_INCREF(st->StructType);
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return -1;
-#ifdef Py_GIL_DISABLED
-    #if !PY313_PLUS
-        PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
-    #endif
-#endif
     return 0;
 }
 
@@ -22849,7 +22844,7 @@ static struct PyModuleDef msgspecmodule = {
     .m_methods = msgspec_methods,
     .m_traverse = msgspec_traverse,
     .m_clear = msgspec_clear,
-    .m_free =(freefunc)msgspec_free,
+    .m_free = (freefunc)msgspec_free,
     .m_slots = module_slots
 };
 
