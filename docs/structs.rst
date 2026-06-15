@@ -16,13 +16,11 @@ required field and two optional fields.
 
     >>> import msgspec
 
-    >>> from typing import Set, Optional
-
     >>> class User(msgspec.Struct):
     ...     """A struct describing a user"""
     ...     name : str
-    ...     email : Optional[str] = None
-    ...     groups : Set[str] = set()
+    ...     email : str | None = None
+    ...     groups : set[str] = set()
 
 - ``name`` is a *required* field expecting a `str`
 
@@ -67,7 +65,7 @@ annotations:
     >>> alice == User("alice", groups={"admin", "engineering"})
     True
 
-Note that it is forbidden to override ``__init__``/``__new__`` in a struct
+Note that it is forbidden to override ``__init__`` / ``__new__`` in a struct
 definition, but other methods can be overridden or added as needed. If you need
 to customize the generated ``__init__``, see :ref:`struct-post-init`.
 
@@ -521,7 +519,7 @@ every struct type in the union. In this case ``tag_field`` defaults to
     b'{"type":"Get","key":"my key"}'
 
     >>> # Create a decoder for decoding either Get or Put
-    ... dec = msgspec.json.Decoder(Union[Get, Put])
+    ... dec = msgspec.json.Decoder(Get | Put)
 
     >>> # The tag value is used to determine the message type
     ... dec.decode(b'{"type": "Put", "key": "my key", "val": "my val"}')
@@ -533,7 +531,7 @@ every struct type in the union. In this case ``tag_field`` defaults to
     >>> # A tagged union can also contain non-struct types.
     ... msgspec.json.decode(
     ...     b'123',
-    ...     type=Union[Get, Put, int]
+    ...     type=Get | Put | int,
     ... )
     123
 
@@ -596,7 +594,7 @@ for all struct types you wish to tag.
     b'{"op":"get","key":"my key"}'
 
     >>> # Create a decoder for decoding either Get or Put
-    ... dec = msgspec.json.Decoder(Union[Get, Put])
+    ... dec = msgspec.json.Decoder(Get | Put)
 
     >>> # The tag value is used to determine the message type
     ... dec.decode(b'{"op": "put", "key": "my key", "val": "my val"}')
@@ -620,8 +618,8 @@ fields (those configured with a default value).
 
     >>> class User(msgspec.Struct):
     ...     name : str
-    ...     email : Optional[str] = None
-    ...     groups : Set[str] = set()
+    ...     email : str | None = None
+    ...     groups : set[str] = set()
 
     >>> alice = User("alice")
 
@@ -642,8 +640,8 @@ of the Struct definition:
 
     >>> class User(msgspec.Struct, omit_defaults=True):
     ...     name : str
-    ...     email : Optional[str] = None
-    ...     groups : Set[str] = set()
+    ...     email : str | None = None
+    ...     groups : set[str] = set()
 
     >>> alice = User("alice")
 
@@ -779,7 +777,7 @@ take a few different values:
 - ``"pascal"``: PascalCase all fields (``ExampleField``)
 - A mapping from field names to the renamed names. Field names missing from the
   mapping will not be renamed.
-- A callable (signature ``rename(name: str) -> Optional[str]``) to use to
+- A callable (signature ``rename(name: str) -> str | None``) to use to
   rename all field names. Note that ``None`` for a return value indicates the
   original field name should be used.
 
@@ -911,7 +909,7 @@ array, and is used to determine which type in the union to use when decoding.
 
     >>> msgspec.json.decode(
     ...     b'["Put", "my key", "my val"]',
-    ...     type=Union[Get, Put]
+    ...     type=Get | Put,
     ... )
     Put(key='my key', val='my val')
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import array
 import datetime
 import enum
 import gc
@@ -56,8 +57,8 @@ PERSON_AA = PersonArray("harry", "potter", 13)
 
 
 class Node(msgspec.Struct):
-    left: Optional[Node] = None
-    right: Optional[Node] = None
+    left: Node | None = None
+    right: Node | None = None
 
 
 class Custom:
@@ -205,10 +206,10 @@ class TestDecodeFunction:
         assert msgspec.msgpack.decode(self.buf) == [1, 2, 3]
 
     def test_decode_type_keyword(self):
-        assert msgspec.msgpack.decode(self.buf, type=List[int]) == [1, 2, 3]
+        assert msgspec.msgpack.decode(self.buf, type=list[int]) == [1, 2, 3]
 
         with pytest.raises(msgspec.ValidationError):
-            assert msgspec.msgpack.decode(self.buf, type=List[str])
+            assert msgspec.msgpack.decode(self.buf, type=list[str])
 
     def test_decode_type_any(self):
         assert msgspec.msgpack.decode(self.buf, type=Any) == [1, 2, 3]
@@ -226,7 +227,7 @@ class TestDecodeFunction:
 
     def test_decode_type_struct_not_json_compatible(self):
         class Test(msgspec.Struct):
-            x: Dict[int, str]
+            x: dict[int, str]
 
         msg = msgspec.msgpack.encode(Test({1: "two"}))
         msgspec.msgpack.decode(msg, type=Test) == Test({1, "two"})
@@ -251,7 +252,7 @@ class TestDecodeFunction:
             msgspec.msgpack.decode()
 
         with pytest.raises(TypeError, match="Extra positional arguments"):
-            msgspec.msgpack.decode(self.buf, List[int])
+            msgspec.msgpack.decode(self.buf, list[int])
 
         with pytest.raises(TypeError, match="Extra positional arguments"):
             msgspec.msgpack.decode(self.buf, 2, 3)
@@ -260,7 +261,7 @@ class TestDecodeFunction:
             msgspec.msgpack.decode(self.buf, bad=1)
 
         with pytest.raises(TypeError, match="Extra keyword arguments"):
-            msgspec.msgpack.decode(self.buf, type=List[int], extra=1)
+            msgspec.msgpack.decode(self.buf, type=list[int], extra=1)
 
     def test_decode_with_trailing_characters_errors(self):
         msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
@@ -300,7 +301,7 @@ class TestEncoderMisc:
 
     def rec_obj4(self):
         class Box(msgspec.Struct):
-            a: "Box"
+            a: Box
 
         o = Box(None)
         o.a = o
@@ -512,7 +513,7 @@ class TestDecoderMisc:
             msgspec.msgpack.Decoder(ext_hook=1)
 
     def test_decoder_repr(self):
-        typ = List[Dict[int, float]]
+        typ = list[dict[int, float]]
         dec = msgspec.msgpack.Decoder(typ)
         assert repr(dec) == f"msgspec.msgpack.Decoder({typ!r})"
 
@@ -555,7 +556,7 @@ class TestDecoderMisc:
         key = "x" * length
         msg = [{key: 1}, {key: 2}, {key: 3}]
         if typed:
-            dec = msgspec.msgpack.Decoder(List[Dict[str, int]])
+            dec = msgspec.msgpack.Decoder(list[dict[str, int]])
         else:
             dec = msgspec.msgpack.Decoder()
         res = dec.decode(msgspec.msgpack.encode(msg))
@@ -603,7 +604,7 @@ class TestTypedDecoder:
         assert dec.decode(msgspec.msgpack.encode([1, 2, 3])) == [1, 2, 3]
 
         # A union that includes `Any` is just `Any`
-        dec = msgspec.msgpack.Decoder(Union[Any, float, int, None])
+        dec = msgspec.msgpack.Decoder(Any | float | int | None)
         assert dec.decode(msgspec.msgpack.encode([1, 2, 3])) == [1, 2, 3]
 
     def test_none(self):
@@ -752,7 +753,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
 
-    @pytest.mark.parametrize("typ", [list, List, List[Any]])
+    @pytest.mark.parametrize("typ", [List, list, list[Any]])
     def test_list_any(self, typ):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(typ)
@@ -764,7 +765,7 @@ class TestTypedDecoder:
 
     def test_list_typed(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(List[int])
+        dec = msgspec.msgpack.Decoder(list[int])
         x = [1, 2, 3]
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -785,7 +786,17 @@ class TestTypedDecoder:
         assert isinstance(res, typ)
 
     @pytest.mark.parametrize(
-        "typ", [set, Set, Set[Any], frozenset, FrozenSet, FrozenSet[Any]]
+        "typ",
+        [
+            Set,
+            Set[Any],
+            set,
+            set[Any],
+            FrozenSet,
+            FrozenSet[Any],
+            frozenset,
+            frozenset[Any],
+        ],
     )
     def test_set_any(self, typ):
         enc = msgspec.msgpack.Encoder()
@@ -798,14 +809,14 @@ class TestTypedDecoder:
         with pytest.raises(msgspec.ValidationError, match="Expected `array`"):
             dec.decode(enc.encode(1))
 
-    @pytest.mark.parametrize("typ", [Set, FrozenSet])
+    @pytest.mark.parametrize("typ", [set, frozenset, Set, FrozenSet])
     def test_set_typed(self, typ):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(typ[int])
         x = {1, 2, 3}
         res = dec.decode(enc.encode(x))
         assert res == x
-        assert type(res) is typ.__origin__
+        assert type(res) is getattr(typ, "__origin__", typ)
         with pytest.raises(
             msgspec.ValidationError,
             match=r"Expected `int`, got `str` - at `\$\[2\]`",
@@ -822,7 +833,7 @@ class TestTypedDecoder:
         if res:
             assert sys.getrefcount(res[0]) <= 3  # 1 tuple, 1 index, 1 func call
 
-    @pytest.mark.parametrize("typ", [tuple, Tuple, Tuple[Any, ...]])
+    @pytest.mark.parametrize("typ", [Tuple, Tuple[Any, ...], tuple, tuple[Any, ...]])
     def test_vartuple_any(self, typ):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(typ)
@@ -836,7 +847,7 @@ class TestTypedDecoder:
 
     def test_vartuple_typed(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Tuple[int, ...])
+        dec = msgspec.msgpack.Decoder(tuple[int, ...])
         x = (1, 2, 3)
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -848,7 +859,7 @@ class TestTypedDecoder:
 
     def test_fixtuple_any(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Tuple[Any, Any, Any])
+        dec = msgspec.msgpack.Decoder(tuple[Any, Any, Any])
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -863,7 +874,7 @@ class TestTypedDecoder:
 
     def test_fixtuple_typed(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Tuple[int, str, bytes])
+        dec = msgspec.msgpack.Decoder(tuple[int, str, bytes])
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -882,7 +893,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
 
-    @pytest.mark.parametrize("typ", [dict, Dict, Dict[Any, Any]])
+    @pytest.mark.parametrize("typ", [Dict, dict, dict[Any, Any]])
     def test_dict_any_any(self, typ):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(typ)
@@ -896,7 +907,7 @@ class TestTypedDecoder:
 
     def test_dict_any_val(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Dict[str, Any])
+        dec = msgspec.msgpack.Decoder(dict[str, Any])
         x = {"a": 1, "b": "two", "c": b"three"}
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -908,7 +919,7 @@ class TestTypedDecoder:
 
     def test_dict_any_key(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Dict[Any, str])
+        dec = msgspec.msgpack.Decoder(dict[Any, str])
         x = {1: "a", "two": "b", b"three": "c"}
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -927,7 +938,7 @@ class TestTypedDecoder:
 
     def test_dict_typed(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Dict[str, int])
+        dec = msgspec.msgpack.Decoder(dict[str, int])
         x = {"a": 1, "b": 2}
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -943,7 +954,7 @@ class TestTypedDecoder:
 
     def test_dict_typed_non_str_key(self):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Dict[int, int])
+        dec = msgspec.msgpack.Decoder(dict[int, int])
         x = {0: 1, 2: 3}
         res = dec.decode(enc.encode(x))
         assert res == x
@@ -973,7 +984,7 @@ class TestTypedDecoder:
             msgspec.ValidationError,
             match=r"Invalid enum value 'MISSING' - at `\$\[0\]`",
         ):
-            msgspec.msgpack.decode(enc.encode(["MISSING"]), type=List[FruitStr])
+            msgspec.msgpack.decode(enc.encode(["MISSING"]), type=list[FruitStr])
 
         with pytest.raises(msgspec.ValidationError):
             dec.decode(enc.encode(1))
@@ -995,7 +1006,7 @@ class TestTypedDecoder:
         with pytest.raises(
             msgspec.ValidationError, match=r"Invalid enum value 1000 - at `\$\[0\]`"
         ):
-            msgspec.msgpack.decode(enc.encode([1000]), type=List[FruitInt])
+            msgspec.msgpack.decode(enc.encode([1000]), type=list[FruitInt])
 
         with pytest.raises(msgspec.ValidationError):
             dec.decode(enc.encode("INVALID"))
@@ -1016,7 +1027,7 @@ class TestTypedDecoder:
             msgspec.ValidationError,
             match=r"Invalid enum value 'MISSING' - at `\$\[0\]`",
         ):
-            msgspec.msgpack.decode(enc.encode(["MISSING"]), type=List[literal])
+            msgspec.msgpack.decode(enc.encode(["MISSING"]), type=list[literal])
 
     def test_int_literal(self):
         literal = Literal[1, 2, 3]
@@ -1031,7 +1042,7 @@ class TestTypedDecoder:
         with pytest.raises(
             msgspec.ValidationError, match=r"Invalid enum value 1000 - at `\$\[0\]`"
         ):
-            msgspec.msgpack.decode(enc.encode([1000]), type=List[literal])
+            msgspec.msgpack.decode(enc.encode([1000]), type=list[literal])
 
     @pytest.mark.parametrize(
         "typ, value",
@@ -1049,14 +1060,21 @@ class TestTypedDecoder:
             (list, [1]),
             (set, {1}),
             (tuple, (1, 2)),
-            (Tuple[int, int], (1, 2)),
+            (tuple[int, int], (1, 2)),
             (dict, {1: 2}),
             (datetime.datetime, datetime.datetime.now(UTC)),
         ],
     )
-    def test_optional(self, typ, value):
+    @pytest.mark.parametrize(
+        "optional_builder",
+        [
+            lambda typ: Optional[typ],
+            lambda typ: typ | None,
+        ],
+    )
+    def test_optional(self, typ, value, optional_builder):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Optional[typ])
+        dec = msgspec.msgpack.Decoder(optional_builder(typ))
 
         s = enc.encode(value)
         s2 = enc.encode(None)
@@ -1070,12 +1088,13 @@ class TestTypedDecoder:
     @pytest.mark.parametrize(
         "typ, value",
         [
-            (List[Optional[int]], [1, None]),
-            (Tuple[Optional[int], int], (None, 1)),
-            (Set[Optional[int]], {1, None}),
-            (FrozenSet[Optional[int]], frozenset({1, None})),
-            (Dict[str, Optional[int]], {"a": 1, "b": None}),
-            (Dict[Optional[str], int], {"a": 1, None: 2}),
+            (list[Optional[int]], [1, None]),
+            (list[int | None], [1, None]),
+            (tuple[int | None, int], (None, 1)),
+            (set[int | None], {1, None}),
+            (frozenset[int | None], frozenset({1, None})),
+            (dict[str, int | None], {"a": 1, "b": None}),
+            (dict[str | None, int], {"a": 1, None: 2}),
         ],
     )
     def test_optional_nested(self, typ, value):
@@ -1096,8 +1115,8 @@ class TestTypedDecoder:
             ([bool, None, float, str], [True, None, 1.5, "test"]),
         ],
     )
-    def test_union(self, types, vals):
-        dec = msgspec.msgpack.Decoder(List[Union[tuple(types)]])
+    def test_old_union(self, types, vals):
+        dec = msgspec.msgpack.Decoder(list[Union[tuple(types)]])
         s = msgspec.msgpack.encode(vals)
         res = dec.decode(s)
         assert res == vals
@@ -1107,42 +1126,61 @@ class TestTypedDecoder:
                 assert type(v) == t
 
     @pytest.mark.parametrize(
+        "typ, vals",
+        [
+            (int | float, [1, 2.5]),
+            (
+                float | msgspec.msgpack.Ext | int | str,
+                [1.5, msgspec.msgpack.Ext(1, b"two"), 1, "two"],
+            ),
+            (bool | float | str | None, [True, None, 1.5, "test"]),
+        ],
+    )
+    def test_union(self, typ, vals):
+        dec = msgspec.msgpack.Decoder(list[typ])
+        s = msgspec.msgpack.encode(vals)
+        res = dec.decode(s)
+        assert res == vals
+        for v in res:
+            assert isinstance(v, typ)
+
+    @pytest.mark.parametrize(
         "types, vals",
         [
             (
-                [PersonArray, FruitInt, FruitStr, Dict[int, str]],
+                [PersonArray, FruitInt, FruitStr, dict[int, str]],
                 [PERSON_AA, FruitInt.APPLE, FruitStr.BANANA, {1: "two"}],
             ),
             (
-                [Person, FruitInt, FruitStr, Tuple[int, ...]],
+                [Person, FruitInt, FruitStr, tuple[int, ...]],
                 [PERSON, FruitInt.APPLE, FruitStr.BANANA, (1, 2, 3)],
             ),
             (
-                [Person, FruitInt, FruitStr, List[int]],
+                [Person, FruitInt, FruitStr, list[int]],
                 [PERSON, FruitInt.APPLE, FruitStr.BANANA, [1, 2, 3]],
             ),
             (
-                [Person, FruitInt, FruitStr, Set[int]],
+                [Person, FruitInt, FruitStr, set[int]],
                 [PERSON, FruitInt.APPLE, FruitStr.BANANA, {1, 2, 3}],
             ),
             (
-                [Person, FruitInt, FruitStr, Tuple[int, str, float]],
+                [Person, FruitInt, FruitStr, tuple[int, str, float]],
                 [PERSON, FruitInt.APPLE, FruitStr.BANANA, (1, "two", 3.5)],
             ),
             (
-                [Dict[int, str], FruitInt, FruitStr, Tuple[int, ...]],
+                [dict[int, str], FruitInt, FruitStr, tuple[int, ...]],
                 [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, (1, 2, 3)],
             ),
             (
-                [Dict[int, str], FruitInt, FruitStr, List[int]],
+                [dict[int, str], FruitInt, FruitStr, list[int]],
                 [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, [1, 2, 3]],
             ),
             (
-                [Dict[int, str], FruitInt, FruitStr, Set[int]],
+                [dict[int, str], FruitInt, FruitStr, set[int]],
                 [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, {1, 2, 3}],
             ),
             (
-                [Dict[int, str], FruitInt, FruitStr, Tuple[int, str, float]],
+                [dict[int, str], FruitInt, FruitStr, tuple[int, str, float]],
                 [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, (1, "two", 3.5)],
             ),
         ],
@@ -1154,7 +1192,7 @@ class TestTypedDecoder:
             for typ_vals_subset in itertools.combinations(typ_vals, N):
                 types, vals = zip(*typ_vals_subset)
                 vals = list(vals)
-                dec = msgspec.msgpack.Decoder(List[Union[types]])
+                dec = msgspec.msgpack.Decoder(list[Union[types]])
                 s = msgspec.msgpack.encode(vals)
                 res = dec.decode(s)
                 assert res == vals
@@ -1167,11 +1205,11 @@ class TestTypedDecoder:
         with pytest.raises(
             msgspec.ValidationError, match="Expected `bool | string`, got `int`"
         ):
-            msgspec.msgpack.decode(msg, type=Union[bool, str])
+            msgspec.msgpack.decode(msg, type=bool | str)
 
     def test_decoding_error_no_struct_toplevel(self):
         b = msgspec.msgpack.Encoder().encode([{"a": 1}])
-        dec = msgspec.msgpack.Decoder(List[Dict[str, str]])
+        dec = msgspec.msgpack.Decoder(list[dict[str, str]])
         with pytest.raises(
             msgspec.ValidationError,
             match=r"Expected `str`, got `int` - at `\$\[0\]\[...\]`",
@@ -1238,9 +1276,10 @@ class TestExt:
         with pytest.raises(AttributeError):
             x.code = 2
 
-    def test_pickleable(self):
+    @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+    def test_pickleable(self, protocol):
         x = msgspec.msgpack.Ext(1, b"two")
-        x2 = pickle.loads(pickle.dumps(x))
+        x2 = pickle.loads(pickle.dumps(x, protocol=protocol))
         assert x2.code == 1
         assert x2.data == b"two"
 
@@ -1258,8 +1297,24 @@ class TestExt:
     def test_serialize_other_types(self, typ):
         buf = b"test"
         a = msgspec.msgpack.encode(msgspec.msgpack.Ext(1, buf))
-        b = msgspec.msgpack.encode(msgspec.msgpack.Ext(1, typ(buf)))
+
+        ext = msgspec.msgpack.Ext(1, typ(buf))
+        assert isinstance(ext.data, typ)
+        b = msgspec.msgpack.encode(ext)
         assert a == b
+
+        decoded = msgspec.msgpack.decode(b)
+        assert isinstance(decoded.data, bytes)
+        assert decoded.data == buf
+
+    def test_other_buffers(self):
+        buf = array.array("i", [1, 2, 3, 4])
+        out = msgspec.msgpack.decode(
+            msgspec.msgpack.encode(msgspec.msgpack.Ext(1, buf)),
+        )
+
+        assert isinstance(out.data, bytes)
+        assert array.array("i", out.data) == buf
 
     @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
     def test_roundtrip(self, size):
@@ -1285,7 +1340,7 @@ class TestExt:
             assert False, "shouldn't ever get called"
 
         msg = [None, msgspec.msgpack.Ext(1, b"test")]
-        dec = msgspec.msgpack.Decoder(List[Optional[msgspec.msgpack.Ext]])
+        dec = msgspec.msgpack.Decoder(list[msgspec.msgpack.Ext | None])
         buf = msgspec.msgpack.encode(msg)
         out = dec.decode(buf)
         assert out == msg
@@ -1296,17 +1351,15 @@ class TestExt:
             assert dec.decode(msgspec.msgpack.encode(1))
 
     @pytest.mark.parametrize("use_function", [True, False])
-    def test_decoder_ext_hook(self, use_function):
+    @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+    def test_decoder_ext_hook(self, use_function, protocol):
         obj = {"x": range(10)}
-        exp_buf = pickle.dumps(range(10))
 
         def enc_hook(x):
-            return msgspec.msgpack.Ext(5, pickle.dumps(x))
+            return msgspec.msgpack.Ext(5, pickle.dumps(x, protocol=protocol))
 
         def ext_hook(code, buf):
             assert isinstance(buf, memoryview)
-            assert bytes(buf) == exp_buf
-            assert len(buf) == len(exp_buf)
             assert code == 5
             return pickle.loads(buf)
 
@@ -1436,11 +1489,11 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
     @pytest.mark.parametrize(
         "typ",
         [
-            Dict[Tuple[int, Tuple[int, int]], List[int]],
-            Dict[Tuple[int, Tuple[int, ...]], Any],
-            Dict[Tuple, List[int]],
-            Dict[Tuple[Any, ...], Any],
-            Dict[Tuple[Any, Any], Any],
+            dict[tuple[int, tuple[int, int]], list[int]],
+            dict[tuple[int, tuple[int, ...]], Any],
+            dict[tuple, list[int]],
+            dict[tuple[Any, ...], Any],
+            dict[tuple[Any, Any], Any],
         ],
     )
     def test_decode_dict_key_status_forwarded_through_typed_tuples(self, typ):
@@ -1457,14 +1510,14 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
 
     def test_decode_hashable_struct_in_key(self):
         class Test(msgspec.Struct):
-            data: List[int]
+            data: list[int]
 
             def __hash__(self):
                 return hash(tuple(self.data))
 
         orig = {(1, Test([1, 2])): [1, 2]}
         data = msgspec.msgpack.encode(orig)
-        out = msgspec.msgpack.Decoder(Dict[Tuple[int, Test], List[int]]).decode(data)
+        out = msgspec.msgpack.Decoder(dict[tuple[int, Test], list[int]]).decode(data)
         assert orig == out
 
 
@@ -1571,7 +1624,7 @@ class TestStruct:
             msgspec.ValidationError,
             match=r"Object missing required field `age` - at `\$\[0\]`",
         ):
-            msgspec.msgpack.decode(bad, type=List[Person])
+            msgspec.msgpack.decode(bad, type=list[Person])
 
     @pytest.mark.parametrize(
         "extra",
@@ -1619,10 +1672,10 @@ class TestStruct:
         class Test(msgspec.Struct, array_like=array_like):
             x: Any
             y: Any
-            z: Tuple = ()
+            z: tuple = ()
 
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(List[Test])
+        dec = msgspec.msgpack.Decoder(list[Test])
 
         ts = [
             Test(1, 2),
@@ -1644,7 +1697,7 @@ class TestStruct:
             x: Any
             y: Any
 
-        dec = msgspec.msgpack.Decoder(List[Test])
+        dec = msgspec.msgpack.Decoder(list[Test])
 
         ts = [
             Test(1, 2),
@@ -1810,7 +1863,7 @@ class TestStructArray:
             dec.decode(bad)
 
         # Extra fields ignored
-        dec2 = msgspec.msgpack.Decoder(List[PersonArray])
+        dec2 = msgspec.msgpack.Decoder(list[PersonArray])
         msg = msgspec.msgpack.encode(
             [
                 ("harry", "potter", 13, False, 1, 2, 3, 4),
@@ -1968,7 +2021,7 @@ class TestRaw:
 
     def test_raw_in_union_works_but_doesnt_change_anything(self):
         class Test(msgspec.Struct):
-            x: Union[int, str, msgspec.Raw]
+            x: int | str | msgspec.Raw
 
         s = msgspec.msgpack.encode({"x": 1})
         r = msgspec.msgpack.decode(s, type=Test)
@@ -1976,7 +2029,7 @@ class TestRaw:
 
     def test_raw_can_be_mixed_with_custom_type(self):
         class Test(msgspec.Struct):
-            x: Union[Custom, msgspec.Raw]
+            x: Custom | msgspec.Raw
 
         def dec_hook(typ, obj):
             assert typ is Custom

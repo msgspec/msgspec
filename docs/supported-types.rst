@@ -105,7 +105,7 @@ information.
 ``bool``
 --------
 
-Booleans map to their corresponding ``true``/``false`` values in both all
+Booleans map to their corresponding ``true`` / ``false`` values in both all
 supported protocols.
 
 .. code-block:: python
@@ -116,9 +116,9 @@ supported protocols.
     >>> msgspec.json.decode(b'true')
     True
 
-If ``strict=False`` is specified, values of ``"true"``/``"1"``/``1`` or
-``"false"``/``"0"``/``0`` (case insensitive for strings) may also be coerced to
-``True``/``False`` respectively. See :ref:`strict-vs-lax` for more information.
+If ``strict=False`` is specified, values of ``"true"`` / ``"1"`` / ``1`` or
+``"false"`` / ``"0"`` / ``0`` (case insensitive for strings) may also be coerced to
+``True`` / ``False`` respectively. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
 
@@ -193,9 +193,9 @@ provided, the `int` will be automatically converted.
     123.0
 
 If ``strict=False`` is specified, string values may also be coerced to floats.
-Note that in this case the strings ``"nan"``, ``"inf"``/``"infinity"``,
-``"-inf"``/``"-infinity"`` (case insensitive) will coerce to
-``nan``/``inf``/``-inf``. See :ref:`strict-vs-lax` for more information.
+Note that in this case the strings ``"nan"``, ``"inf"`` / ``"infinity"``,
+``"-inf"`` / ``"-infinity"`` (case insensitive) will coerce to
+``nan`` / ``inf`` / ``-inf``. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
 
@@ -660,14 +660,12 @@ a ``list`` subclass you'll need to implement a ``dec_hook`` (see
     >>> msgspec.json.decode(b'[1,2,3]', type=set)
     {1, 2, 3}
 
-    >>> from typing import Set
-
     >>> # Decode as a set of ints
-    ... msgspec.json.decode(b'[1, 2, 3]', type=Set[int])
+    ... msgspec.json.decode(b'[1, 2, 3]', type=set[int])
     {1, 2, 3}
 
     >>> # Oops, all elements should be ints
-    ... msgspec.json.decode(b'[1, 2, "oops"]', type=Set[int])
+    ... msgspec.json.decode(b'[1, 2, "oops"]', type=set[int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[2]`
@@ -750,14 +748,12 @@ respective types (if specified).
     >>> msgspec.json.encode({"x": 1, "y": 2})
     b'{"x":1,"y":2}'
 
-    >>> from typing import Dict
-
     >>> # Decode as a Dict of str -> int
-    ... msgspec.json.decode(b'{"x":1,"y":2}', type=Dict[str, int])
+    ... msgspec.json.decode(b'{"x":1,"y":2}', type=dict[str, int])
     {"x": 1, "y": 2}
 
     >>> # Oops, there's a mistyped value
-    ... msgspec.json.decode(b'{"x":1,"y":"oops"}', type=Dict[str, int])
+    ... msgspec.json.decode(b'{"x":1,"y":"oops"}', type=dict[str, int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[...]`
@@ -767,7 +763,7 @@ respective types (if specified).
 
 `typing.TypedDict` provides a way to specify different types for different
 values in a ``dict``, rather than a single value type (the ``int`` in
-``Dict[str, int]``, for example).  At runtime these are just standard
+``dict[str, int]``, for example).  At runtime these are just standard
 ``dict`` types, the ``TypedDict`` type is only there to provide the schema
 information during decoding. Note that ``msgspec`` supports both
 `typing.TypedDict` and ``typing_extensions.TypedDict`` (a backport).
@@ -934,8 +930,8 @@ match or if any required fields are missing.
 
     >>> class User(msgspec.Struct):
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
 
     >>> alice = User("alice", groups={"admin", "engineering"})
 
@@ -975,12 +971,10 @@ Type checking also still applies.
 
 .. code-block:: python
 
-    >>> from typing import Set, Optional
-
     >>> class User(msgspec.Struct, array_like=True):
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
 
     >>> alice = User("alice", groups={"admin", "engineering"})
 
@@ -1423,14 +1417,12 @@ Union restrictions are as follows:
   multiple struct types are only supported through :ref:`struct-tagged-unions`.
 
 - Unions with custom types are unsupported beyond optionality (i.e.
-  ``Optional[CustomType]``)
+  ``CustomType | None``)
 
 .. code-block:: python
 
-    >>> from typing import Union, List
-
     >>> # A decoder expecting either an int, a str, or a list of strings
-    ... decoder = msgspec.json.Decoder(Union[int, str, List[str]])
+    ... decoder = msgspec.json.Decoder(int | str | list[str])
 
     >>> decoder.decode(b'1')
     1
@@ -1508,7 +1500,7 @@ field (``point``) depends on the value of another (``dimensions``).
     ...     dimensions: int
     ...     point: msgspec.Raw  # use msgspec.Raw to delay decoding the point field
 
-    >>> def decode_point(msg: bytes) -> Union[Point1D, Point2D, Point3D]:
+    >>> def decode_point(msg: bytes) -> Point1D | Point2D | Point3D:
     ...     """A function for efficiently decoding the `point` field"""
     ...     # First decode the outer `Model` struct. Decoding of the `point`
     ...     # field is delayed, with the composite bytes stored as a `Raw` object
@@ -1625,5 +1617,5 @@ TOML_ types are decoded to Python types as follows:
 .. _pyright: https://github.com/microsoft/pyright
 .. _generic types:
 .. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types
-.. _open an issue: https://github.com/jcrist/msgspec/issues>
+.. _open an issue: https://github.com/msgspec/msgspec/issues
 .. _ISO 8601 duration strings: https://en.wikipedia.org/wiki/ISO_8601#Durations
