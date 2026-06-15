@@ -29,7 +29,8 @@ def check_unset() -> None:
 
 def check_unset_type_lowering(x: int | msgspec.UnsetType) -> None:
     if x is msgspec.UNSET:
-        assert_type(x, Literal[msgspec.UnsetType.UNSET])
+        # this is a bug in `pyrefly`:
+        assert_type(x, Literal[msgspec.UnsetType.UNSET])  # pyrefly: ignore[assert-type]
     else:
         assert_type(x, int)
 
@@ -641,8 +642,9 @@ def check_msgpack_Decoder_decode_type_comment() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = dec.decode(b)
 
-    assert_type(dec, msgspec.msgpack.Decoder[list[int]])
-    assert_type(o, list[int])
+    # pyrefly does not support type comments:
+    assert_type(dec, msgspec.msgpack.Decoder[list[int]])  # pyrefly: ignore[assert-type]
+    assert_type(o, list[int])  # pyrefly: ignore[assert-type]
 
 
 def check_msgpack_decode_any() -> None:
@@ -795,8 +797,9 @@ def check_json_Decoder_decode_type_comment() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = dec.decode(b)
 
-    assert_type(dec, msgspec.json.Decoder[list[int]])
-    assert_type(o, list[int])
+    # pyrefly does not support type comments:
+    assert_type(dec, msgspec.json.Decoder[list[int]])  # pyrefly: ignore[assert-type]
+    assert_type(o, list[int])  # pyrefly: ignore[assert-type]
 
 
 def check_json_Decoder_decode_union() -> None:
@@ -1099,7 +1102,8 @@ def check_inspect_is_struct_type() -> None:
 
     tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
-        assert_type(tp, type[Point])
+        # this is a bug in `pyrefly`:
+        assert_type(tp, type[Point])  # pyrefly: ignore[assert-type]
     else:
         assert_type(tp, type[Other])
 

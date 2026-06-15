@@ -88,6 +88,8 @@ test-typing: (
   env-run "test" "mypy tests/typing"
 ) (
   env-run "test" "pyright tests/typing"
+) (
+  env-run "test" "pyrefly check tests/typing"
 )
 
 # Run doctests.
