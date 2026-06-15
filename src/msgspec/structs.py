@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from . import NODEFAULT, Struct, field
@@ -61,6 +62,15 @@ class FieldInfo(Struct):
         return self.default is NODEFAULT and self.default_factory is NODEFAULT
 
 
+# Caches the `fields()` result for non-generic structs. Keyed weakly on the
+# struct type so cached entries are dropped when the class is collected. Kept in
+# a side table rather than on the class itself to avoid mutating user types
+# during inspection.
+_fields_cache: weakref.WeakKeyDictionary[type, tuple[FieldInfo, ...]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
 def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     """Get information about the fields in a Struct.
 
@@ -91,7 +101,7 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     # Return cached result for non-generic structs
     is_generic = annotated_cls is not cls
     if not is_generic:
-        cached = cls.__dict__.get("__struct_field_info__")
+        cached = _fields_cache.get(cls)
         if cached is not None:
             return cached
 
@@ -122,6 +132,6 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
 
     # Cache for non-generic structs
     if not is_generic:
-        cls.__struct_field_info__ = result
+        _fields_cache[cls] = result
 
     return result
