@@ -3503,6 +3503,17 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
         PyObject *obj = (PyObject *)(self->details[i].pointer);
         Py_VISIT(obj);
     }
+    /* Visit Decimal constraint PyObject* (direct references on this node) before
+     * recursing into children, which may return early. */
+    if (self->types & (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)) {
+        Py_VISIT(TypeNode_get_constr_decimal_min(self));
+    }
+    if (self->types & (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)) {
+        Py_VISIT(TypeNode_get_constr_decimal_max(self));
+    }
+    if (self->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
+        Py_VISIT(TypeNode_get_constr_decimal_multiple_of(self));
+    }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
         int out;
         TypeNode *node = (TypeNode *)(self->details[i].pointer);
@@ -3512,16 +3523,6 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
         int out;
         TypeNode *node = (TypeNode *)(self->details[i + fixtuple_offset].pointer);
         if ((out = TypeNode_traverse(node, visit, arg)) != 0) return out;
-    }
-    /* Traverse Decimal constraint PyObject* */
-    if (self->types & (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)) {
-        Py_VISIT(TypeNode_get_constr_decimal_min(self));
-    }
-    if (self->types & (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)) {
-        Py_VISIT(TypeNode_get_constr_decimal_max(self));
-    }
-    if (self->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
-        Py_VISIT(TypeNode_get_constr_decimal_multiple_of(self));
     }
     return 0;
 }
@@ -10556,7 +10557,7 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     if (type->types & MS_CONSTR_DECIMAL_GT) {
         PyObject *c = TypeNode_get_constr_decimal_min(type);
         int ok = PyObject_RichCompareBool(obj, c, Py_GT);
-        if (ok == -1) return false;
+        if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
             ms_raise_validation_error(path, "Expected `Decimal` > %R", c);
             return false;
@@ -10565,7 +10566,7 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     else if (type->types & MS_CONSTR_DECIMAL_GE) {
         PyObject *c = TypeNode_get_constr_decimal_min(type);
         int ok = PyObject_RichCompareBool(obj, c, Py_GE);
-        if (ok == -1) return false;
+        if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
             ms_raise_validation_error(path, "Expected `Decimal` >= %R", c);
             return false;
@@ -10574,7 +10575,7 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     if (type->types & MS_CONSTR_DECIMAL_LT) {
         PyObject *c = TypeNode_get_constr_decimal_max(type);
         int ok = PyObject_RichCompareBool(obj, c, Py_LT);
-        if (ok == -1) return false;
+        if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
             ms_raise_validation_error(path, "Expected `Decimal` < %R", c);
             return false;
@@ -10583,7 +10584,7 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     else if (type->types & MS_CONSTR_DECIMAL_LE) {
         PyObject *c = TypeNode_get_constr_decimal_max(type);
         int ok = PyObject_RichCompareBool(obj, c, Py_LE);
-        if (ok == -1) return false;
+        if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
             ms_raise_validation_error(path, "Expected `Decimal` <= %R", c);
             return false;
@@ -10593,13 +10594,13 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         PyObject *c = TypeNode_get_constr_decimal_multiple_of(type);
         PyObject *modulo = PyNumber_Remainder(obj, c);
         if (modulo == NULL) return false;
-        PyObject *zero = PyLong_FromLong(0);
-        if (zero == NULL) { Py_DECREF(modulo); return false; }
-        int ok = PyObject_RichCompareBool(modulo, zero, Py_EQ);
+        /* A Decimal is falsy iff it is zero. Using truthiness avoids
+         * allocating a zero to compare against, and (unlike coercing to a
+         * C integer) stays correct for fractional remainders. */
+        int nonzero = PyObject_IsTrue(modulo);
         Py_DECREF(modulo);
-        Py_DECREF(zero);
-        if (ok == -1) return false;
-        if (MS_UNLIKELY(!ok)) {
+        if (MS_UNLIKELY(nonzero < 0)) return false;
+        if (MS_UNLIKELY(nonzero)) {
             ms_raise_validation_error(path, "Expected `Decimal` that's a multiple of %R", c);
             return false;
         }

@@ -514,6 +514,23 @@ class TestDecimalConstraints:
         with pytest.raises(msgspec.ValidationError):
             msgspec.convert(Decimal("0"), typ)
 
+    def test_decimal_subclass_bound(self, proto):
+        # A `Decimal` subclass is a valid bound value: unlike `int`/`float`
+        # (where only exact instances are accepted), a subclass is genuinely a
+        # `Decimal`, so it is accepted and normalized internally.
+        class MyDecimal(Decimal):
+            pass
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(ge=MyDecimal("1"))]
+
+        dec = proto.Decoder(Ex)
+        assert dec.decode(proto.encode(Ex(Decimal("1")))).x == Decimal("1")
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `Decimal` >="
+        ):
+            dec.decode(proto.encode(Ex(Decimal("0.5"))))
+
 
 class TestStrConstraints:
     def test_min_length(self, proto):

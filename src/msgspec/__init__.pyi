@@ -160,16 +160,18 @@ class Raw(bytes):
     def __new__(cls, msg: Buffer | str) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
+_NumericBound = int | float | Decimal | None
+
 @final
 class Meta:
     def __init__(
         self,
         *,
-        gt: int | float | Decimal | None = None,
-        ge: int | float | Decimal | None = None,
-        lt: int | float | Decimal | None = None,
-        le: int | float | Decimal | None = None,
-        multiple_of: int | float | Decimal | None = None,
+        gt: _NumericBound = None,
+        ge: _NumericBound = None,
+        lt: _NumericBound = None,
+        le: _NumericBound = None,
+        multiple_of: _NumericBound = None,
         pattern: str | None = None,
         min_length: int | None = None,
         max_length: int | None = None,
@@ -180,11 +182,11 @@ class Meta:
         extra_json_schema: dict[str, Any] | None = None,
         extra: dict[str, Any] | None = None,
     ) -> None: ...
-    gt: Final[int | float | Decimal | None]
-    ge: Final[int | float | Decimal | None]
-    lt: Final[int | float | Decimal | None]
-    le: Final[int | float | Decimal | None]
-    multiple_of: Final[int | float | Decimal | None]
+    gt: Final[_NumericBound]
+    ge: Final[_NumericBound]
+    lt: Final[_NumericBound]
+    le: Final[_NumericBound]
+    multiple_of: Final[_NumericBound]
     pattern: Final[str | None]
     min_length: Final[int | None]
     max_length: Final[int | None]
