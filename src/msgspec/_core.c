@@ -3675,7 +3675,7 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
     }
     /* Do offsets for lt/gt */
     if (offset == -1) {
-        if (x == (-1LL << 63)) {
+        if (x == INT64_MIN) {
             PyErr_SetString(PyExc_ValueError, "lt <= -2**63 is not supported");
             return false;
         }
@@ -10169,7 +10169,14 @@ ms_passes_int_constraints(uint64_t ux, bool neg, TypeNode *type, PathNode *path)
 /* Constraint checks for a PyLong that is known not to fit into a uint64/int64 */
 static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+#if PY314_PLUS
+    /* obj is always a PyLong here, so PyLong_GetSign can't fail */
+    int sign;
+    PyLong_GetSign(obj, &sign);
+    bool neg = sign < 0;
+#else
     bool neg = _PyLong_Sign(obj) < 0;
+#endif
 
     if (type->types & MS_CONSTR_INT_MIN) {
         if (neg) {
@@ -12000,7 +12007,7 @@ static bool
 double_as_int64(double x, int64_t *out) {
     if (fmod(x, 1.0) != 0.0) return false;
     if (x > (1LL << 53)) return false;
-    if (x < (-1LL << 53)) return false;
+    if (x < -(1LL << 53)) return false;
     *out = (int64_t)x;
     return true;
 }
