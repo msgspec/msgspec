@@ -96,5 +96,5 @@ def encode(
     /,
     *,
     enc_hook: _EncHookSig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
