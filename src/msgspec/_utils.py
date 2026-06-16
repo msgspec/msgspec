@@ -1,7 +1,6 @@
 # type: ignore
 import collections
 import sys
-import types
 import typing
 from typing import _AnnotatedAlias, _GenericAlias  # noqa: F401
 
@@ -96,18 +95,23 @@ def _get_class_mro_and_typevar_mappings(obj):
             if cls in (None, object, typing.Generic) or cls in mapping:
                 return
 
-            # it's a built-in generic that has unresolved type vars. in this case,
-            # parameters and args are stored on the generic, not the __origin__
-            if isinstance(c, types.GenericAlias) or (
-                isinstance(c, typing._GenericAlias)
-                and not hasattr(cls, "__parameters__")
-            ):
-                new_scope = dict(zip(c.__parameters__, typing.get_args(c)))
-            else:
+            if hasattr(cls, "__parameters__"):
+                # 'cls' carries its own type vars. This covers both ordinary
+                # 'typing._GenericAlias' bases and the 'types.GenericAlias' that
+                # get produced when a user-defined 'Generic' subclass inherits a
+                # builtin's '__class_getitem__' (e.g. 'class Base(Mapping[str, T])',
+                # whose 'Base[...]' is a 'types.GenericAlias'). Map cls's own
+                # type vars onto the resolved args, applying '_apply_params' so any
+                # outer bindings in 'scope' (e.g. 'U -> int') are propagated.
                 params = cls.__parameters__
                 args = tuple(_apply_params(a, scope) for a in typing.get_args(c))
                 assert len(params) == len(args)
                 new_scope = dict(zip(params, args))
+            else:
+                # a true built-in generic (e.g. 'collections.abc.Mapping[str, T]')
+                # whose '__origin__' has no '__parameters__'; the unresolved type
+                # vars and args live on the alias itself, not the origin.
+                new_scope = dict(zip(c.__parameters__, typing.get_args(c)))
             mapping[cls] = new_scope
 
         if issubclass(cls, typing.Generic):

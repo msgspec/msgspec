@@ -1663,6 +1663,110 @@ class TestGenericStruct:
             msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
         )
 
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multilevel(
+        self, mapping_type: str, future: bool, leaf: str
+    ):
+        # the builtin generic must be listed *before* 'typing.Generic[T]'. With
+        # 'Generic' first its '__class_getitem__' wins, so 'Base[U]' resolves to a
+        # 'typing._GenericAlias' instead of a 'types.GenericAlias'
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            T = typing.TypeVar("T")
+            U = typing.TypeVar("U")
+            V = typing.TypeVar("V")
+            W = typing.TypeVar("W")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Base({mapping_type}[str, T], Struct, typing.Generic[T], metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+
+            class Child1(Base[U], typing.Generic[U]):
+                pass
+
+            class Child2(Child1[V], typing.Generic[V]):
+                pass
+
+            class Child3(Child2[W], typing.Generic[W]):
+                pass
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_multilevel_typevar_syntax(
+        self, mapping_type: str, leaf: str
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Base[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+
+            class Child1[U](Base[U]):
+                pass
+
+            class Child2[V](Child1[V]):
+                pass
+
+            class Child3[W](Child2[W]):
+                pass
+            """
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
     @pytest.mark.parametrize(
         "future",
         [pytest.param(False, id="no future"), pytest.param(False, id="future")],
@@ -2030,6 +2134,110 @@ class TestGenericDataclassOrAttrs:
         msgspec.msgpack.decode(
             msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
         )
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multilevel(
+        self, mapping_type: str, future: bool, leaf: str
+    ):
+        # the builtin generic must be listed *before* 'typing.Generic[T]'. With
+        # 'Generic' first its '__class_getitem__' wins, so 'Base[U]' resolves to a
+        # 'typing._GenericAlias' instead of a 'types.GenericAlias'
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        T = typing.TypeVar("T")
+        U = typing.TypeVar("U")
+        V = typing.TypeVar("V")
+        W = typing.TypeVar("W")
+
+        @dataclasses.dataclass
+        class Base({mapping_type}[str, T], typing.Generic[T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+
+        @dataclasses.dataclass
+        class Child1(Base[U], typing.Generic[U]):
+            pass
+
+        @dataclasses.dataclass
+        class Child2(Child1[V], typing.Generic[V]):
+            pass
+
+        @dataclasses.dataclass
+        class Child3(Child2[W], typing.Generic[W]):
+            pass
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_multilevel_typevar_syntax(
+        self, mapping_type: str, leaf: str
+    ):
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        @dataclasses.dataclass
+        class Base[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+
+        @dataclasses.dataclass
+        class Child1[U](Base[U]):
+            pass
+
+        @dataclasses.dataclass
+        class Child2[V](Child1[V]):
+            pass
+
+        @dataclasses.dataclass
+        class Child3[W](Child2[W]):
+            pass
+        """
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
 
     @pytest.mark.parametrize(
         "future",
