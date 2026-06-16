@@ -903,6 +903,20 @@ detection logic is as follows:</p>
 <span class="gp">... </span>    <span class="k">return</span> <span class="kc">False</span>
 </pre></div>
 </div>
+<p>This detection never calls a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code>. A field configured with a
+custom <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is only omitted when the factory is one of the
+builtin collection constructors (<code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">dict</span></code>, <code class="docutils literal notranslate"><span class="pre">set</span></code>, <code class="docutils literal notranslate"><span class="pre">tuple</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">frozenset</span></code>). Any other callable (a user-defined function, a <code class="docutils literal notranslate"><span class="pre">lambda</span></code>, or a
+<code class="docutils literal notranslate"><span class="pre">Struct</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclass</span></code>/<code class="docutils literal notranslate"><span class="pre">attrs</span></code> type) is treated as opaque, so the field is
+always encoded, even when the value it produces is empty. To omit an empty
+collection default, configure the builtin constructor directly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Basket</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">omit_defaults</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The field annotation supplies the element type, so <code class="docutils literal notranslate"><span class="pre">default_factory=list</span></code>
+still type checks. Specifying <code class="docutils literal notranslate"><span class="pre">default=[]</span></code> works too: <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> doesn’t
+share mutable default values between instances.</p>
 </section>
 <section id="forbidding-unknown-fields">
 <span id="forbid-unknown-fields"></span><h2>Forbidding Unknown Fields<a class="headerlink" href="#forbidding-unknown-fields" title="Link to this heading">¶</a></h2>
