@@ -2068,9 +2068,9 @@ class TestRecursionLimit:
             sys.setrecursionlimit(orig)
 
     def test_nesting_at_limit_ok(self):
-        msgspec.msgpack.decode(b"\x91" * 1024 + b"\xc0")
+        msgspec.msgpack.decode(b"\x91" * 512 + b"\xc0")
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.msgpack.decode(b"\x91" * 1025 + b"\xc0")
+            msgspec.msgpack.decode(b"\x91" * 513 + b"\xc0")
 
     def test_skip_path(self):
         # The "skip unknown field" path recurses too and must error cleanly.

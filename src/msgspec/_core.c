@@ -14882,8 +14882,11 @@ typedef struct DecoderState {
  * the actual remaining C stack. On systems with a small stack (or when the
  * recursion limit is raised) deeply nested input can overflow the C stack and
  * crash the process before the guard fires. A hard cap independent of the
- * recursion limit prevents that. Matches the limit used by orjson/simdjson. */
-#define MS_MAX_DECODE_DEPTH 1024
+ * recursion limit prevents that. The value sits below the default Python
+ * recursion limit (so this cap, rather than a `RecursionError`, is what bounds
+ * nesting consistently across Python versions) while staying far above any
+ * realistic nesting depth. */
+#define MS_MAX_DECODE_DEPTH 512
 
 /* Enter a recursive decode level, returning -1 (with a DecodeError set) if the
  * nesting limit would be exceeded, else 0. Each successful call must be paired

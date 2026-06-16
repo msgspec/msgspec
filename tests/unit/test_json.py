@@ -3187,9 +3187,9 @@ class TestRecursionLimit:
 
     def test_nesting_at_limit_ok(self):
         # Nesting up to the limit decodes fine; one level deeper errors.
-        msgspec.json.decode(b"[" * 1024 + b"]" * 1024)
+        msgspec.json.decode(b"[" * 512 + b"]" * 512)
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.json.decode(b"[" * 1025 + b"]" * 1025)
+            msgspec.json.decode(b"[" * 513 + b"]" * 513)
 
     def test_skip_path(self):
         # The "skip unknown field" path recurses too and must error cleanly.
