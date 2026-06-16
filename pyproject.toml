@@ -86,17 +86,19 @@ hooks = [
 ]
 test-base = [
   "pytest>=9",
+  "pytest-randomly",
 ]
 test-prof = [
   { include-group = "test-base" },
   "memray; sys_platform != 'win32'",
-  "pytest-benchmark",
+  "pytest-codspeed",
   "pytest-memray; sys_platform != 'win32'",
 ]
 test-typing = [
   { include-group = "test-base" },
   "mypy",
   "pyright",
+  "pyrefly",
 ]
 test-unit = [
   { include-group = "test-base" },
@@ -126,3 +128,31 @@ parentdir_prefix_version = "msgspec-"
 
 [tool.uv.config-settings]
 editable_mode = "compat"
+
+[tool.mypy]
+extra_checks = true
+strict = true
+strict_equality_for_none = true
+warn_unreachable = true
+
+[tool.pyright]
+include = ["tests/typing/"]
+# Strict mode:
+typeCheckingMode = "strict"
+reportImplicitStringConcatenation = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+# Don't use '# type: ignore' to suppress with pyright:
+enableTypeIgnoreComments = false
+# Don't report unused variables and classes:
+reportUnusedVariable = false
+reportUnusedClass = false
+reportPrivateUsage = false
+
+[tool.pyrefly]
+project-includes = ["tests/typing/"]
+# Strict mode:
+preset = 'strict'
+min-severity = 'warn'
+# Don't use '# type: ignore' to suppress with pyright:
+enabled-ignores = ["pyrefly"]

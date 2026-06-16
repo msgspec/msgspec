@@ -8,7 +8,7 @@ implementing that specification using ``msgspec`` to handle the parsing and
 validation.
 
 The ``loads`` and ``dumps`` methods defined below work similar to the
-standard library's ``json.loads``/``json.dumps``, but:
+standard library's ``json.loads`` / ``json.dumps``, but:
 
 - Will result in high-level `msgspec.Struct` objects representing GeoJSON types
 - Will error nicely if a field is missing or the wrong type

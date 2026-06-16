@@ -1,7 +1,7 @@
 Installation
 ============
 
-``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.8
+``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.10
 is required. The basic install has no required dependencies.
 
 **pip**

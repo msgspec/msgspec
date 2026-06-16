@@ -105,7 +105,7 @@ information.
 ``bool``
 --------
 
-Booleans map to their corresponding ``true``/``false`` values in both all
+Booleans map to their corresponding ``true`` / ``false`` values in both all
 supported protocols.
 
 .. code-block:: python
@@ -116,9 +116,9 @@ supported protocols.
     >>> msgspec.json.decode(b'true')
     True
 
-If ``strict=False`` is specified, values of ``"true"``/``"1"``/``1`` or
-``"false"``/``"0"``/``0`` (case insensitive for strings) may also be coerced to
-``True``/``False`` respectively. See :ref:`strict-vs-lax` for more information.
+If ``strict=False`` is specified, values of ``"true"`` / ``"1"`` / ``1`` or
+``"false"`` / ``"0"`` / ``0`` (case insensitive for strings) may also be coerced to
+``True`` / ``False`` respectively. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
 
@@ -193,9 +193,9 @@ provided, the `int` will be automatically converted.
     123.0
 
 If ``strict=False`` is specified, string values may also be coerced to floats.
-Note that in this case the strings ``"nan"``, ``"inf"``/``"infinity"``,
-``"-inf"``/``"-infinity"`` (case insensitive) will coerce to
-``nan``/``inf``/``-inf``. See :ref:`strict-vs-lax` for more information.
+Note that in this case the strings ``"nan"``, ``"inf"`` / ``"infinity"``,
+``"-inf"`` / ``"-infinity"`` (case insensitive) will coerce to
+``nan`` / ``inf`` / ``-inf``. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
 

@@ -3,7 +3,7 @@ Extending
 
 To allow encoding/decoding types other than those :doc:`natively supported
 <supported-types>`, ``msgspec`` provides a few callbacks to
-``Encoder``/``Decoder``.
+``Encoder`` / ``Decoder``.
 
 - ``enc_hook``, for transforming custom types into values
   that ``msgspec``:doc:`natively supports <supported-types>`.
