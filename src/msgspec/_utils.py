@@ -1,6 +1,7 @@
 # type: ignore
 import collections
 import sys
+import types
 import typing
 from typing import _AnnotatedAlias, _GenericAlias  # noqa: F401
 
@@ -81,13 +82,17 @@ def _apply_params(obj, mapping):
 def _get_class_mro_and_typevar_mappings(obj):
     mapping = {}
 
-    if isinstance(obj, type):
+    # in Python 3.10 a natively produced 'types.GenericAlias' (e.g. 'list[int]', or the
+    # 'Base[int]' produced when a 'Generic' subclass inherits a builtin's
+    # '__class_getitem__') satisfies 'isinstance(_, type)', unlike on 3.11+. we still
+    # want to treat those as parametrised aliases, not bare classes
+    if isinstance(obj, type) and not isinstance(obj, types.GenericAlias):
         cls = obj
     else:
         cls = obj.__origin__
 
     def inner(c, scope):
-        if isinstance(c, type):
+        if isinstance(c, type) and not isinstance(c, types.GenericAlias):
             cls = c
             new_scope = {}
         else:
