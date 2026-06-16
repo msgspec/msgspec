@@ -14877,25 +14877,21 @@ typedef struct DecoderState {
 } DecoderState;
 
 /* Bound nesting depth when decoding. The recursive decoders use a few C stack
- * frames per level, and CPython's recursion guard is tied to
- * `sys.getrecursionlimit()` (or the C recursion limit), neither of which tracks
- * the actual remaining C stack. On systems with a small stack (or when the
- * recursion limit is raised) deeply nested input can overflow the C stack and
- * crash the process before the guard fires. A hard cap independent of the
- * recursion limit prevents that. The value sits below the default Python
- * recursion limit (so this cap, rather than a `RecursionError`, is what bounds
- * nesting consistently across versions) while staying far above any realistic
- * nesting depth.
+ * frames per level, and CPython's recursion guard (tied to the recursion limit)
+ * doesn't track the actual remaining C stack, so on a small stack (or a raised
+ * recursion limit) deeply nested input can overflow the C stack and crash the
+ * process. A hard cap independent of the recursion limit prevents that. 512
+ * sits below the default recursion limit (so the cap, not a `RecursionError`,
+ * bounds nesting consistently across versions) yet far above any realistic
+ * depth. Python 3.14+ rewrote that guard to track the real C stack, so the cap
+ * is only needed on older versions.
  *
- * Python 3.14+ rewrote that guard to check the actual remaining C stack, so it
- * already prevents the overflow there; the explicit cap is only needed on older
- * versions. */
+ * `MS_DEPTH_WRAP_OBJ`/`_INT` wrap a recursive decode function `f`: the body is
+ * defined as `f_inner` and entered only after bumping `self->recursion_depth`,
+ * which is restored on return. On 3.14+ they expand to a plain definition. */
 #if PY_VERSION_HEX < 0x030E0000
 #define MS_MAX_DECODE_DEPTH 512
 
-/* Enter a recursive decode level, returning -1 (with a DecodeError set) if the
- * nesting limit would be exceeded, else 0. Each successful call must be paired
- * with `ms_leave_recursive`. */
 static MS_INLINE int
 ms_enter_recursive(Py_ssize_t *depth) {
     if (MS_UNLIKELY(*depth >= MS_MAX_DECODE_DEPTH)) {
@@ -14909,22 +14905,22 @@ ms_enter_recursive(Py_ssize_t *depth) {
     return 0;
 }
 
-static MS_INLINE void
-ms_leave_recursive(Py_ssize_t *depth) {
-    (*depth)--;
-}
+#define MS_DEPTH_WRAP(ret, f, sig, args, err)                              \
+    static ret f##_inner sig;                                              \
+    static ret f sig {                                                     \
+        if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth)))       \
+            return err;                                                    \
+        ret _ms_res = f##_inner args;                                      \
+        self->recursion_depth--;                                           \
+        return _ms_res;                                                    \
+    }                                                                      \
+    static ret f##_inner sig
 #else
-static MS_INLINE int
-ms_enter_recursive(Py_ssize_t *depth) {
-    (void)depth;
-    return 0;
-}
-
-static MS_INLINE void
-ms_leave_recursive(Py_ssize_t *depth) {
-    (void)depth;
-}
+#define MS_DEPTH_WRAP(ret, f, sig, args, err) static ret f sig
 #endif
+
+#define MS_DEPTH_WRAP_OBJ(f, sig, args) MS_DEPTH_WRAP(PyObject *, f, sig, args, NULL)
+#define MS_DEPTH_WRAP_INT(f, sig, args) MS_DEPTH_WRAP(int, f, sig, args, -1)
 
 typedef struct Decoder {
     PyObject_HEAD
@@ -15322,18 +15318,7 @@ mpack_decode_datetime(
 
 static int mpack_skip(DecoderState *self);
 
-static int mpack_skip_array_inner(DecoderState *self, Py_ssize_t size);
-
-static int
-mpack_skip_array(DecoderState *self, Py_ssize_t size) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
-    int out = mpack_skip_array_inner(self, size);
-    ms_leave_recursive(&self->recursion_depth);
-    return out;
-}
-
-static int
-mpack_skip_array_inner(DecoderState *self, Py_ssize_t size) {
+MS_DEPTH_WRAP_INT(mpack_skip_array, (DecoderState *self, Py_ssize_t size), (self, size)) {
     int status = -1;
     Py_ssize_t i;
     if (size < 0) return -1;
@@ -16005,23 +15990,10 @@ mpack_decode_struct_array_union(
     return mpack_decode_struct_array_inner(self, size, true, info, path, is_key);
 }
 
-static PyObject *mpack_decode_array_inner(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
-);
-
-static PyObject *
-mpack_decode_array(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
-) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
-    PyObject *res = mpack_decode_array_inner(self, size, type, path, is_key);
-    ms_leave_recursive(&self->recursion_depth);
-    return res;
-}
-
-static PyObject *
-mpack_decode_array_inner(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+MS_DEPTH_WRAP_OBJ(
+    mpack_decode_array,
+    (DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key),
+    (self, size, type, path, is_key)
 ) {
     if (MS_UNLIKELY(!ms_passes_array_constraints(size, type, path))) return NULL;
 
@@ -16370,26 +16342,10 @@ mpack_decode_struct_union(
     return NULL;
 }
 
-static PyObject *mpack_decode_map_inner(
-    DecoderState *self, Py_ssize_t size, TypeNode *type,
-    PathNode *path, bool is_key
-);
-
-static PyObject *
-mpack_decode_map(
-    DecoderState *self, Py_ssize_t size, TypeNode *type,
-    PathNode *path, bool is_key
-) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
-    PyObject *res = mpack_decode_map_inner(self, size, type, path, is_key);
-    ms_leave_recursive(&self->recursion_depth);
-    return res;
-}
-
-static PyObject *
-mpack_decode_map_inner(
-    DecoderState *self, Py_ssize_t size, TypeNode *type,
-    PathNode *path, bool is_key
+MS_DEPTH_WRAP_OBJ(
+    mpack_decode_map,
+    (DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key),
+    (self, size, type, path, is_key)
 ) {
     if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
@@ -18538,23 +18494,10 @@ json_decode_struct_array_union(
     return json_decode_struct_array_inner(self, info, path, 1);
 }
 
-static PyObject *json_decode_array_inner(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
-);
-
-static PyObject *
-json_decode_array(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
-) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
-    PyObject *res = json_decode_array_inner(self, type, path);
-    ms_leave_recursive(&self->recursion_depth);
-    return res;
-}
-
-static PyObject *
-json_decode_array_inner(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
+MS_DEPTH_WRAP_OBJ(
+    json_decode_array,
+    (JSONDecoderState *self, TypeNode *type, PathNode *path),
+    (self, type, path)
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
@@ -19058,23 +19001,10 @@ json_decode_struct_union(
     return NULL;
 }
 
-static PyObject *json_decode_object_inner(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
-);
-
-static PyObject *
-json_decode_object(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
-) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
-    PyObject *res = json_decode_object_inner(self, type, path);
-    ms_leave_recursive(&self->recursion_depth);
-    return res;
-}
-
-static PyObject *
-json_decode_object_inner(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
+MS_DEPTH_WRAP_OBJ(
+    json_decode_object,
+    (JSONDecoderState *self, TypeNode *type, PathNode *path),
+    (self, type, path)
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
@@ -19174,18 +19104,7 @@ json_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
     return 0;
 }
 
-static int json_skip_array_inner(JSONDecoderState *self);
-
-static int
-json_skip_array(JSONDecoderState *self) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
-    int out = json_skip_array_inner(self);
-    ms_leave_recursive(&self->recursion_depth);
-    return out;
-}
-
-static int
-json_skip_array_inner(JSONDecoderState *self) {
+MS_DEPTH_WRAP_INT(json_skip_array, (JSONDecoderState *self), (self)) {
     unsigned char c;
     bool first = true;
     int out = -1;
@@ -19222,18 +19141,7 @@ json_skip_array_inner(JSONDecoderState *self) {
     return out;
 }
 
-static int json_skip_object_inner(JSONDecoderState *self);
-
-static int
-json_skip_object(JSONDecoderState *self) {
-    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
-    int out = json_skip_object_inner(self);
-    ms_leave_recursive(&self->recursion_depth);
-    return out;
-}
-
-static int
-json_skip_object_inner(JSONDecoderState *self) {
+MS_DEPTH_WRAP_INT(json_skip_object, (JSONDecoderState *self), (self)) {
     unsigned char c;
     bool first = true;
     int out = -1;
