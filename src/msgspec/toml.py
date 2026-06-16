@@ -62,7 +62,7 @@ def encode(
     obj: Any,
     *,
     enc_hook: Callable[[Any], Any] | None = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes:
     """Serialize an object as TOML.
 
@@ -108,28 +108,17 @@ def encode(
     return toml.dumps(msg).encode("utf-8")
 
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 @overload
 def decode(
     buf: Buffer | str,
     *,
+    type: type[_T],
     strict: bool = True,
-    dec_hook: Callable[[type, Any], Any] | None = None,
-) -> Any:
-    pass
-
-
-@overload
-def decode(
-    buf: Buffer | str,
-    *,
-    type: type[T] = ...,
-    strict: bool = True,
-    dec_hook: Callable[[type, Any], Any] | None = None,
-) -> T:
-    pass
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+) -> _T: ...
 
 
 @overload
@@ -138,12 +127,17 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: Callable[[type, Any], Any] | None = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+) -> Any: ...
+
+
+def decode(
+    buf: Buffer | str,
+    *,
+    type: Any = Any,
+    strict: bool = True,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> Any:
-    pass
-
-
-def decode(buf, *, type=Any, strict=True, dec_hook=None):
     """Deserialize an object from TOML.
 
     Parameters
