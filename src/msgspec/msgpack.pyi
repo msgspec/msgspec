@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from types import GenericAlias
 from typing import (
     Any,
     Generic,
@@ -16,7 +17,7 @@ _T = TypeVar("_T")
 
 _EncHookSig: TypeAlias = Callable[[Any], Any] | None
 _ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
-_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
+_DecHookSig: TypeAlias = Callable[[type[Any], Any], Any] | None
 
 @final
 class Ext:
@@ -49,6 +50,7 @@ class Decoder(Generic[_T]):
         ext_hook: _ExtHookSig = None,
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> _T: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
 @final
 class Encoder:
@@ -94,5 +96,5 @@ def encode(
     /,
     *,
     enc_hook: _EncHookSig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
