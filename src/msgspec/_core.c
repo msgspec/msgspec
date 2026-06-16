@@ -10171,7 +10171,7 @@ static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 #if PY314_PLUS
     /* obj is always a PyLong here, so PyLong_GetSign can't fail */
-    int sign;
+    int sign = 0;
     PyLong_GetSign(obj, &sign);
     bool neg = sign < 0;
 #else
