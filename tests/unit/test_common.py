@@ -7,6 +7,7 @@ import decimal
 import enum
 import gc
 import sys
+import textwrap
 import typing
 import uuid
 import weakref
@@ -1493,10 +1494,9 @@ class TestGenericStruct:
     def test_generic_with_typevar_syntax(self, proto):
         source = """
         from msgspec import Struct
-        from typing import List
         class Ex[T](Struct):
             x: T
-            y: List[T]
+            y: list[T]
         """
 
         with temp_module(source) as mod:
@@ -1512,24 +1512,34 @@ class TestGenericStruct:
             res = proto.decode(msg, type=mod.Ex[Union[int, str]])
             assert res == sol
 
+            res = proto.decode(msg, type=mod.Ex[int | str])
+            assert res == sol
+
             res = proto.decode(msg, type=mod.Ex[float])
             assert type(res.x) is float
 
             with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
                 proto.decode(msg, type=mod.Ex[str])
 
+    @pytest.mark.parametrize(
+        "optional_union",
+        [
+            pytest.param("Ex[T] | None", id="native-union"),
+            pytest.param("Optional[Ex[T]]", id="typing.Optional"),
+        ],
+    )
     @pytest.mark.parametrize("array_like", [False, True])
-    def test_recursive_generic_struct(self, proto, array_like):
+    def test_recursive_generic_struct(self, proto, array_like, optional_union):
         source = f"""
         from __future__ import annotations
-        from typing import Union, Generic, TypeVar
+        from typing import Union, Generic, TypeVar, Optional
         from msgspec import Struct
 
         T = TypeVar("T")
 
         class Ex(Struct, Generic[T], array_like={array_like}):
             a: T
-            b: Ex[T] | None
+            b: {optional_union}
         """
 
         with temp_module(source) as mod:
@@ -1611,7 +1621,7 @@ class TestGenericStruct:
 
     @pytest.mark.parametrize(
         "future",
-        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
     )
     @pytest.mark.parametrize(
         "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
@@ -1642,7 +1652,7 @@ class TestGenericStruct:
             """
 
         if future:
-            source = "from __future__ import annotations\n" + source
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
 
         with temp_module(source) as mod, pytest.raises(ValidationError):
             msgspec.msgpack.decode(
@@ -1731,14 +1741,17 @@ class TestGenericStruct:
             typ = mod.Foo[int]
             dec = msgspec.json.Decoder(typ)
             info = make_new_alias(typ).__msgspec_cache__
+            gc.collect()
             assert info is not None
             assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
             dec2 = msgspec.json.Decoder(typ)
+            gc.collect()
             assert make_new_alias(typ).__msgspec_cache__ is info
             assert sys.getrefcount(info) <= 5
 
             del dec
             del dec2
+            gc.collect()
             assert sys.getrefcount(info) <= 3
 
 
