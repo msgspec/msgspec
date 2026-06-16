@@ -14876,16 +14876,21 @@ typedef struct DecoderState {
     Py_ssize_t recursion_depth;
 } DecoderState;
 
-/* Maximum nesting depth allowed when decoding. The recursive decoders use a few
- * C stack frames per level, and CPython's recursion guard is tied to
+/* Bound nesting depth when decoding. The recursive decoders use a few C stack
+ * frames per level, and CPython's recursion guard is tied to
  * `sys.getrecursionlimit()` (or the C recursion limit), neither of which tracks
  * the actual remaining C stack. On systems with a small stack (or when the
  * recursion limit is raised) deeply nested input can overflow the C stack and
  * crash the process before the guard fires. A hard cap independent of the
  * recursion limit prevents that. The value sits below the default Python
  * recursion limit (so this cap, rather than a `RecursionError`, is what bounds
- * nesting consistently across Python versions) while staying far above any
- * realistic nesting depth. */
+ * nesting consistently across versions) while staying far above any realistic
+ * nesting depth.
+ *
+ * Python 3.14+ rewrote that guard to check the actual remaining C stack, so it
+ * already prevents the overflow there; the explicit cap is only needed on older
+ * versions. */
+#if PY_VERSION_HEX < 0x030E0000
 #define MS_MAX_DECODE_DEPTH 512
 
 /* Enter a recursive decode level, returning -1 (with a DecodeError set) if the
@@ -14908,6 +14913,18 @@ static MS_INLINE void
 ms_leave_recursive(Py_ssize_t *depth) {
     (*depth)--;
 }
+#else
+static MS_INLINE int
+ms_enter_recursive(Py_ssize_t *depth) {
+    (void)depth;
+    return 0;
+}
+
+static MS_INLINE void
+ms_leave_recursive(Py_ssize_t *depth) {
+    (void)depth;
+}
+#endif
 
 typedef struct Decoder {
     PyObject_HEAD

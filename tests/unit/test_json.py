@@ -3158,40 +3158,47 @@ class TestFormat:
             msgspec.json.format(msg)
 
 
+requires_depth_cap = pytest.mark.skipif(
+    sys.version_info >= (3, 14),
+    reason="explicit depth cap only applies before Python 3.14",
+)
+
+
 class TestRecursionLimit:
-    """The decoder caps nesting depth to avoid overflowing the C stack on
-    deeply nested input (see #1033). The cap is independent of
-    ``sys.getrecursionlimit``."""
+    """Deeply nested input must never crash the process (see #1033). Before
+    Python 3.14 the decoder enforces an explicit nesting cap independent of
+    ``sys.getrecursionlimit``; on 3.14+ CPython's own stack-aware recursion
+    guard handles it."""
 
-    def test_deeply_nested_array(self):
-        data = b"[" * 5000 + b"]" * 5000
-        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.json.decode(data)
+    def test_deeply_nested_array_no_crash(self):
+        # Deeper than any reasonable C stack, so this errors on every version
+        # (the cap before 3.14, CPython's stack guard on 3.14+) without crashing.
+        with pytest.raises((msgspec.DecodeError, RecursionError)):
+            msgspec.json.decode(b"[" * 1_000_000 + b"]" * 1_000_000)
 
-    def test_deeply_nested_object(self):
-        data = b'{"a":' * 5000 + b"0" + b"}" * 5000
-        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.json.decode(data)
+    def test_deeply_nested_object_no_crash(self):
+        with pytest.raises((msgspec.DecodeError, RecursionError)):
+            msgspec.json.decode(b'{"a":' * 1_000_000 + b"0" + b"}" * 1_000_000)
 
-    def test_raised_recursion_limit_no_crash(self):
-        # Raising the recursion limit must not let deep input overflow the C
-        # stack: the hard cap still applies.
-        orig = sys.getrecursionlimit()
-        sys.setrecursionlimit(40000)
-        try:
-            data = b"[" * 20000 + b"]" * 20000
-            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-                msgspec.json.decode(data)
-        finally:
-            sys.setrecursionlimit(orig)
-
-    def test_nesting_at_limit_ok(self):
-        # Nesting up to the limit decodes fine; one level deeper errors.
+    @requires_depth_cap
+    def test_depth_cap(self):
+        # Nesting up to the cap decodes; one level deeper raises a DecodeError.
         msgspec.json.decode(b"[" * 512 + b"]" * 512)
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             msgspec.json.decode(b"[" * 513 + b"]" * 513)
 
-    def test_skip_path(self):
+    @requires_depth_cap
+    def test_depth_cap_independent_of_recursion_limit(self):
+        orig = sys.getrecursionlimit()
+        sys.setrecursionlimit(40000)
+        try:
+            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+                msgspec.json.decode(b"[" * 20000 + b"]" * 20000)
+        finally:
+            sys.setrecursionlimit(orig)
+
+    @requires_depth_cap
+    def test_depth_cap_skip_path(self):
         # The "skip unknown field" path recurses too and must error cleanly.
         class Ex(msgspec.Struct):
             x: int
@@ -3200,8 +3207,8 @@ class TestRecursionLimit:
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             msgspec.json.decode(data, type=Ex)
 
-    def test_decoder_reused_after_overflow(self):
-        # The depth counter is reset between decodes.
+    @requires_depth_cap
+    def test_depth_cap_decoder_reuse(self):
         dec = msgspec.json.Decoder()
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             dec.decode(b"[" * 5000 + b"]" * 5000)

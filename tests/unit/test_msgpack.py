@@ -2040,39 +2040,48 @@ class TestRaw:
         assert res == Test(Custom(1, 2))
 
 
+requires_depth_cap = pytest.mark.skipif(
+    sys.version_info >= (3, 14),
+    reason="explicit depth cap only applies before Python 3.14",
+)
+
+
 class TestRecursionLimit:
-    """The decoder caps nesting depth to avoid overflowing the C stack on
-    deeply nested input (see #1033). The cap is independent of
-    ``sys.getrecursionlimit``."""
+    """Deeply nested input must never crash the process (see #1033). Before
+    Python 3.14 the decoder enforces an explicit nesting cap independent of
+    ``sys.getrecursionlimit``; on 3.14+ CPython's own stack-aware recursion
+    guard handles it."""
 
-    def test_deeply_nested_array(self):
-        # N nested 1-element arrays (fixarray-1 = 0x91), nil (0xc0) at the bottom
-        data = b"\x91" * 5000 + b"\xc0"
-        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.msgpack.decode(data)
+    def test_deeply_nested_array_no_crash(self):
+        # N nested 1-element arrays (fixarray-1 = 0x91), nil (0xc0) at the bottom.
+        # Deeper than any reasonable C stack, so this errors on every version
+        # (the cap before 3.14, CPython's stack guard on 3.14+) without crashing.
+        with pytest.raises((msgspec.DecodeError, RecursionError)):
+            msgspec.msgpack.decode(b"\x91" * 1_000_000 + b"\xc0")
 
-    def test_deeply_nested_map(self):
-        # N nested 1-pair maps (fixmap-1 = 0x81) with a 1-char key, nil at the bottom
-        data = b"\x81\xa1k" * 5000 + b"\xc0"
-        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-            msgspec.msgpack.decode(data)
+    def test_deeply_nested_map_no_crash(self):
+        # N nested 1-pair maps (fixmap-1 = 0x81) with a 1-char key, nil at bottom
+        with pytest.raises((msgspec.DecodeError, RecursionError)):
+            msgspec.msgpack.decode(b"\x81\xa1k" * 1_000_000 + b"\xc0")
 
-    def test_raised_recursion_limit_no_crash(self):
-        orig = sys.getrecursionlimit()
-        sys.setrecursionlimit(40000)
-        try:
-            data = b"\x91" * 20000 + b"\xc0"
-            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
-                msgspec.msgpack.decode(data)
-        finally:
-            sys.setrecursionlimit(orig)
-
-    def test_nesting_at_limit_ok(self):
+    @requires_depth_cap
+    def test_depth_cap(self):
         msgspec.msgpack.decode(b"\x91" * 512 + b"\xc0")
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             msgspec.msgpack.decode(b"\x91" * 513 + b"\xc0")
 
-    def test_skip_path(self):
+    @requires_depth_cap
+    def test_depth_cap_independent_of_recursion_limit(self):
+        orig = sys.getrecursionlimit()
+        sys.setrecursionlimit(40000)
+        try:
+            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+                msgspec.msgpack.decode(b"\x91" * 20000 + b"\xc0")
+        finally:
+            sys.setrecursionlimit(orig)
+
+    @requires_depth_cap
+    def test_depth_cap_skip_path(self):
         # The "skip unknown field" path recurses too and must error cleanly.
         class Ex(msgspec.Struct):
             x: int
@@ -2082,7 +2091,8 @@ class TestRecursionLimit:
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             msgspec.msgpack.decode(data, type=Ex)
 
-    def test_decoder_reused_after_overflow(self):
+    @requires_depth_cap
+    def test_depth_cap_decoder_reuse(self):
         dec = msgspec.msgpack.Decoder()
         with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
             dec.decode(b"\x91" * 5000 + b"\xc0")
