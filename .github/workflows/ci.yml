@@ -14,13 +14,7 @@ on:
     - setup.py
     - MANIFEST.in
     # Changes to CI execution
-    - .github/workflows/ci.yml
-    - .github/workflows/prepare-build.yml
-    - .github/workflows/build-wheels.yml
-    - .github/workflows/profile.yml
-    - .github/workflows/codspeed.yml
-    - .github/actions/latest-supported-python/action.yml
-    - .github/actions/fetch-release-history/action.yml
+    - .github/workflows/*
     - .cibuildwheel.toml
     - .justfile
     # Changes to testing
