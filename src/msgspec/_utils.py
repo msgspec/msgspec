@@ -3,7 +3,7 @@ import collections
 import sys
 import types
 import typing
-from typing import _AnnotatedAlias  # noqa: F401
+from typing import _AnnotatedAlias, _GenericAlias  # noqa: F401
 
 try:
     from typing_extensions import get_type_hints as _get_type_hints
@@ -328,3 +328,29 @@ def _wrap_attrs_validators(fields, post_init):
 def rebuild(cls, kwargs):
     """Used to unpickle Structs with keyword-only fields"""
     return cls(**kwargs)
+
+
+def convert_generic_alias(origin, args):
+    # subscribed typing._GenericAlias instances are cached within the typing module
+    # we make use of this fact, by storing a __msgspec_cache__ attribute on the
+    # subscribed instance. only subscribed types are cache, so
+    # 'typing._GenericAlias(list, int) is typing._GenericAlias(list, int)' would be
+    # false.
+    # to achieve the same behaviour when re-creating a typing._GenericAlias from a
+    # types.GenericAlias, we first construct a temporary *unbound*
+    # typing._GenericAlias, on which we then call __getattr__. effectively doing
+    # typing._GenericAlias(list, T)[int], for which
+    # 'typing._GenericAlias(list, T)[int] is typing._GenericAlias(list, T)[int]'
+    # holds true
+    try:
+        params = origin.__parameters__
+    except AttributeError:
+        raise TypeError(f"Not a valid generic: {origin!r}")
+
+    # create a new typing._GenericAlias with the unbound type params of the
+    # original types.GenericAlias.
+    # given a Mapping[str, int], this would produce a _GenericAlias(Mapping, (~K, ~V))
+    alias = _GenericAlias(origin, params)
+    # bind it to the concrete types.
+    # given a _GenericAlias(Mapping, (~K, ~V)), produce a Mapping[str, int] again
+    return alias.__getitem__(*args)
