@@ -355,13 +355,15 @@ class _SchemaGenerator:
                     "anyOf": [self.to_schema(v) for v in structs.values()],
                     "discriminator": {"propertyName": tag_field, "mapping": mapping},
                 }
-                if options or has_none:
+                if options:
                     options.append(struct_schema)
                     if has_none:
                         options.append({"type": "null"})
                     schema["anyOf"] = options
                 else:
                     schema.update(struct_schema)
+                    if has_none:
+                        schema["anyOf"] = schema["anyOf"] + [{"type": "null"}]
             elif len(structs) == 1:
                 _, subtype = structs.popitem()
                 options.append(self.to_schema(subtype))
