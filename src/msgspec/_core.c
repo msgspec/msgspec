@@ -22637,42 +22637,29 @@ PyInit__core(void)
         return NULL;
 
     /* Add types */
-    Py_INCREF(&Factory_Type);
-    if (PyModule_AddObject(m, "Factory", (PyObject *)&Factory_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Factory", (PyObject *)&Factory_Type) < 0)
         return NULL;
-    if (PyModule_AddObject(m, "Field", (PyObject *)&Field_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Field", (PyObject *)&Field_Type) < 0)
         return NULL;
-    Py_INCREF(&Meta_Type);
-    if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Meta", (PyObject *)&Meta_Type) < 0)
         return NULL;
-    Py_INCREF(&StructConfig_Type);
-    if (PyModule_AddObject(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
+    if (PyModule_AddObjectRef(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
         return NULL;
-    Py_INCREF(&Ext_Type);
-    if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Ext", (PyObject *)&Ext_Type) < 0)
         return NULL;
-    Py_INCREF(&Raw_Type);
-    if (PyModule_AddObject(m, "Raw", (PyObject *)&Raw_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Raw", (PyObject *)&Raw_Type) < 0)
         return NULL;
-    Py_INCREF(&Encoder_Type);
-    if (PyModule_AddObject(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
         return NULL;
-    Py_INCREF(&Decoder_Type);
-    if (PyModule_AddObject(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
-    Py_INCREF(&JSONEncoder_Type);
-    if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
         return NULL;
-    Py_INCREF(&JSONDecoder_Type);
-    if (PyModule_AddObject(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
         return NULL;
-    Py_INCREF(&Unset_Type);
-    if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
+    if (PyModule_AddObjectRef(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
         return NULL;
-    Py_INCREF((PyObject *)&StructMetaType);
-    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
-        Py_DECREF((PyObject *)&StructMetaType);
-        Py_DECREF(m);
+    if (PyModule_AddObjectRef(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
         return NULL;
     }
 
@@ -22682,13 +22669,11 @@ PyInit__core(void)
     st->gc_cycle = 0;
 
     /* Add NODEFAULT singleton */
-    Py_INCREF(NODEFAULT);
-    if (PyModule_AddObject(m, "NODEFAULT", NODEFAULT) < 0)
+    if (PyModule_AddObjectRef(m, "NODEFAULT", NODEFAULT) < 0)
         return NULL;
 
     /* Add UNSET singleton */
-    Py_INCREF(UNSET);
-    if (PyModule_AddObject(m, "UNSET", UNSET) < 0)
+    if (PyModule_AddObjectRef(m, "UNSET", UNSET) < 0)
         return NULL;
 
     /* Initialize the exceptions. */
@@ -22723,24 +22708,18 @@ PyInit__core(void)
     );
     if (st->ValidationError == NULL) return NULL;
 
-    Py_INCREF(st->MsgspecError);
-    if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
+    if (PyModule_AddObjectRef(m, "MsgspecError", st->MsgspecError) < 0)
         return NULL;
-    Py_INCREF(st->EncodeError);
-    if (PyModule_AddObject(m, "EncodeError", st->EncodeError) < 0)
+    if (PyModule_AddObjectRef(m, "EncodeError", st->EncodeError) < 0)
         return NULL;
-    Py_INCREF(st->DecodeError);
-    if (PyModule_AddObject(m, "DecodeError", st->DecodeError) < 0)
+    if (PyModule_AddObjectRef(m, "DecodeError", st->DecodeError) < 0)
         return NULL;
-    Py_INCREF(st->ValidationError);
-    if (PyModule_AddObject(m, "ValidationError", st->ValidationError) < 0)
+    if (PyModule_AddObjectRef(m, "ValidationError", st->ValidationError) < 0)
         return NULL;
 
     /* Initialize the struct_lookup_cache */
     st->struct_lookup_cache = PyDict_New();
-    if (st->struct_lookup_cache == NULL) return NULL;
-    Py_INCREF(st->struct_lookup_cache);
-    if (PyModule_AddObject(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
+    if (PyModule_AddObjectRef(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
         return NULL;
 
 #define SET_REF(attr, name) \
@@ -22897,9 +22876,7 @@ PyInit__core(void)
         (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
         "__module__", "msgspec", "__doc__", Struct__doc__
     );
-    if (st->StructType == NULL) return NULL;
-    Py_INCREF(st->StructType);
-    if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
+    if (PyModule_AddObjectRef(m, "Struct", st->StructType) < 0) return NULL;
 #ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif
