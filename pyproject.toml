@@ -97,6 +97,7 @@ test-typing = [
   { include-group = "test-base" },
   "mypy",
   "pyright",
+  "pyrefly",
 ]
 test-unit = [
   { include-group = "test-base" },
@@ -140,9 +141,17 @@ typeCheckingMode = "strict"
 reportImplicitStringConcatenation = "error"
 reportUninitializedInstanceVariable = "error"
 reportUnnecessaryTypeIgnoreComment = "error"
-# Don't use '# type: ignore' to suppress with pyright
+# Don't use '# type: ignore' to suppress with pyright:
 enableTypeIgnoreComments = false
 # Don't report unused variables and classes:
 reportUnusedVariable = false
 reportUnusedClass = false
 reportPrivateUsage = false
+
+[tool.pyrefly]
+project-includes = ["tests/typing/"]
+# Strict mode:
+preset = 'strict'
+min-severity = 'warn'
+# Don't use '# type: ignore' to suppress with pyright:
+enabled-ignores = ["pyrefly"]

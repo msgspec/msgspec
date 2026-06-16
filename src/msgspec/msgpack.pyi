@@ -17,7 +17,7 @@ _T = TypeVar("_T")
 
 _EncHookSig: TypeAlias = Callable[[Any], Any] | None
 _ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
-_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
+_DecHookSig: TypeAlias = Callable[[type[Any], Any], Any] | None
 
 @final
 class Ext:
