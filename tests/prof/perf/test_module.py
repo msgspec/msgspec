@@ -9,6 +9,6 @@ def test_import_time(benchmark):
     def do_import():
         subprocess.run([sys.executable, "-c", "import msgspec"], check=True)
 
-    do_import()  # execute once to reduce possibility of a suuper cold FS cache
+    do_import()  # execute once to reduce possibility of a super cold FS cache
 
     benchmark(do_import)
