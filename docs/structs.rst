@@ -65,7 +65,7 @@ annotations:
     >>> alice == User("alice", groups={"admin", "engineering"})
     True
 
-Note that it is forbidden to override ``__init__``/``__new__`` in a struct
+Note that it is forbidden to override ``__init__`` / ``__new__`` in a struct
 definition, but other methods can be overridden or added as needed. If you need
 to customize the generated ``__init__``, see :ref:`struct-post-init`.
 
@@ -676,6 +676,23 @@ detection logic is as follows:
     ...     if type(value) in (list, set, dict) and (len(value) == len(default) == 0):
     ...         return True
     ...     return False
+
+This detection never calls a ``default_factory``. A field configured with a
+custom ``default_factory`` is only omitted when the factory is one of the
+builtin collection constructors (``list``, ``dict``, ``set``, ``tuple``, or
+``frozenset``). Any other callable (a user-defined function, a ``lambda``, or a
+``Struct``/``dataclass``/``attrs`` type) is treated as opaque, so the field is
+always encoded, even when the value it produces is empty. To omit an empty
+collection default, configure the builtin constructor directly:
+
+.. code-block:: python
+
+    >>> class Basket(msgspec.Struct, omit_defaults=True):
+    ...     items: list[int] = msgspec.field(default_factory=list)
+
+The field annotation supplies the element type, so ``default_factory=list``
+still type checks. Specifying ``default=[]`` works too: ``msgspec`` doesn't
+share mutable default values between instances.
 
 
 .. _forbid-unknown-fields:

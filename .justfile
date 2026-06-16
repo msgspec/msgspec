@@ -84,10 +84,12 @@ alias test := test-unit
 
 # Run type checker compatibility tests.
 [group: "Testing"]
-test-typing *args: (
-  env-run "test"
-  "pytest -o testpaths=tests/typing"
-  args
+test-typing: (
+  env-run "test" "mypy tests/typing"
+) (
+  env-run "test" "pyright tests/typing"
+) (
+  env-run "test" "pyrefly check tests/typing"
 )
 
 # Run doctests.

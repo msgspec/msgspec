@@ -3676,7 +3676,7 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
     }
     /* Do offsets for lt/gt */
     if (offset == -1) {
-        if (x == (-1LL << 63)) {
+        if (x == INT64_MIN) {
             PyErr_SetString(PyExc_ValueError, "lt <= -2**63 is not supported");
             return false;
         }
@@ -10185,7 +10185,14 @@ ms_passes_int_constraints(uint64_t ux, bool neg, TypeNode *type, PathNode *path)
 /* Constraint checks for a PyLong that is known not to fit into a uint64/int64 */
 static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+#if PY314_PLUS
+    /* obj is always a PyLong here, so PyLong_GetSign can't fail */
+    int sign = 0;
+    PyLong_GetSign(obj, &sign);
+    bool neg = sign < 0;
+#else
     bool neg = _PyLong_Sign(obj) < 0;
+#endif
 
     if (type->types & MS_CONSTR_INT_MIN) {
         if (neg) {
@@ -12016,7 +12023,7 @@ static bool
 double_as_int64(double x, int64_t *out) {
     if (fmod(x, 1.0) != 0.0) return false;
     if (x > (1LL << 53)) return false;
-    if (x < (-1LL << 53)) return false;
+    if (x < -(1LL << 53)) return false;
     *out = (int64_t)x;
     return true;
 }
@@ -22380,6 +22387,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->MsgspecError);
     Py_CLEAR(st->EncodeError);
     Py_CLEAR(st->DecodeError);
+    Py_CLEAR(st->ValidationError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->ABCMetaType);
@@ -22488,6 +22496,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->MsgspecError);
     Py_VISIT(st->EncodeError);
     Py_VISIT(st->DecodeError);
+    Py_VISIT(st->ValidationError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumMetaType);
     Py_VISIT(st->ABCMetaType);
@@ -22513,6 +22522,9 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
+    Py_VISIT(st->UUIDType);
+    Py_VISIT(st->uuid_safeuuid_unknown);
+    Py_VISIT(st->DecimalType);
     Py_VISIT(st->astimezone);
     Py_VISIT(st->re_compile);
     return 0;

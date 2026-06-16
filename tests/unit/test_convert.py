@@ -1911,6 +1911,29 @@ class TestStruct:
 
         assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
 
+    def test_exec_and_module(self):
+        ns = {}
+        exec(
+            """if True:
+            import msgspec
+            Int = int  # global name
+
+            def make_struct_type():
+                return msgspec.defstruct("S", [("x", Int)])
+
+            S = make_struct_type()
+            res = msgspec.convert({"x": 1}, type=S)
+            """,
+            ns,
+            ns,
+        )
+
+        assert "__module__" not in ns
+        assert issubclass(ns["S"], msgspec.Struct)
+        fields = msgspec.structs.fields(ns["res"])
+        assert fields[0].type is int
+        assert ns["res"].x == 1
+
 
 class TestStructArray:
     class Account(Struct, array_like=True):

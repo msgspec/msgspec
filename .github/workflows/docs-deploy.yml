@@ -16,7 +16,9 @@ permissions: {}
 
 concurrency:
   group: docs-deploy-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Serialize production runs so each compares against the snapshot published
+  # by the preceding run. Preview runs only need their newest result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 jobs:
   docs:
@@ -30,14 +32,16 @@ jobs:
       ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
       sha: "${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
-  deploy:
-    name: Deploy ${{ github.event_name == 'pull_request_target' && 'preview' || 'production' }}
-    needs: docs
+  preview:
+    name: Deploy preview
+    needs:
+    - docs
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: "${{ github.event_name == 'pull_request_target' && 'docs-preview' || 'docs-live' }}"
-      url: "${{ github.event_name == 'pull_request_target' && steps.deploy.outputs.pages-deployment-alias-url || 'https://msgspec.dev' }}"
+      name: docs-preview
+      url: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
     permissions:
       contents: read
     steps:
@@ -47,14 +51,14 @@ jobs:
         name: docs-site
         path: site
 
-    - name: Check docs entrypoint
-      run: test -f site/index.html
-
-    # https://developers.cloudflare.com/pages/get-started/direct-upload/#functions
-    - name: Reject Pages Functions
+    - &validate-docs-site
+      name: Validate docs site
       run: |
         set -euo pipefail
 
+        test -f site/index.html
+
+        # https://developers.cloudflare.com/pages/get-started/direct-upload/#functions
         for path in site/_worker.js functions; do
           if [ -e "${path}" ] || [ -L "${path}" ]; then
             echo "::error::Pages Functions entrypoint is not allowed: ${path}"
@@ -71,18 +75,126 @@ jobs:
         command: >-
           pages deploy site
           --project-name=msgspec
-          --branch=${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || 'cf-pages' }}
-          --commit-hash=${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          --branch=pr-${{ github.event.pull_request.number }}
+          --commit-hash=${{ github.event.pull_request.head.sha }}
+        wranglerVersion: 4.98.0
+
+    - name: Summarize preview deployment
+      env:
+        PREVIEW_URL: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
+      run: echo "Pull request docs deployed to ${PREVIEW_URL}" >> "${GITHUB_STEP_SUMMARY}"
+
+  production:
+    name: Deploy production
+    needs: docs
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: docs-live
+      url: https://msgspec.dev
+    permissions:
+      contents: read
+    outputs:
+      ready: "${{ steps.gate.outputs.ready }}"
+    steps:
+    - name: Checkout production snapshot
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+      with:
+        persist-credentials: false
+        ref: cf-pages
+        path: snapshot
+
+    - name: Download docs
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
+      with:
+        name: docs-site
+        path: site
+
+    - *validate-docs-site
+
+    - name: Check production deployment
+      id: gate
+      env:
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        git -C snapshot --work-tree="${GITHUB_WORKSPACE}/site" add --all --force
+
+        if git -C snapshot diff --cached --quiet; then
+          echo "ready=false" >> "${GITHUB_OUTPUT}"
+          echo "Built docs are identical to the production snapshot; deployment skipped." >> "${GITHUB_STEP_SUMMARY}"
+          exit 0
+        fi
+
+        latest_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq ".object.sha")"
+        if [ "${latest_sha}" != "${GITHUB_SHA}" ]; then
+          echo "ready=false" >> "${GITHUB_OUTPUT}"
+          echo "Production deployment skipped because ${GITHUB_SHA} is no longer the main branch tip (${latest_sha})." >> "${GITHUB_STEP_SUMMARY}"
+          exit 0
+        fi
+
+        echo "ready=true" >> "${GITHUB_OUTPUT}"
+        echo "Built docs differ from the production snapshot." >> "${GITHUB_STEP_SUMMARY}"
+        git -C snapshot diff --cached --name-status | sed -n '1,100p'
+
+    - name: Deploy
+      if: steps.gate.outputs.ready == 'true'
+      id: deploy
+      uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0  # v4.0.0
+      with:
+        accountId: "${{ secrets.CF_ACCOUNT_ID }}"
+        apiToken: "${{ secrets.CF_PAGES_TOKEN }}"
+        command: >-
+          pages deploy site
+          --project-name=msgspec
+          --branch=cf-pages
+          --commit-hash=${{ github.sha }}
         wranglerVersion: 4.98.0
 
     - name: Summarize production deployment
-      if: github.event_name == 'push'
+      if: steps.gate.outputs.ready == 'true'
       env:
         DEPLOYMENT_URL: "${{ steps.deploy.outputs.deployment-url }}"
       run: echo "Production docs deployed to ${DEPLOYMENT_URL}" >> "${GITHUB_STEP_SUMMARY}"
 
-    - name: Summarize preview deployment
-      if: github.event_name == 'pull_request_target'
+  snapshot:
+    name: Publish production snapshot
+    needs: production
+    if: needs.production.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout production snapshot
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+      with:
+        persist-credentials: false
+        ref: cf-pages
+        path: snapshot
+
+    - name: Download docs
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
+      with:
+        name: docs-site
+        path: site
+
+    - name: Publish production snapshot
       env:
-        PREVIEW_URL: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
-      run: echo "Pull request docs deployed to ${PREVIEW_URL}" >> "${GITHUB_STEP_SUMMARY}"
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        git -C snapshot --work-tree="${GITHUB_WORKSPACE}/site" add --all --force
+
+        if git -C snapshot diff --cached --quiet; then
+          echo "The cf-pages production snapshot is already current." >> "${GITHUB_STEP_SUMMARY}"
+          exit 0
+        fi
+
+        # Attribute generated commits to GitHub's built-in Actions bot.
+        # The account ID comes from https://api.github.com/users/github-actions%5Bbot%5D.
+        git -C snapshot config user.name "github-actions[bot]"
+        git -C snapshot config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C snapshot commit --message "deploy: ${GITHUB_SHA}"
+        gh auth setup-git --hostname github.com
+        git -C snapshot push origin HEAD:cf-pages
+        echo "Updated the cf-pages production snapshot." >> "${GITHUB_STEP_SUMMARY}"

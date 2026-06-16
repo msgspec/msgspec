@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from types import GenericAlias
 from typing import (
     Any,
     Generic,
@@ -16,7 +17,7 @@ _T = TypeVar("_T")
 
 _EncHookSig: TypeAlias = Callable[[Any], Any] | None
 _ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
-_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
+_DecHookSig: TypeAlias = Callable[[type[Any], Any], Any] | None
 
 @final
 class Ext:
@@ -32,16 +33,8 @@ class Decoder(Generic[_T]):
     ext_hook: _ExtHookSig
     @overload
     def __init__(
-        self: Decoder[Any],
-        *,
-        strict: bool = True,
-        dec_hook: _DecHookSig = None,
-        ext_hook: _ExtHookSig = None,
-    ) -> None: ...
-    @overload
-    def __init__(
         self: Decoder[_T],
-        type: Type[_T] = ...,
+        type: Type[_T],
         *,
         strict: bool = True,
         dec_hook: _DecHookSig = None,
@@ -57,6 +50,7 @@ class Decoder(Generic[_T]):
         ext_hook: _ExtHookSig = None,
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> _T: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
 @final
 class Encoder:
@@ -82,16 +76,7 @@ def decode(
     buf: Buffer,
     /,
     *,
-    strict: bool = True,
-    dec_hook: _DecHookSig = None,
-    ext_hook: _ExtHookSig = None,
-) -> Any: ...
-@overload
-def decode(
-    buf: Buffer,
-    /,
-    *,
-    type: type[_T] = ...,
+    type: type[_T],
     strict: bool = True,
     dec_hook: _DecHookSig = None,
     ext_hook: _ExtHookSig = None,
@@ -111,5 +96,5 @@ def encode(
     /,
     *,
     enc_hook: _EncHookSig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
