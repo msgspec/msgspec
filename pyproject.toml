@@ -86,6 +86,7 @@ hooks = [
 ]
 test-base = [
   "pytest>=9",
+  "pytest-randomly",
 ]
 test-prof = [
   { include-group = "test-base" },

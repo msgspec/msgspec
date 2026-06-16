@@ -7,7 +7,7 @@ from pytest_codspeed import BenchmarkFixture
 import msgspec
 from msgspec import defstruct
 
-template = """
+TEMPLATE = """
 class C{n}(Struct, order=True):
     a: int
     b: int
@@ -16,8 +16,34 @@ class C{n}(Struct, order=True):
     e: int
 """
 
+TEMPLATE_WITH_TAG_TRUE = """
+class C{n}(Struct, order=True, tag=True):
+    a: int
+    b: int
+    c: int
+    d: int
+    e: int
+"""
+
+TEMPLATE_WITH_CUSTOM_TAG = """
+class C{n}(Struct, order=True, tag='my_tag'):
+    a: int
+    b: int
+    c: int
+    d: int
+    e: int
+"""
+
+TEMPLATE_WITH_CUSTOM_TAG_FIELD = """
+class C{n}(Struct, order=True, tag_field="my_tag_field"):
+    a: int
+    b: int
+    c: int
+    d: int
+    e: int
+"""
+
 N = 1000
-RAMDOM = random.Random(b"12345")
 
 
 class Item(msgspec.Struct, order=True):
@@ -28,7 +54,16 @@ class Item(msgspec.Struct, order=True):
     e: int
 
 
-def test_define(benchmark: BenchmarkFixture):
+@pytest.mark.parametrize(
+    "template",
+    [
+        pytest.param(TEMPLATE, id="basic"),
+        pytest.param(TEMPLATE_WITH_TAG_TRUE, id="tagged"),
+        pytest.param(TEMPLATE_WITH_CUSTOM_TAG, id="custom_tag"),
+        pytest.param(TEMPLATE_WITH_CUSTOM_TAG_FIELD, id="custom_tag_field"),
+    ],
+)
+def test_define(benchmark: BenchmarkFixture, template: str):
     source = "\n".join(template.format(n=i) for i in range(200))
     code_obj = compile(source, "__main__", "exec")
 
@@ -75,13 +110,13 @@ def test_create(benchmark):
 def test_equality(benchmark):
     needle = Item(N - 1, N - 1, N - 1, N - 1, N - 1)
     haystack = [Item(i, i, i, i, i) for i in range(N)]
-    RAMDOM.shuffle(haystack)
+    random.shuffle(haystack)
     benchmark(haystack.index, needle)
 
 
 @pytest.mark.memory
 def test_order(benchmark: BenchmarkFixture):
     haystack = [Item(i, i, i, i, i) for i in range(N)]
-    RAMDOM.shuffle(haystack)
+    random.shuffle(haystack)
 
     benchmark(sorted, haystack)
