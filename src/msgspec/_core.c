@@ -4985,19 +4985,27 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
-static MS_INLINE PyObject*
-convert_types_generic_alias(TypeNodeCollectState *state, PyObject *obj, PyObject *origin, PyObject *args) {
-    // if 'obj' is a 'types.GenericAlias', convert it into a 'typing._GenericAlias', so
-    // we can cache type info on it. 'types.GenericAlias' has __slots__, so caching on
-    // it directly does not work.
-    // it's unlikely to hit this case, as it will mostly occur when subclassing a
-    // built-in container generic, such as 'collections.abc.Mapping'
-
-    if (MS_UNLIKELY(Py_TYPE(obj) == &Py_GenericAliasType)) {
-        PyObject *new_alias = PyObject_CallFunctionObjArgs(state->mod->convert_generic_alias, origin, args, NULL);
-        return new_alias;
-    }
-    return obj;
+static MS_INLINE int
+normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
+    // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
+    // 'typing._GenericAlias'. 'types.GenericAlias' has __slots__ and forwards
+    // attribute access to its origin, so we can't cache type info (as
+    // '__msgspec_cache__') on it; a 'typing._GenericAlias' can.
+    //
+    // only the branches that cache on the alias (struct/dataclass/TypedDict/
+    // NamedTuple/Literal) need to call this. a 'types.GenericAlias' here only arises
+    // when  subclassing a builtin container generic (e.g. 'collections.abc.Mapping') or
+    // from a manually constructed 'types.GenericAlias' (e.g. wrapping 'typing.Literal').
+    //
+    // replace '*t' with a new reference on success (dropping the original), or
+    // return -1 with an exception set.
+    if (MS_LIKELY(Py_TYPE(*t) != &Py_GenericAliasType)) return 0;
+    PyObject *converted = PyObject_CallFunctionObjArgs(
+        state->mod->convert_generic_alias, origin, args, NULL
+    );
+    if (converted == NULL) return -1;
+    Py_SETREF(*t, converted);
+    return 0;
 }
 
 static int
@@ -5081,7 +5089,12 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         ms_is_struct_cls(t) ||
         (origin != NULL && ms_is_struct_cls(origin))
     ) {
-        out = typenode_collect_struct(state, convert_types_generic_alias(state, t, origin, args));
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_struct(state, t);
+        }
     }
     else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
@@ -5171,25 +5184,45 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
         }
-        out = PyList_Append(state->literals, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = PyList_Append(state->literals, t);
+        }
     }
     else if (
         is_typeddict_class(state, t) ||
         (origin != NULL && is_typeddict_class(state, origin))
     ) {
-        out = typenode_collect_typeddict(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_typeddict(state, t);
+        }
     }
     else if (
         is_namedtuple_class(state, t) ||
         (origin != NULL && is_namedtuple_class(state, origin))
     ) {
-        out = typenode_collect_namedtuple(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_namedtuple(state, t);
+        }
     }
     else if (
         is_dataclass_or_attrs_class(state, t) ||
         (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        out = typenode_collect_dataclass(state, convert_types_generic_alias(state, t, origin, args));
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_dataclass(state, t);
+        }
     }
     else {
         if (origin != NULL) {

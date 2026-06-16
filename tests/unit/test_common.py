@@ -8,6 +8,7 @@ import enum
 import gc
 import sys
 import textwrap
+import types
 import typing
 import uuid
 import weakref
@@ -52,10 +53,10 @@ T = TypeVar("T")
 
 
 def make_new_alias(alias):
-    """Replicate the logic to produce a types._GenericAlias from a typing.GenericAlias"""
-    return typing._GenericAlias(
-        alias.__origin__, alias.__origin__.__parameters__
-    ).__getitem__(*alias.__args__)
+    """Replicate the logic to produce a typing._GenericAlias from a types.GenericAlias"""
+    return typing._GenericAlias(alias.__origin__, alias.__origin__.__parameters__)[
+        alias.__args__
+    ]
 
 
 def assert_eq(x, y):
@@ -855,6 +856,31 @@ class TestLiterals:
         ):
             msgspec.msgpack.Decoder(Literal[()])
 
+    def test_native_literal_generic_alias(self):
+        typ = Literal[1, 2]
+        assert type(typ) is typing._LiteralGenericAlias
+        dec = msgspec.json.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        # a second decoder reuses the info cached on the alias itself
+        dec2 = msgspec.json.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert dec.decode(b"2") == 2
+        assert dec2.decode(b"1") == 1
+        with pytest.raises(ValidationError):
+            dec.decode(b"3")
+
+    def test_types_generic_alias_literal(self):
+        typ = types.GenericAlias(typing.Literal, (1, 2))
+        assert type(typ) is types.GenericAlias
+        dec = msgspec.json.Decoder(typ)
+        assert dec.decode(b"1") == 1
+        assert dec.decode(b"2") == 2
+        with pytest.raises(ValidationError):
+            dec.decode(b"3")
+        # building a second decoder must not error either
+        assert msgspec.json.Decoder(typ).decode(b"2") == 2
+
     @pytest.mark.parametrize(
         "values",
         [
@@ -986,6 +1012,24 @@ class TestLiterals:
         dec = msgspec.msgpack.Decoder(Literal["a", "b"] | str)
         for x in ["a", "b", "c"]:
             assert dec.decode(msgspec.msgpack.encode(x)) == x
+
+
+class TestCallable:
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            pytest.param(typing.Callable[[int], str], id="typing"),
+            pytest.param(collections.abc.Callable[[int], str], id="collections.abc"),
+        ],
+    )
+    def test_callable_generic_alias(self, typ):
+        # 'Callable[...]' is a '_CallableGenericAlias'. The 'typing' flavour subclasses
+        # 'typing._GenericAlias' while the 'collections.abc' flavour subclasses
+        # 'types.GenericAlias' - but neither is an *exact* 'types.GenericAlias', so the
+        # conversion leaves both untouched
+        dec = msgspec.json.Decoder(typ)
+        with pytest.raises(ValidationError, match="Expected `Callable`"):
+            dec.decode(b"null")
 
 
 class TestUnionTypeErrors:
@@ -1858,6 +1902,97 @@ class TestGenericStruct:
             gc.collect()
             assert sys.getrefcount(info) <= 3
 
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multiple_typevars(
+        self, mapping_type: str, future: bool
+    ):
+        # struct inheriting a builtin generic with *two* type vars. 'Pair[int, str]'
+        # is a 'types.GenericAlias' carrying two args; the conversion must subscript
+        # the rebuilt alias with the args *tuple* (not spread the args), otherwise
+        # generics with more than one type var raise a 'TypeError'
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            K = typing.TypeVar("K")
+            V = typing.TypeVar("V")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Pair({mapping_type}[K, V], Struct, typing.Generic[K, V], metaclass=CombinedMeta):
+                key: K
+                val: V
+
+                def __getitem__(self, x):
+                    return getattr(self, x)
+
+                def __len__(self):
+                    return 2
+
+                def __iter__(self):
+                    return iter(("key", "val"))
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = mod.Pair[int, str]
+            assert type(typ) is types.GenericAlias
+            assert msgspec.json.decode(b'{"key": 1, "val": "a"}', type=typ) == mod.Pair(
+                1, "a"
+            )
+            with pytest.raises(ValidationError, match="Expected `int`"):
+                msgspec.json.decode(b'{"key": "x", "val": "a"}', type=typ)
+            with pytest.raises(ValidationError, match="Expected `str`"):
+                msgspec.json.decode(b'{"key": 1, "val": 2}', type=typ)
+
+            # the 'types.GenericAlias' must also be normalised when nested inside a
+            # union (collected via recursion) or a container (collected as its own
+            # node), not just at the top level
+            msg = b'{"key": 1, "val": "a"}'
+            assert msgspec.json.decode(msg, type=typing.Optional[typ]) == mod.Pair(
+                1, "a"
+            )
+            assert msgspec.json.decode(b"[" + msg + b"]", type=list[typ]) == [
+                mod.Pair(1, "a")
+            ]
+
+    def test_manual_types_generic_alias_robustness(self):
+        # 'types.GenericAlias' instances can be built manually around arbitrary
+        # origins (e.g. 'types.GenericAlias(...)' or a C-level 'Py_GenericAlias'),
+        # not just via ordinary subscription. Feeding such aliases to msgspec used to
+        # segfault when the origin wasn't a regularly-parametrised generic; ensure
+        # they now either decode or raise a clean Python error.
+        class GenericStruct(Struct, Generic[T]):
+            x: T
+
+        class PlainStruct(Struct):
+            x: int
+
+        # well-formed manual alias behaves exactly like the native subscription
+        alias = types.GenericAlias(GenericStruct, (int,))
+        assert msgspec.json.decode(b'{"x": 1}', type=alias) == GenericStruct(1)
+        with pytest.raises(ValidationError, match="Expected `int`"):
+            msgspec.json.decode(b'{"x": "bad"}', type=alias)
+
+        # parametrising a non-generic type is meaningless
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(PlainStruct, (int,)))
+
+        # too many
+        with pytest.raises(TypeError):
+            msgspec.json.Decoder(types.GenericAlias(GenericStruct, (int, str)))
+
 
 class TestStructPostInit:
     @pytest.mark.parametrize("array_like", [False, True])
@@ -2321,6 +2456,58 @@ class TestGenericDataclassOrAttrs:
             del dec2
             assert sys.getrefcount(info) <= 3
 
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multiple_typevars(
+        self, mapping_type: str, future: bool
+    ):
+        # builtin generic is listed *before* 'typing.Generic' so that
+        # 'Pair[int, str]' is a 'types.GenericAlias' (see
+        # test_inherited_builtin_generic_multilevel). it carries two args, so the
+        # conversion must subscript the rebuilt alias with the args *tuple* rather
+        # than spreading them, else generics with more than one type var raise.
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        K = typing.TypeVar("K")
+        V = typing.TypeVar("V")
+
+        @dataclasses.dataclass
+        class Pair({mapping_type}[K, V], typing.Generic[K, V]):
+            key: K
+            val: V
+
+            def __getitem__(self, x):
+                return getattr(self, x)
+
+            def __len__(self):
+                return 2
+
+            def __iter__(self):
+                return iter(("key", "val"))
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = mod.Pair[int, str]
+            assert type(typ) is types.GenericAlias
+            assert msgspec.json.decode(b'{"key": 1, "val": "a"}', type=typ) == mod.Pair(
+                1, "a"
+            )
+            with pytest.raises(ValidationError, match="Expected `int`"):
+                msgspec.json.decode(b'{"key": "x", "val": "a"}', type=typ)
+            with pytest.raises(ValidationError, match="Expected `str`"):
+                msgspec.json.decode(b'{"key": 1, "val": 2}', type=typ)
+
 
 class TestStructOmitDefaults:
     def test_omit_defaults(self, proto):
@@ -2563,6 +2750,16 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    def test_types_generic_alias_non_generic_errors(self):
+        # mostly a smoke test to weed out some bogus stuff that may get passed to us.
+        # parametrising a non-generic TypedDict via a manually-built
+        # 'types.GenericAlias' is meaningless and shoulf raise
+        class Ex(TypedDict):
+            a: int
+
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(Ex, (int,)))
+
     def test_type_cached(self, proto):
         class Ex(TypedDict):
             a: int
@@ -2879,6 +3076,16 @@ class TestTypedDict:
 
 
 class TestNamedTuple:
+    def test_types_generic_alias_non_generic_errors(self):
+        # Parametrizing a non-generic NamedTuple via a manually-built
+        # 'types.GenericAlias' is meaningless and must raise, not silently ignore the
+        # args.
+        class Ex(NamedTuple):
+            a: int
+
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(Ex, (int,)))
+
     def test_type_cached(self, proto):
         class Ex(NamedTuple):
             a: int

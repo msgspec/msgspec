@@ -342,7 +342,7 @@ def rebuild(cls, kwargs):
 def convert_generic_alias(origin, args):
     # subscribed typing._GenericAlias instances are cached within the typing module
     # we make use of this fact, by storing a __msgspec_cache__ attribute on the
-    # subscribed instance. only subscribed types are cache, so
+    # subscribed instance. only subscribed types are cached, so
     # 'typing._GenericAlias(list, int) is typing._GenericAlias(list, int)' would be
     # false.
     # to achieve the same behaviour when re-creating a typing._GenericAlias from a
@@ -354,12 +354,22 @@ def convert_generic_alias(origin, args):
     try:
         params = origin.__parameters__
     except AttributeError:
-        raise TypeError(f"Not a valid generic: {origin!r}")
+        if not isinstance(origin, type):
+            # a special form such as 'typing.Literal', whose args are values rather than
+            # type parameters. Ordinary subscription yields the canonical, interned
+            # alias of the right subclass (e.g. 'typing.Literal[...]' -> '_LiteralGenericAlias').
+            return origin[args]
 
-    # create a new typing._GenericAlias with the unbound type params of the
-    # original types.GenericAlias.
-    # given a Mapping[str, int], this would produce a _GenericAlias(Mapping, (~K, ~V))
+        # a non-generic class with type arguments. only reachable for e.g.
+        # manually-built 'types.GenericAlias' instances and is probably nonsense or at
+        # least not somthing we can meaningfully represent, so complain about it here,
+        # rather than silently dropping the arguments.
+        raise TypeError(f"{origin.__name__!r} is not a generic type")
+
+    # a regularly-parametrised generic. Create a new typing._GenericAlias with the
+    # origin's unbound type params (e.g. for a 'Mapping[str, int]' this is a
+    # '_GenericAlias(Mapping, (~K, ~V))'), then bind it to the concrete args by
+    # subscripting with the args *tuple* (i.e. 'alias[(int, str)]', not
+    # 'alias[int, str]'), so generics with more than one type var work
     alias = _GenericAlias(origin, params)
-    # bind it to the concrete types.
-    # given a _GenericAlias(Mapping, (~K, ~V)), produce a Mapping[str, int] again
-    return alias.__getitem__(*args)
+    return alias[args]
