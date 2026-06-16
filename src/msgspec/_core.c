@@ -2842,7 +2842,12 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
 
 /* Aliases for commonly used types */
+#if PY315_PLUS
 #define MS_ANY_DICT                 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
+#else
+// `frozendict` was added in 3.15, before that we can ignore this type.
+#define MS_ANY_DICT                 MS_TYPE_DICT
+#endif
 
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
@@ -10206,7 +10211,7 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 #if PY314_PLUS
     /* obj is always a PyLong here, so PyLong_GetSign can't fail */
     int sign = 0;
-    PyLong_GetSign(obj, &sign);
+    (void)PyLong_GetSign(obj, &sign);
     bool neg = sign < 0;
 #else
     bool neg = _PyLong_Sign(obj) < 0;
