@@ -3156,3 +3156,53 @@ class TestFormat:
     def test_format_malformed(self, msg, err):
         with pytest.raises(msgspec.DecodeError, match=err):
             msgspec.json.format(msg)
+
+
+class TestRecursionLimit:
+    """The decoder caps nesting depth to avoid overflowing the C stack on
+    deeply nested input (see #1033). The cap is independent of
+    ``sys.getrecursionlimit``."""
+
+    def test_deeply_nested_array(self):
+        data = b"[" * 5000 + b"]" * 5000
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.json.decode(data)
+
+    def test_deeply_nested_object(self):
+        data = b'{"a":' * 5000 + b"0" + b"}" * 5000
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.json.decode(data)
+
+    def test_raised_recursion_limit_no_crash(self):
+        # Raising the recursion limit must not let deep input overflow the C
+        # stack: the hard cap still applies.
+        orig = sys.getrecursionlimit()
+        sys.setrecursionlimit(40000)
+        try:
+            data = b"[" * 20000 + b"]" * 20000
+            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+                msgspec.json.decode(data)
+        finally:
+            sys.setrecursionlimit(orig)
+
+    def test_nesting_at_limit_ok(self):
+        # Nesting up to the limit decodes fine; one level deeper errors.
+        msgspec.json.decode(b"[" * 1024 + b"]" * 1024)
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.json.decode(b"[" * 1025 + b"]" * 1025)
+
+    def test_skip_path(self):
+        # The "skip unknown field" path recurses too and must error cleanly.
+        class Ex(msgspec.Struct):
+            x: int
+
+        data = b'{"y":' + b"[" * 5000 + b"]" * 5000 + b',"x":1}'
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.json.decode(data, type=Ex)
+
+    def test_decoder_reused_after_overflow(self):
+        # The depth counter is reset between decodes.
+        dec = msgspec.json.Decoder()
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            dec.decode(b"[" * 5000 + b"]" * 5000)
+        assert dec.decode(b"[1, 2, 3]") == [1, 2, 3]

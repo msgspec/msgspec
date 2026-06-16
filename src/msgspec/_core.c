@@ -14873,7 +14873,38 @@ typedef struct DecoderState {
     char *input_start;
     char *input_pos;
     char *input_end;
+    Py_ssize_t recursion_depth;
 } DecoderState;
+
+/* Maximum nesting depth allowed when decoding. The recursive decoders use a few
+ * C stack frames per level, and CPython's recursion guard is tied to
+ * `sys.getrecursionlimit()` (or the C recursion limit), neither of which tracks
+ * the actual remaining C stack. On systems with a small stack (or when the
+ * recursion limit is raised) deeply nested input can overflow the C stack and
+ * crash the process before the guard fires. A hard cap independent of the
+ * recursion limit prevents that. Matches the limit used by orjson/simdjson. */
+#define MS_MAX_DECODE_DEPTH 1024
+
+/* Enter a recursive decode level, returning -1 (with a DecodeError set) if the
+ * nesting limit would be exceeded, else 0. Each successful call must be paired
+ * with `ms_leave_recursive`. */
+static MS_INLINE int
+ms_enter_recursive(Py_ssize_t *depth) {
+    if (MS_UNLIKELY(*depth >= MS_MAX_DECODE_DEPTH)) {
+        PyErr_SetString(
+            msgspec_get_global_state()->DecodeError,
+            "Input data is too deeply nested"
+        );
+        return -1;
+    }
+    (*depth)++;
+    return 0;
+}
+
+static MS_INLINE void
+ms_leave_recursive(Py_ssize_t *depth) {
+    (*depth)--;
+}
 
 typedef struct Decoder {
     PyObject_HEAD
@@ -15271,8 +15302,18 @@ mpack_decode_datetime(
 
 static int mpack_skip(DecoderState *self);
 
+static int mpack_skip_array_inner(DecoderState *self, Py_ssize_t size);
+
 static int
 mpack_skip_array(DecoderState *self, Py_ssize_t size) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
+    int out = mpack_skip_array_inner(self, size);
+    ms_leave_recursive(&self->recursion_depth);
+    return out;
+}
+
+static int
+mpack_skip_array_inner(DecoderState *self, Py_ssize_t size) {
     int status = -1;
     Py_ssize_t i;
     if (size < 0) return -1;
@@ -15944,8 +15985,22 @@ mpack_decode_struct_array_union(
     return mpack_decode_struct_array_inner(self, size, true, info, path, is_key);
 }
 
+static PyObject *mpack_decode_array_inner(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+);
+
 static PyObject *
 mpack_decode_array(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
+    PyObject *res = mpack_decode_array_inner(self, size, type, path, is_key);
+    ms_leave_recursive(&self->recursion_depth);
+    return res;
+}
+
+static PyObject *
+mpack_decode_array_inner(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (MS_UNLIKELY(!ms_passes_array_constraints(size, type, path))) return NULL;
@@ -16295,8 +16350,24 @@ mpack_decode_struct_union(
     return NULL;
 }
 
+static PyObject *mpack_decode_map_inner(
+    DecoderState *self, Py_ssize_t size, TypeNode *type,
+    PathNode *path, bool is_key
+);
+
 static PyObject *
 mpack_decode_map(
+    DecoderState *self, Py_ssize_t size, TypeNode *type,
+    PathNode *path, bool is_key
+) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
+    PyObject *res = mpack_decode_map_inner(self, size, type, path, is_key);
+    ms_leave_recursive(&self->recursion_depth);
+    return res;
+}
+
+static PyObject *
+mpack_decode_map_inner(
     DecoderState *self, Py_ssize_t size, TypeNode *type,
     PathNode *path, bool is_key
 ) {
@@ -16798,6 +16869,7 @@ typedef struct JSONDecoderState {
     unsigned char *input_start;
     unsigned char *input_pos;
     unsigned char *input_end;
+    Py_ssize_t recursion_depth;
 } JSONDecoderState;
 
 typedef struct JSONDecoder {
@@ -18446,8 +18518,22 @@ json_decode_struct_array_union(
     return json_decode_struct_array_inner(self, info, path, 1);
 }
 
+static PyObject *json_decode_array_inner(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+);
+
 static PyObject *
 json_decode_array(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
+    PyObject *res = json_decode_array_inner(self, type, path);
+    ms_leave_recursive(&self->recursion_depth);
+    return res;
+}
+
+static PyObject *
+json_decode_array_inner(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_ANY) {
@@ -18952,8 +19038,22 @@ json_decode_struct_union(
     return NULL;
 }
 
+static PyObject *json_decode_object_inner(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+);
+
 static PyObject *
 json_decode_object(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return NULL;
+    PyObject *res = json_decode_object_inner(self, type, path);
+    ms_leave_recursive(&self->recursion_depth);
+    return res;
+}
+
+static PyObject *
+json_decode_object_inner(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_ANY) {
@@ -19054,8 +19154,18 @@ json_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
     return 0;
 }
 
+static int json_skip_array_inner(JSONDecoderState *self);
+
 static int
 json_skip_array(JSONDecoderState *self) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
+    int out = json_skip_array_inner(self);
+    ms_leave_recursive(&self->recursion_depth);
+    return out;
+}
+
+static int
+json_skip_array_inner(JSONDecoderState *self) {
     unsigned char c;
     bool first = true;
     int out = -1;
@@ -19092,8 +19202,18 @@ json_skip_array(JSONDecoderState *self) {
     return out;
 }
 
+static int json_skip_object_inner(JSONDecoderState *self);
+
 static int
 json_skip_object(JSONDecoderState *self) {
+    if (MS_UNLIKELY(ms_enter_recursive(&self->recursion_depth))) return -1;
+    int out = json_skip_object_inner(self);
+    ms_leave_recursive(&self->recursion_depth);
+    return out;
+}
+
+static int
+json_skip_object_inner(JSONDecoderState *self) {
     unsigned char c;
     bool first = true;
     int out = -1;

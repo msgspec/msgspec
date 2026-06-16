@@ -2038,3 +2038,52 @@ class TestRaw:
         s = msgspec.msgpack.encode({"x": [1, 2]})
         res = msgspec.msgpack.decode(s, type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+
+class TestRecursionLimit:
+    """The decoder caps nesting depth to avoid overflowing the C stack on
+    deeply nested input (see #1033). The cap is independent of
+    ``sys.getrecursionlimit``."""
+
+    def test_deeply_nested_array(self):
+        # N nested 1-element arrays (fixarray-1 = 0x91), nil (0xc0) at the bottom
+        data = b"\x91" * 5000 + b"\xc0"
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.msgpack.decode(data)
+
+    def test_deeply_nested_map(self):
+        # N nested 1-pair maps (fixmap-1 = 0x81) with a 1-char key, nil at the bottom
+        data = b"\x81\xa1k" * 5000 + b"\xc0"
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.msgpack.decode(data)
+
+    def test_raised_recursion_limit_no_crash(self):
+        orig = sys.getrecursionlimit()
+        sys.setrecursionlimit(40000)
+        try:
+            data = b"\x91" * 20000 + b"\xc0"
+            with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+                msgspec.msgpack.decode(data)
+        finally:
+            sys.setrecursionlimit(orig)
+
+    def test_nesting_at_limit_ok(self):
+        msgspec.msgpack.decode(b"\x91" * 1024 + b"\xc0")
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.msgpack.decode(b"\x91" * 1025 + b"\xc0")
+
+    def test_skip_path(self):
+        # The "skip unknown field" path recurses too and must error cleanly.
+        class Ex(msgspec.Struct):
+            x: int
+
+        # {"y": <deeply nested>, "x": 1} as a 2-pair map
+        data = b"\x82\xa1y" + b"\x91" * 5000 + b"\xc0" + b"\xa1x\x01"
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            msgspec.msgpack.decode(data, type=Ex)
+
+    def test_decoder_reused_after_overflow(self):
+        dec = msgspec.msgpack.Decoder()
+        with pytest.raises(msgspec.DecodeError, match="too deeply nested"):
+            dec.decode(b"\x91" * 5000 + b"\xc0")
+        assert dec.decode(msgspec.msgpack.encode([1, 2, 3])) == [1, 2, 3]
