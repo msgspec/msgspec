@@ -7,6 +7,15 @@ on:
   pull_request:
     branches:
     - main
+    paths:
+      - src/*
+      - tests/prof/*
+      - benchmarks
+      - pyproject.toml
+      - uv.lock
+      - MANIFEST.in
+      - setup.py
+      - .pytest.toml
   workflow_dispatch:
 
 permissions: {}
