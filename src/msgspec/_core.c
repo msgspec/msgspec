@@ -22581,6 +22581,14 @@ PyInit__core(void)
     if (PyType_Ready(&JSONDecoder_Type) < 0)
         goto error;
 
+#define SET_TEMP_OBJ(TEMP) \
+    do { \
+        Py_XDECREF(temp_obj); \
+        temp_obj = TEMP;\
+        if (temp_obj == NULL) \
+            goto error; \
+    } while (0)
+
 #define SET_MODULE_REF(ATTR, VALUE) \
     do { \
         if (PyModule_AddObjectRef(m, (ATTR), (VALUE)) < 0) \
@@ -22632,15 +22640,12 @@ PyInit__core(void)
     );
     if (st->EncodeError == NULL) goto error;
 
-    temp_obj = PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError);
-    if (temp_obj == NULL) goto error;
+    SET_TEMP_OBJ(PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError));
     st->DecodeError = PyErr_NewExceptionWithDoc(
         "msgspec.DecodeError",
         "An error occurred while decoding an object",
         temp_obj, NULL
     );
-    Py_XDECREF(temp_obj);
-    temp_obj = NULL;
     if (st->DecodeError == NULL) goto error;
 
     st->ValidationError = PyErr_NewExceptionWithDoc(
@@ -22700,47 +22705,38 @@ PyInit__core(void)
 
     /* Get the EnumMeta type */
     IMPORT_TEMP_MODULE("enum");
-    temp_obj = PyObject_GetAttrString(temp_module, "EnumMeta");
-    if (temp_obj == NULL)
+    st->EnumMetaType = (PyTypeObject *)PyObject_GetAttrString(temp_module, "EnumMeta");
+    if (st->EnumMetaType == NULL)
         goto error;
-    if (!PyType_Check(temp_obj)) {
+    if (!PyType_Check(st->EnumMetaType)) {
         PyErr_SetString(PyExc_TypeError, "enum.EnumMeta should be a type");
         goto error;
     }
-    st->EnumMetaType = (PyTypeObject *)temp_obj;
 
     /* Get the abc.ABCMeta type and _abc_init helper */
     IMPORT_TEMP_MODULE("abc");
 
-    temp_obj = PyObject_GetAttrString(temp_module, "ABCMeta");
-    if (temp_obj == NULL) {
+    st->ABCMetaType = (PyTypeObject *)PyObject_GetAttrString(temp_module, "ABCMeta");
+    if (st->ABCMetaType == NULL)
         goto error;
-    }
-    if (!PyType_Check(temp_obj)) {
+    if (!PyType_Check(st->ABCMetaType)) {
         PyErr_SetString(PyExc_TypeError, "abc.ABCMeta should be a type");
         goto error;
     }
-    st->ABCMetaType = (PyTypeObject *)temp_obj;
 
     SET_REF(_abc_init, "_abc_init");
 
     /* Get the datetime.datetime.astimezone method */
     IMPORT_TEMP_MODULE("datetime");
-    temp_obj = PyObject_GetAttrString(temp_module, "datetime");
-    if (temp_obj == NULL) goto error;
+    SET_TEMP_OBJ(PyObject_GetAttrString(temp_module, "datetime"));
     st->astimezone = PyObject_GetAttrString(temp_obj, "astimezone");
-    Py_DECREF(temp_obj);
-    temp_obj = NULL;
     if (st->astimezone == NULL) goto error;
 
     /* uuid module imports */
     IMPORT_TEMP_MODULE("uuid");
     SET_REF(UUIDType, "UUID");
-    temp_obj = PyObject_GetAttrString(temp_module, "SafeUUID");
-    if (temp_obj == NULL) goto error;
+    SET_TEMP_OBJ(PyObject_GetAttrString(temp_module, "SafeUUID"));
     st->uuid_safeuuid_unknown = PyObject_GetAttrString(temp_obj, "unknown");
-    Py_DECREF(temp_obj);
-    temp_obj = NULL;
     if (st->uuid_safeuuid_unknown == NULL) goto error;
 
     /* decimal module imports */
@@ -22811,5 +22807,6 @@ error:
 
 #undef SET_MODULE_REF
 #undef IMPORT_TEMP_MODULE
+#undef SET_TEMP_OBJ
 #undef SET_REF
 }
