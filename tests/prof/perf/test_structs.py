@@ -46,12 +46,6 @@ class C{n}(Struct, order=True, tag_field="my_tag_field"):
 N = 1000
 
 
-@pytest.fixture()
-def _random() -> random.Random:
-    # new random instance with a fixed seed to reduce variance between runs
-    return random.Random(b"}\xf7\xab\xcc4\xec\x1d%j\xc1")
-
-
 class Item(msgspec.Struct, order=True):
     a: int
     b: int
@@ -116,16 +110,16 @@ def test_create(benchmark):
 
 
 @pytest.mark.memory
-def test_equality(benchmark, _random):
+def test_equality(benchmark):
     needle = Item(N - 1, N - 1, N - 1, N - 1, N - 1)
     haystack = [Item(i, i, i, i, i) for i in range(N)]
-    _random.shuffle(haystack)
+    random.shuffle(haystack)
     benchmark(haystack.index, needle)
 
 
 @pytest.mark.memory
-def test_order(benchmark: BenchmarkFixture, _random):
+def test_order(benchmark: BenchmarkFixture):
     haystack = [Item(i, i, i, i, i) for i in range(N)]
-    _random.shuffle(haystack)
+    random.shuffle(haystack)
 
     benchmark(sorted, haystack)
