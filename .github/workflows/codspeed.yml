@@ -17,7 +17,7 @@ env:
   # memory routines regardless of which CPU the runner lands on, reducing
   # cross-run variance. See:
   # https://codspeed.io/blog/why-glibc-faster-github-actions#how-to-fix-it-
-  GLIBC_TUNABLES: "glibc.cpu.hwcaps=-AVX2"
+  GLIBC_TUNABLES: "glibc.cpu.hwcaps=-AVX512F,-AVX512DQ,-AVX512_VBMI2,-AVX2,-AVX,-ERMS,-FSRM"
 
 jobs:
   amd_benchmarks:
