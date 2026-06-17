@@ -13,6 +13,11 @@ permissions: {}
 
 env:
   UV_NO_EDITABLE: "true"
+  # cisable glibc CPU-feature detection (AVX2) so benchmarks use the same
+  # memory routines regardless of which CPU the runner lands on, reducing
+  # cross-run variance. See:
+  # https://codspeed.io/blog/why-glibc-faster-github-actions#how-to-fix-it-
+  GLIBC_TUNABLES: "glibc.cpu.hwcaps=-AVX2"
 
 jobs:
   amd_benchmarks:
