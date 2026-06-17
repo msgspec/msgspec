@@ -14,12 +14,7 @@ on:
     - setup.py
     - MANIFEST.in
     # Changes to CI execution
-    - .github/workflows/ci.yml
-    - .github/workflows/prepare-build.yml
-    - .github/workflows/build-wheels.yml
-    - .github/workflows/profile.yml
-    - .github/actions/latest-supported-python/action.yml
-    - .github/actions/fetch-release-history/action.yml
+    - .github/workflows/*
     - .cibuildwheel.toml
     - .justfile
     # Changes to testing
@@ -201,18 +196,6 @@ jobs:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
       build-all: ${{ github.event_name == 'release' }}
       build-riscv64: ${{ github.event_name == 'release' || contains(github.event.pull_request.labels.*.name, 'build-riscv64') }}
-
-  profile:
-    name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
-    needs:
-    - prepare
-    - build-wheels
-    uses: ./.github/workflows/profile.yml
-    permissions:
-      actions: read
-      contents: read
-    with:
-      python: "${{ needs.prepare.outputs.latest-supported-python }}"
 
   upload-pypi:
     name: Upload artifacts to PyPI

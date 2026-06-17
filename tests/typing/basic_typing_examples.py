@@ -81,6 +81,8 @@ def check_struct_field() -> None:
     Test(1, 2, 3, [4], 5)
     Test(1, 2, 3, [4], 5, [6])
 
+    msgspec.field(default=1, default_factory=int)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+
 
 def check_struct_kw_only() -> None:
     class Test(msgspec.Struct, kw_only=True):
@@ -461,6 +463,8 @@ def check_replace() -> None:
     assert_type(msgspec.structs.replace(struct, x=1), Test)
     assert_type(msgspec.structs.replace(struct, struct=1), Test)
 
+    msgspec.structs.replace(object(), x=1)  # type: ignore[type-var]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-specialization]
+
 
 def check_asdict() -> None:
     class Test(msgspec.Struct):
@@ -734,10 +738,12 @@ def check_msgpack_Ext() -> None:
     assert_type(ext.code, int)
     assert_type(ext.data, Buffer)
 
-    # TODO: test that non buffers can't be used:
-    msgspec.msgpack.Ext(1, bytearray())
-    msgspec.msgpack.Ext(1, memoryview(b''))
-    msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3]))
+    assert_type(msgspec.msgpack.Ext(1, bytearray()), msgspec.msgpack.Ext)
+    assert_type(msgspec.msgpack.Ext(1, memoryview(b'')), msgspec.msgpack.Ext)
+    assert_type(msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3])), msgspec.msgpack.Ext)
+
+    # Non buffers:
+    msgspec.msgpack.Ext(1, {})  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 ##########################################################
@@ -931,13 +937,18 @@ def check_yaml_encode() -> None:
 
 
 def check_yaml_decode_any() -> None:
-    o = msgspec.yaml.decode(b"[1, 2, 3]")
-    assert_type(o, Any)
+    assert_type(msgspec.yaml.decode(b"[1, 2, 3]"), Any)
+    assert_type(msgspec.yaml.decode("[1, 2, 3]"), Any)
+    assert_type(msgspec.yaml.decode(bytearray()), Any)
+    assert_type(msgspec.yaml.decode(memoryview(b'')), Any)
+
+    # Not buffers:
+    msgspec.yaml.decode([])  # type: ignore[call-overload]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_yaml_decode_typed() -> None:
-    o = msgspec.yaml.decode(b"[1, 2, 3]", type=list[int])
-    assert_type(o, list[int])
+    assert_type(msgspec.yaml.decode(b"[1, 2, 3]", type=list[int]), list[int])
+    assert_type(msgspec.yaml.decode("[]", type=list[str]), list[str])
 
 
 def check_yaml_decode_typed_union() -> None:
@@ -949,10 +960,6 @@ def check_yaml_decode_from_str() -> None:
     msgspec.yaml.decode("[1, 2, 3]")
     o = msgspec.yaml.decode("[1, 2, 3]", type=list[int])
     assert_type(o, list[int])
-
-
-def check_yaml_decode_from_buffer() -> None:
-    assert_type(msgspec.yaml.decode(memoryview(b"[1, 2, 3]")), Any)
 
 
 def check_yaml_encode_enc_hook() -> None:
@@ -1004,7 +1011,11 @@ def check_toml_decode_from_str() -> None:
 
 
 def check_toml_decode_from_buffer() -> None:
+    assert_type(msgspec.toml.decode(bytearray()), Any)
     assert_type(msgspec.toml.decode(memoryview(b"a = 1")), Any)
+
+    # Non buffers:
+    msgspec.toml.decode({})  # type: ignore[call-overload]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_toml_encode_enc_hook() -> None:

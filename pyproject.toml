@@ -86,11 +86,12 @@ hooks = [
 ]
 test-base = [
   "pytest>=9",
+  "pytest-randomly",
 ]
 test-prof = [
   { include-group = "test-base" },
   "memray; sys_platform != 'win32'",
-  "pytest-benchmark",
+  "pytest-codspeed",
   "pytest-memray; sys_platform != 'win32'",
 ]
 test-typing = [
