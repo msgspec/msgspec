@@ -22525,7 +22525,8 @@ static struct PyModuleDef msgspecmodule = {
 PyMODINIT_FUNC
 PyInit__core(void)
 {
-    PyObject *m, *temp_module, *temp_obj;
+    PyObject *m;
+    PyObject *temp_module = NULL, *temp_obj = NULL;
     MsgspecState *st;
 
     PyDateTime_IMPORT;
@@ -22538,79 +22539,72 @@ PyInit__core(void)
 
     StructMetaType.tp_base = &PyType_Type;
     if (PyType_Ready(&NoDefault_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Unset_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Factory_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Field_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&IntLookup_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&StrLookup_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&LiteralInfo_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&TypedDictInfo_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&DataclassInfo_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&NamedTupleInfo_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&StructInfo_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Meta_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&StructMetaType) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&StructMixinType) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&StructConfig_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Encoder_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Decoder_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Ext_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&Raw_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&JSONEncoder_Type) < 0)
-        return NULL;
+        goto error;
     if (PyType_Ready(&JSONDecoder_Type) < 0)
-        return NULL;
+        goto error;
+
+#define SET_MODULE_REF(ATTR, VALUE) \
+    do { \
+        if (PyModule_AddObjectRef(m, (ATTR), (VALUE)) < 0) \
+            goto error; \
+    } while (0)
 
     /* Create the module */
     m = PyModule_Create(&msgspecmodule);
     if (m == NULL)
-        return NULL;
+        goto error;
 
     /* Add types */
-    if (PyModule_AddObjectRef(m, "Factory", (PyObject *)&Factory_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "Field", (PyObject *)&Field_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "Meta", (PyObject *)&Meta_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "Ext", (PyObject *)&Ext_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "Raw", (PyObject *)&Raw_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
-        return NULL;
-    }
+    SET_MODULE_REF("Factory", (PyObject *)&Factory_Type);
+    SET_MODULE_REF("Field", (PyObject *)&Field_Type);
+    SET_MODULE_REF("Meta", (PyObject *)&Meta_Type);
+    SET_MODULE_REF("StructConfig", (PyObject *)&StructConfig_Type);
+    SET_MODULE_REF("Ext", (PyObject *)&Ext_Type);
+    SET_MODULE_REF("Raw", (PyObject *)&Raw_Type);
+    SET_MODULE_REF("MsgpackEncoder", (PyObject *)&Encoder_Type);
+    SET_MODULE_REF("MsgpackDecoder", (PyObject *)&Decoder_Type);
+    SET_MODULE_REF("JSONEncoder", (PyObject *)&JSONEncoder_Type);
+    SET_MODULE_REF("JSONDecoder", (PyObject *)&JSONDecoder_Type);
+    SET_MODULE_REF("UnsetType", (PyObject *)&Unset_Type);
+    SET_MODULE_REF("StructMeta", (PyObject *)&StructMetaType);
 
     st = msgspec_get_state(m);
 
@@ -22618,12 +22612,10 @@ PyInit__core(void)
     st->gc_cycle = 0;
 
     /* Add NODEFAULT singleton */
-    if (PyModule_AddObjectRef(m, "NODEFAULT", NODEFAULT) < 0)
-        return NULL;
+    SET_MODULE_REF("NODEFAULT", NODEFAULT);
 
     /* Add UNSET singleton */
-    if (PyModule_AddObjectRef(m, "UNSET", UNSET) < 0)
-        return NULL;
+    SET_MODULE_REF("UNSET", UNSET);
 
     /* Initialize the exceptions. */
     st->MsgspecError = PyErr_NewExceptionWithDoc(
@@ -22631,55 +22623,56 @@ PyInit__core(void)
         "Base class for all Msgspec exceptions",
         NULL, NULL
     );
-    if (st->MsgspecError == NULL) return NULL;
+    if (st->MsgspecError == NULL) goto error;
 
     st->EncodeError = PyErr_NewExceptionWithDoc(
         "msgspec.EncodeError",
         "An error occurred while encoding an object",
         st->MsgspecError, NULL
     );
-    if (st->EncodeError == NULL) return NULL;
+    if (st->EncodeError == NULL) goto error;
 
     temp_obj = PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError);
-    if (temp_obj == NULL) return NULL;
+    if (temp_obj == NULL) goto error;
     st->DecodeError = PyErr_NewExceptionWithDoc(
         "msgspec.DecodeError",
         "An error occurred while decoding an object",
         temp_obj, NULL
     );
     Py_XDECREF(temp_obj);
-    if (st->DecodeError == NULL) return NULL;
+    temp_obj = NULL;
+    if (st->DecodeError == NULL) goto error;
 
     st->ValidationError = PyErr_NewExceptionWithDoc(
         "msgspec.ValidationError",
         "The message didn't match the expected schema",
         st->DecodeError, NULL
     );
-    if (st->ValidationError == NULL) return NULL;
+    if (st->ValidationError == NULL) goto error;
 
-    if (PyModule_AddObjectRef(m, "MsgspecError", st->MsgspecError) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "EncodeError", st->EncodeError) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "DecodeError", st->DecodeError) < 0)
-        return NULL;
-    if (PyModule_AddObjectRef(m, "ValidationError", st->ValidationError) < 0)
-        return NULL;
+    SET_MODULE_REF("MsgspecError", st->MsgspecError);
+    SET_MODULE_REF("EncodeError", st->EncodeError);
+    SET_MODULE_REF("DecodeError", st->DecodeError);
+    SET_MODULE_REF("ValidationError", st->ValidationError);
 
     /* Initialize the struct_lookup_cache */
     st->struct_lookup_cache = PyDict_New();
-    if (PyModule_AddObjectRef(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
-        return NULL;
+    SET_MODULE_REF("_struct_lookup_cache", st->struct_lookup_cache);
+
+#define IMPORT_TEMP_MODULE(MOD_NAME) \
+    do { Py_XDECREF(temp_module); \
+        temp_module = PyImport_ImportModule((MOD_NAME)); \
+        if (temp_module == NULL) goto error; \
+    } while (0)
 
 #define SET_REF(attr, name) \
     do { \
     st->attr = PyObject_GetAttrString(temp_module, name); \
-    if (st->attr == NULL) return NULL; \
+    if (st->attr == NULL) goto error; \
     } while (0)
 
     /* Get all imports from the typing module */
-    temp_module = PyImport_ImportModule("typing");
-    if (temp_module == NULL) return NULL;
+    IMPORT_TEMP_MODULE("typing");
     SET_REF(typing_union, "Union");
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
@@ -22691,10 +22684,8 @@ PyInit__core(void)
 #if PY312_PLUS
     SET_REF(typing_typealiastype, "TypeAliasType");
 #endif
-    Py_DECREF(temp_module);
 
-    temp_module = PyImport_ImportModule("msgspec._utils");
-    if (temp_module == NULL) return NULL;
+    IMPORT_TEMP_MODULE("msgspec._utils");
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
@@ -22702,89 +22693,66 @@ PyInit__core(void)
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");
-    Py_DECREF(temp_module);
 
-    temp_module = PyImport_ImportModule("types");
-    if (temp_module == NULL) return NULL;
+    IMPORT_TEMP_MODULE("types");
     SET_REF(types_uniontype, "UnionType");
-    Py_DECREF(temp_module);
 
     /* Get the EnumMeta type */
-    temp_module = PyImport_ImportModule("enum");
-    if (temp_module == NULL)
-        return NULL;
+    IMPORT_TEMP_MODULE("enum");
     temp_obj = PyObject_GetAttrString(temp_module, "EnumMeta");
-    Py_DECREF(temp_module);
     if (temp_obj == NULL)
-        return NULL;
+        goto error;
     if (!PyType_Check(temp_obj)) {
-        Py_DECREF(temp_obj);
         PyErr_SetString(PyExc_TypeError, "enum.EnumMeta should be a type");
-        return NULL;
+        goto error;
     }
     st->EnumMetaType = (PyTypeObject *)temp_obj;
 
     /* Get the abc.ABCMeta type and _abc_init helper */
-    temp_module = PyImport_ImportModule("abc");
-    if (temp_module == NULL)
-        return NULL;
+    IMPORT_TEMP_MODULE("abc");
 
     temp_obj = PyObject_GetAttrString(temp_module, "ABCMeta");
     if (temp_obj == NULL) {
-        Py_DECREF(temp_module);
-        return NULL;
+        goto error;
     }
     if (!PyType_Check(temp_obj)) {
-        Py_DECREF(temp_obj);
-        Py_DECREF(temp_module);
         PyErr_SetString(PyExc_TypeError, "abc.ABCMeta should be a type");
-        return NULL;
+        goto error;
     }
     st->ABCMetaType = (PyTypeObject *)temp_obj;
 
-    temp_obj = PyObject_GetAttrString(temp_module, "_abc_init");
-    Py_DECREF(temp_module);
-    if (temp_obj == NULL)
-        return NULL;
-    st->_abc_init = temp_obj;
+    SET_REF(_abc_init, "_abc_init");
 
     /* Get the datetime.datetime.astimezone method */
-    temp_module = PyImport_ImportModule("datetime");
-    if (temp_module == NULL) return NULL;
+    IMPORT_TEMP_MODULE("datetime");
     temp_obj = PyObject_GetAttrString(temp_module, "datetime");
-    Py_DECREF(temp_module);
-    if (temp_obj == NULL) return NULL;
+    if (temp_obj == NULL) goto error;
     st->astimezone = PyObject_GetAttrString(temp_obj, "astimezone");
     Py_DECREF(temp_obj);
-    if (st->astimezone == NULL) return NULL;
+    temp_obj = NULL;
+    if (st->astimezone == NULL) goto error;
 
     /* uuid module imports */
-    temp_module = PyImport_ImportModule("uuid");
-    if (temp_module == NULL) return NULL;
-    st->UUIDType = PyObject_GetAttrString(temp_module, "UUID");
-    if (st->UUIDType == NULL) return NULL;
+    IMPORT_TEMP_MODULE("uuid");
+    SET_REF(UUIDType, "UUID");
     temp_obj = PyObject_GetAttrString(temp_module, "SafeUUID");
-    if (temp_obj == NULL) return NULL;
+    if (temp_obj == NULL) goto error;
     st->uuid_safeuuid_unknown = PyObject_GetAttrString(temp_obj, "unknown");
     Py_DECREF(temp_obj);
-    if (st->uuid_safeuuid_unknown == NULL) return NULL;
+    temp_obj = NULL;
+    if (st->uuid_safeuuid_unknown == NULL) goto error;
 
     /* decimal module imports */
-    temp_module = PyImport_ImportModule("decimal");
-    if (temp_module == NULL) return NULL;
-    st->DecimalType = PyObject_GetAttrString(temp_module, "Decimal");
-    if (st->DecimalType == NULL) return NULL;
+    IMPORT_TEMP_MODULE("decimal");
+    SET_REF(DecimalType, "Decimal");
 
     /* Get the re.compile function */
-    temp_module = PyImport_ImportModule("re");
-    if (temp_module == NULL) return NULL;
-    st->re_compile = PyObject_GetAttrString(temp_module, "compile");
-    Py_DECREF(temp_module);
-    if (st->re_compile == NULL) return NULL;
+    IMPORT_TEMP_MODULE("re");
+    SET_REF(re_compile, "compile");
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
-    if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
+    if ((st->attr = PyUnicode_InternFromString(str)) == NULL) goto error
     CACHED_STRING(str___weakref__, "__weakref__");
     CACHED_STRING(str___dict__, "__dict__");
     CACHED_STRING(str___msgspec_cached_hash__, "__msgspec_cached_hash__");
@@ -22824,9 +22792,21 @@ PyInit__core(void)
         (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
         "__module__", "msgspec", "__doc__", Struct__doc__
     );
-    if (PyModule_AddObjectRef(m, "Struct", st->StructType) < 0) return NULL;
+    SET_MODULE_REF("Struct", st->StructType);
 #ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif
+
+    Py_XDECREF(temp_module);
+    Py_XDECREF(temp_obj);
     return m;
+
+error:
+    Py_XDECREF(temp_module);
+    Py_XDECREF(temp_obj);
+    return NULL;
+
+#undef SET_MODULE_REF
+#undef IMPORT_TEMP_MODULE
+#undef SET_REF
 }
