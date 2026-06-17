@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix `msgspec.inspect.type_info` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
+
 ## Version 0.21.1 (2026-04-13)
 
 - Fix `ValidationError` and `DecodeError` raised in `dec_hook` being incorrectly wrapped in another `ValidationError` ({pr}`1013`).
