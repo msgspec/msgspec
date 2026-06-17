@@ -117,9 +117,15 @@ jobs:
     # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
     # internally, which has no riscv64 binaries. Run cibuildwheel via uvx
     # instead. Keep version in sync with pypa/cibuildwheel@v3.2.1 above.
+    # uv ships riscv64 binaries, but cibuildwheel 3.2.1 doesn't know to install
+    # uv inside the riscv64 build container, so the default build[uv] frontend
+    # fails with "which uv ... code 1". Use the plain build (pip) frontend here.
+    # Also mirror the main job's musllinux skip on non-release builds.
     - name: Build & Test Wheels (riscv64 native)
       env:
         CIBW_ARCHS: riscv64
+        CIBW_BUILD_FRONTEND: build
+        CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
         PACKAGE_DIR: "dist/${{ inputs.sdist-name }}"
       run: >-
         uvx --from cibuildwheel==3.2.1
