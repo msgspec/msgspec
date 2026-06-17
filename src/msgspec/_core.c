@@ -22660,7 +22660,8 @@ PyInit__core(void)
     SET_MODULE_REF("_struct_lookup_cache", st->struct_lookup_cache);
 
 #define IMPORT_TEMP_MODULE(MOD_NAME) \
-    do { Py_XDECREF(temp_module); \
+    do { \
+        Py_XDECREF(temp_module); \
         temp_module = PyImport_ImportModule((MOD_NAME)); \
         if (temp_module == NULL) goto error; \
     } while (0)
@@ -22668,7 +22669,7 @@ PyInit__core(void)
 #define SET_REF(attr, name) \
     do { \
     st->attr = PyObject_GetAttrString(temp_module, name); \
-    if (st->attr == NULL) goto error; \
+        if (st->attr == NULL) goto error; \
     } while (0)
 
     /* Get all imports from the typing module */
