@@ -71,7 +71,7 @@ def test_define(benchmark: BenchmarkFixture, template: str):
         ns = {"Struct": msgspec.Struct}
         exec(code_obj, ns)
 
-    benchmark(fn)
+    benchmark.pedantic(fn, warmup_rounds=10)
 
 
 def test_defstruct(benchmark: BenchmarkFixture):
@@ -97,13 +97,16 @@ def test_defstruct(benchmark: BenchmarkFixture):
     def fn():
         return defstruct("SomeStruct", fields)
 
-    res = benchmark(fn)
+    res = benchmark.pedantic(fn, warmup_rounds=10)
     assert issubclass(res, msgspec.Struct)
 
 
 @pytest.mark.memory
 def test_create(benchmark):
-    benchmark(lambda: [Item(i, i, i, i, i) for i in range(N)])
+    benchmark.pedantic(
+        lambda: [Item(i, i, i, i, i) for i in range(N)],
+        warmup_rounds=10,
+    )
 
 
 @pytest.mark.memory

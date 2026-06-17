@@ -13,6 +13,12 @@ permissions: {}
 
 env:
   UV_NO_EDITABLE: "true"
+  # cisable glibc CPU-feature detection (AVX2) so benchmarks use the same
+  # memory routines regardless of which CPU the runner lands on, reducing
+  # cross-run variance. See:
+  # https://codspeed.io/blog/why-glibc-faster-github-actions#how-to-fix-it-
+  GLIBC_TUNABLES: "glibc.cpu.hwcaps=-AVX512F,-AVX512DQ,-AVX512_VBMI2,-AVX2,-AVX,-ERMS,-FSRM"
+  RANDOMLY_SEED: "3485796098"
 
 jobs:
   amd_benchmarks:
@@ -45,7 +51,7 @@ jobs:
       uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af  # v4.17.5
       with:
         mode: simulation
-        run: uv run --no-sync pytest tests/prof/perf --codspeed -k amd
+        run: uv run --no-sync pytest tests/prof/perf --randomly-seed="$RANDOMLY_SEED" --codspeed -k amd
 
   arm_benchmarks:
     name: arm benchmarks
@@ -77,7 +83,7 @@ jobs:
       uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af  # v4.17.5
       with:
         mode: simulation
-        run: uv run --no-sync pytest tests/prof/perf --codspeed -k arm
+        run: uv run --no-sync pytest tests/prof/perf --codspeed --randomly-seed="$RANDOMLY_SEED" -k arm
 
   memory_benchmarks:
     name: Memory benchmarks
@@ -109,4 +115,4 @@ jobs:
       uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af  # v4.17.5
       with:
         mode: memory
-        run: uv run --no-sync pytest tests/prof/perf --codspeed -k amd -m memory
+        run: uv run --no-sync pytest tests/prof/perf --randomly-seed="$RANDOMLY_SEED" --codspeed -k amd -m memory
