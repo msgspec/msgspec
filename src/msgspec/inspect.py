@@ -315,10 +315,11 @@ class LiteralType(Type):
     ----------
     values: tuple
         A tuple of possible values for this literal instance. Only `bool`,
-        `str`, or `int` literals are supported.
+        `str`, `int`, or `None` literals are supported, and a single literal
+        may mix these types (e.g. ``Literal[1, None]``).
     """
 
-    values: tuple[bool, ...] | tuple[str, ...] | tuple[int, ...]
+    values: tuple[bool | str | int | None, ...]
 
 
 class CustomType(Type):
@@ -676,6 +677,18 @@ def _origin_args_metadata(t):
     return origin, args, tuple(metadata)
 
 
+def _sort_literal_args(args):
+    # `Literal` may mix value types (e.g. `Literal[1, None]`), which a plain
+    # `sorted` can't order since Python 3 forbids comparing across types. Sort
+    # by type name first so members of the same type stay ordered as before,
+    # while mixed-type literals are grouped deterministically instead of
+    # crashing.
+    try:
+        return tuple(sorted(args, key=lambda x: (type(x).__name__, x)))
+    except TypeError:
+        return tuple(args)
+
+
 def _is_enum(t):
     return type(t) is enum.EnumMeta
 
@@ -884,7 +897,7 @@ class _Translator:
             args = tuple(self.translate(a) for a in args if a is not _UnsetType)
             return args[0] if len(args) == 1 else UnionType(args)
         elif t is Literal:
-            return LiteralType(tuple(sorted(args)))
+            return LiteralType(_sort_literal_args(args))
         elif _is_enum(t):
             return EnumType(t)
         elif is_struct_type(t):

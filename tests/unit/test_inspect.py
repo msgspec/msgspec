@@ -348,6 +348,18 @@ def test_str_literal():
     assert mi.type_info(Literal["c", "a", "b"]) == mi.LiteralType(("a", "b", "c"))
 
 
+def test_bool_literal():
+    assert mi.type_info(Literal[True]) == mi.LiteralType((True,))
+    assert mi.type_info(Literal[True, False]) == mi.LiteralType((False, True))
+
+
+def test_mixed_literal():
+    # Literals may mix value types; `type_info` shouldn't crash trying to sort
+    # values of incomparable types (gh#1018).
+    assert mi.type_info(Literal[1, None]) == mi.LiteralType((None, 1))
+    assert mi.type_info(Literal[True, "yes"]) == mi.LiteralType((True, "yes"))
+
+
 def test_int_enum():
     class Example(enum.IntEnum):
         B = 3
