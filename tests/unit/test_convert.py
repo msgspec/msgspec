@@ -15,7 +15,7 @@ import pytest
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
-from .utils import max_call_depth, temp_module
+from .utils import emscripten_stack_limited, max_call_depth, temp_module
 
 try:
     import attrs
@@ -1097,6 +1097,7 @@ class TestNamedTuple:
         with pytest.raises(ValidationError, match="Expected `array`, got `object`"):
             convert({"a": 1, "b": "two"}, Example)
 
+    @emscripten_stack_limited
     def test_namedtuple_cyclic_recursion(self):
         source = """
         from __future__ import annotations

@@ -1151,9 +1151,13 @@ static PyObject *
 IntLookup_GetInt64(IntLookup *self, int64_t key) {
     if (MS_LIKELY(self->compact)) {
         IntLookupCompact *lk = (IntLookupCompact *)self;
-        Py_ssize_t index = key - lk->offset;
-        if (index >= 0 && index < Py_SIZE(lk)) {
-            return lk->table[index];
+        /* Compute the dense-table index in 64-bit space so large offsets
+         * cannot wrap through Py_ssize_t on 32-bit builds. */
+        if (key >= lk->offset) {
+            uint64_t index = (uint64_t)key - (uint64_t)(lk->offset);
+            if (index < (uint64_t)Py_SIZE(lk)) {
+                return lk->table[(Py_ssize_t)index];
+            }
         }
         return NULL;
     }
@@ -15122,7 +15126,17 @@ static MS_INLINE Py_ssize_t
 mpack_decode_size4(DecoderState *self) {
     char *s = NULL;
     if (mpack_read(self, &s, 4) < 0) return -1;
+#if SIZEOF_VOID_P > 4
     return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
+#else
+    uint32_t size = _msgspec_load32(uint32_t, s);
+    /* MessagePack uint32 sizes can exceed Py_ssize_t on 32-bit builds, so
+     * reject them before they become negative sentinel values. */
+    if (MS_UNLIKELY(size > PY_SSIZE_T_MAX)) {
+        return ms_err_truncated();
+    }
+    return (Py_ssize_t)size;
+#endif
 }
 
 static PyObject *

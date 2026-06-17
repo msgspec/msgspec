@@ -31,7 +31,7 @@ from typing import (
 
 import pytest
 
-from .utils import max_call_depth, temp_module
+from .utils import emscripten_stack_limited, max_call_depth, temp_module
 
 try:
     import attrs
@@ -4706,6 +4706,7 @@ class TestTypeAlias:
             "type Temp[T] = tuple[T, Ex[T]]; type Ex[T] = tuple[Temp[T], T];",
         ],
     )
+    @emscripten_stack_limited
     def test_recursive_typealias_errors(self, src):
         """Eventually we should support this, but for now just test that it
         errors cleanly"""

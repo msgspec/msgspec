@@ -81,6 +81,8 @@ jobs:
       if: inputs.version == ''
       uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6
       with:
+        # Profiling only downloads native wheels, whose build artifacts use
+        # runner-and-architecture names.
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
         path: dist
         merge-multiple: true

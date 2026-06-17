@@ -5,6 +5,13 @@ import types
 import uuid
 from contextlib import contextmanager
 
+import pytest
+
+emscripten_stack_limited = pytest.mark.skipif(
+    sys.platform == "emscripten",
+    reason="Pyodide can overflow the JS/Wasm stack before raising RecursionError",
+)
+
 
 @contextmanager
 def temp_module(code):

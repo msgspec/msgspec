@@ -13,6 +13,8 @@ import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
+from .utils import emscripten_stack_limited
+
 PY311 = sys.version_info[:2] >= (3, 11)
 
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
@@ -73,6 +75,7 @@ class TestToBuiltins:
         assert to_builtins(1, enc_hook=None) == 1
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []

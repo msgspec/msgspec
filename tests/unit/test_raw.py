@@ -8,6 +8,11 @@ import pytest
 
 import msgspec
 
+emscripten = pytest.mark.skipif(
+    sys.platform == "emscripten",
+    reason="Emscripten does not support subprocesses",
+)
+
 
 def test_raw_noargs():
     r = msgspec.Raw()
@@ -71,6 +76,7 @@ def test_raw_copy():
     assert ref() is None
 
 
+@emscripten
 def test_raw_copy_doesnt_leak():
     """See https://github.com/msgspec/msgspec/pull/709"""
     script = textwrap.dedent(
