@@ -194,6 +194,11 @@ sample_data_mark = pytest.mark.parametrize(
             id="bytearray",
         ),
         pytest.param(
+            lambda: random.randbytes(10_000),
+            memoryview,
+            id="memoryview",
+        ),
+        pytest.param(
             lambda: random.randbytes(10_000).hex(),
             str,
             id="long_string",
