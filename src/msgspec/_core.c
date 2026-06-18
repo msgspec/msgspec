@@ -6070,7 +6070,23 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         }
 
         int status = structmeta_is_classvar(info, mod, value, &module_ns);
-        if (status == 1) continue;
+        if (status == 1) {
+            /* Field is declared as ClassVar in the child.
+             * It may already exist in defaults_lk (inherited from a parent struct).
+             * Remove it to exclude it from this struct's field list. */
+            if (PyDict_GetItem(info->defaults_lk, field)) {
+                PyDict_DelItem(info->defaults_lk, field);
+            }
+            /* Also clean up related tracking dicts */
+            if (PyDict_GetItem(info->renamed_fields, field)) {
+                PyDict_DelItem(info->renamed_fields, field);
+            }
+            if (PyDict_GetItem(info->offsets_lk, field)) {
+                PyDict_DelItem(info->offsets_lk, field);
+            }
+            PySet_Discard(info->kwonly_fields, field);
+            continue;
+        }
         if (status == -1) goto error;
 
         /* If the field is new, add it to slots */
