@@ -16,6 +16,11 @@ class C{n}(Struct, order=True):
     e: int
 """
 
+TEMPLATE_EMPTY = """
+class C{n}(Struct, order=True):
+    pass
+"""
+
 TEMPLATE_WITH_TAG_TRUE = """
 class C{n}(Struct, order=True, tag=True):
     a: int
@@ -54,9 +59,14 @@ class Item(msgspec.Struct, order=True):
     e: int
 
 
+class EmptyStruct(msgspec.Struct):
+    pass
+
+
 @pytest.mark.parametrize(
     "template",
     [
+        pytest.param(TEMPLATE_EMPTY, id="empty"),
         pytest.param(TEMPLATE, id="basic"),
         pytest.param(TEMPLATE_WITH_TAG_TRUE, id="tagged"),
         pytest.param(TEMPLATE_WITH_CUSTOM_TAG, id="custom_tag"),
@@ -105,6 +115,15 @@ def test_defstruct(benchmark: BenchmarkFixture):
 def test_create(benchmark):
     benchmark.pedantic(
         lambda: [Item(i, i, i, i, i) for i in range(N)],
+        warmup_rounds=10,
+    )
+
+
+@pytest.mark.memory
+def test_empty_struct_create(benchmark: BenchmarkFixture):
+    # empty struct to measure pure overhead without any type nodes
+    benchmark.pedantic(
+        lambda: [EmptyStruct() for _ in range(N)],
         warmup_rounds=10,
     )
 
