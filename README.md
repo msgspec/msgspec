@@ -25,28 +25,28 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
   MessagePack implementations regularly
-  [benchmark](https://msgspec.dev/benchmarks.html) as the fastest
+  [benchmark](https://msgspec.dev/benchmarks) as the fastest
   options for Python.
 
 - 🎉 **Support for a wide variety of Python types**. Additional types may be
   supported through
-  [extensions](https://msgspec.dev/extending.html).
+  [extensions](https://msgspec.dev/extending).
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations. In
-  [benchmarks](https://msgspec.dev/benchmarks.html) `msgspec`
+  [benchmarks](https://msgspec.dev/benchmarks) `msgspec`
   decodes *and* validates JSON faster than
   [orjson](https://github.com/ijl/orjson) can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use [dataclasses](https://docs.python.org/3/library/dataclasses.html) or
   [attrs](https://www.attrs.org/en/stable/),
-  [structs](https://msgspec.dev/structs.html) should feel familiar.
+  [structs](https://msgspec.dev/structs) should feel familiar.
   However, they're
-  [5-60x faster](https://msgspec.dev/benchmarks.html#structs)
+  [5-60x faster](https://msgspec.dev/benchmarks#structs)
   for common operations.
 
 All of this is included in a
-[lightweight library](https://msgspec.dev/benchmarks.html#library-size)
+[lightweight library](https://msgspec.dev/benchmarks#library-size)
 with no required dependencies.
 
 ---
@@ -97,10 +97,10 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 the nicities of validation libraries like
 [pydantic](https://pydantic.dev/docs/validation/latest/get-started/). For supported types,
 encoding/decoding a message with `msgspec` can be
-[~10-80x faster than alternative libraries](https://msgspec.dev/benchmarks.html).
+[~10-80x faster than alternative libraries](https://msgspec.dev/benchmarks).
 
 <p align="center">
-  <a href="https://msgspec.dev/benchmarks.html">
+  <a href="https://msgspec.dev/benchmarks">
     <img src="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
