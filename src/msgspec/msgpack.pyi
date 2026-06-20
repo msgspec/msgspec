@@ -1,51 +1,44 @@
+from collections.abc import Callable
+from types import GenericAlias
 from typing import (
     Any,
-    Callable,
     Generic,
     Literal,
-    Optional,
     Type,
+    TypeAlias,
     TypeVar,
-    Union,
+    final,
     overload,
 )
 
 from typing_extensions import Buffer
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
-enc_hook_sig = Optional[Callable[[Any], Any]]
-ext_hook_sig = Optional[Callable[[int, memoryview], Any]]
-dec_hook_sig = Optional[Callable[[type, Any], Any]]
+_EncHookSig: TypeAlias = Callable[[Any], Any] | None
+_ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
+_DecHookSig: TypeAlias = Callable[[type[Any], Any], Any] | None
 
+@final
 class Ext:
     code: int
-    data: Union[bytes, bytearray, memoryview]
-    def __init__(
-        self, code: int, data: Union[bytes, bytearray, memoryview]
-    ) -> None: ...
+    data: Buffer
+    def __init__(self, code: int, data: Buffer) -> None: ...
 
-class Decoder(Generic[T]):
-    type: Type[T]
+@final
+class Decoder(Generic[_T]):
+    type: Type[_T]  # needed for mypy, because of the same name
     strict: bool
-    dec_hook: dec_hook_sig
-    ext_hook: ext_hook_sig
+    dec_hook: _DecHookSig
+    ext_hook: _ExtHookSig
     @overload
     def __init__(
-        self: Decoder[Any],
+        self: Decoder[_T],
+        type: Type[_T],
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        ext_hook: ext_hook_sig = None,
-    ) -> None: ...
-    @overload
-    def __init__(
-        self: Decoder[T],
-        type: Type[T] = ...,
-        *,
-        strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        ext_hook: ext_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        ext_hook: _ExtHookSig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -53,27 +46,29 @@ class Decoder(Generic[T]):
         type: Any = ...,
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        ext_hook: ext_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        ext_hook: _ExtHookSig = None,
     ) -> None: ...
-    def decode(self, buf: Buffer, /) -> T: ...
+    def decode(self, buf: Buffer, /) -> _T: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
+@final
 class Encoder:
-    enc_hook: enc_hook_sig
+    enc_hook: _EncHookSig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex", "bytes"]
-    order: Literal[None, "deterministic", "sorted"]
+    order: Literal["deterministic", "sorted"] | None
     def __init__(
         self,
         *,
-        enc_hook: enc_hook_sig = None,
+        enc_hook: _EncHookSig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
-        order: Literal[None, "deterministic", "sorted"] = None,
-    ): ...
+        order: Literal["deterministic", "sorted"] | None = None,
+    ) -> None: ...
     def encode(self, obj: Any, /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
+        self, obj: Any, buffer: bytearray, offset: int | None = 0, /
     ) -> None: ...
 
 @overload
@@ -81,20 +76,11 @@ def decode(
     buf: Buffer,
     /,
     *,
+    type: type[_T],
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-    ext_hook: ext_hook_sig = None,
-) -> Any: ...
-@overload
-def decode(
-    buf: Buffer,
-    /,
-    *,
-    type: Type[T] = ...,
-    strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-    ext_hook: ext_hook_sig = None,
-) -> T: ...
+    dec_hook: _DecHookSig = None,
+    ext_hook: _ExtHookSig = None,
+) -> _T: ...
 @overload
 def decode(
     buf: Buffer,
@@ -102,13 +88,13 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-    ext_hook: ext_hook_sig = None,
+    dec_hook: _DecHookSig = None,
+    ext_hook: _ExtHookSig = None,
 ) -> Any: ...
 def encode(
     obj: Any,
     /,
     *,
-    enc_hook: enc_hook_sig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    enc_hook: _EncHookSig = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...

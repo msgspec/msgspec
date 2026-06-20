@@ -10,7 +10,8 @@ from . import (
 )
 
 if TYPE_CHECKING:
-    from typing import Callable, Literal, Optional, Type, Union
+    from collections.abc import Callable
+    from typing import Literal
 
     from typing_extensions import Buffer
 
@@ -39,8 +40,8 @@ def _import_pyyaml(name):
 def encode(
     obj: Any,
     *,
-    enc_hook: Optional[Callable[[Any], Any]] = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    enc_hook: Callable[[Any], Any] | None = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes:
     """Serialize an object as YAML.
 
@@ -100,42 +101,36 @@ def encode(
     )
 
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     *,
+    type: type[_T],
     strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
-) -> Any:
-    pass
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+) -> _T: ...
 
 
 @overload
 def decode(
-    buf: Union[bytes, str],
-    *,
-    type: Type[T] = ...,
-    strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
-) -> T:
-    pass
-
-
-@overload
-def decode(
-    buf: Union[bytes, str],
+    buf: Buffer | str,
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
+) -> Any: ...
+
+
+def decode(
+    buf: Buffer | str,
+    *,
+    type: Any = Any,
+    strict: bool = True,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> Any:
-    pass
-
-
-def decode(buf, *, type=Any, strict=True, dec_hook=None):
     """Deserialize an object from YAML.
 
     Parameters

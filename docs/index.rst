@@ -99,7 +99,7 @@ Used By
 -------
 
 ``msgspec`` is used by many organizations and `open source projects
-<https://github.com/jcrist/msgspec/network/dependents>`__, here we highlight a
+<https://github.com/msgspec/msgspec/network/dependents>`__, here we highlight a
 few:
 
 .. grid:: 2 2 4 4
@@ -201,6 +201,13 @@ few:
     extending.rst
     inspect.rst
     perf-tips.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Porting
+
+    porting/index.rst
 
 .. toctree::
     :hidden:

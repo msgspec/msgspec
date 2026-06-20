@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import re
 import textwrap
-from collections.abc import Iterable
-from typing import Any, Callable, Final, Optional
+from collections.abc import Callable, Iterable
+from typing import Any, Final
 
 from . import inspect as mi, to_builtins
 
@@ -15,7 +15,7 @@ _REF_TEMPLATE: Final = "#/$defs/{name}"
 def schema(
     type: Any,
     *,
-    schema_hook: Optional[Callable[[type], dict[str, Any]]] = None,
+    schema_hook: Callable[[type], dict[str, Any]] | None = None,
     ref_template: str = _REF_TEMPLATE,
 ) -> dict[str, Any]:
     """Generate a JSON Schema for a given type.
@@ -64,7 +64,7 @@ def schema(
 def schema_components(
     types: Iterable[Any],
     *,
-    schema_hook: Optional[Callable[[type], dict[str, Any]]] = None,
+    schema_hook: Callable[[type], dict[str, Any]] | None = None,
     ref_template: str = _REF_TEMPLATE,
 ) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]:
     """Generate JSON Schemas for one or more types.
@@ -217,7 +217,7 @@ class _SchemaGenerator:
     def __init__(
         self,
         name_map: dict[Any, str],
-        schema_hook: Optional[Callable[[type], dict[str, Any]]] = None,
+        schema_hook: Callable[[type], dict[str, Any]] | None = None,
         ref_template: str = "#/$defs/{name}",
     ):
         self.name_map = name_map

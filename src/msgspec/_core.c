@@ -519,6 +519,7 @@ typedef struct {
     PyObject *get_class_annotations;
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
+    PyObject *convert_generic_alias;
     PyObject *rebuild;
     PyObject *types_uniontype;
 #if PY312_PLUS
@@ -624,6 +625,7 @@ static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbyt
         self->capacity = required * 1.5;
         char *new_buf = PyMem_Realloc(self->buffer, self->capacity);
         if (new_buf == NULL) {
+            PyErr_NoMemory();
             PyMem_Free(self->buffer);
             self->buffer = NULL;
             return false;
@@ -904,8 +906,7 @@ _IntLookupHashmap_lookup(IntLookupHashmap *self, int64_t key) {
         if (entry->value == NULL) return entry;
         i = (i + 1) & mask;
     }
-    /* Unreachable */
-    return NULL;
+    Py_UNREACHABLE();
 }
 
 static void
@@ -1239,8 +1240,7 @@ _StrLookup_lookup(StrLookup *self, const char *key, Py_ssize_t size)
         perturb >>= 5;
         i = mask & (i*5 + perturb + 1);
     }
-    /* Unreachable */
-    return NULL;
+    Py_UNREACHABLE();
 }
 
 static int
@@ -2040,7 +2040,10 @@ Meta_rich_repr(PyObject *py_self, PyObject *args) {
 #define DO_REPR(field) do { \
     if (self->field != NULL) { \
         PyObject *part = Py_BuildValue("(UO)", #field, self->field); \
-        if (part == NULL || (PyList_Append(out, part) < 0)) goto error;\
+        if (part == NULL) goto error;\
+        int ret = PyList_Append(out, part);\
+        Py_DECREF(part);\
+        if (ret < 0) goto error;\
     } } while(0)
     DO_REPR(gt);
     DO_REPR(ge);
@@ -2820,6 +2823,8 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_TYPEDDICT           (1ull << 33)
 #define MS_TYPE_DATACLASS           (1ull << 34)
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
+#define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
+#define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2943,6 +2948,8 @@ typedef struct {
     PyObject *int_lookup;
     PyObject *str_lookup;
     bool literal_none;
+    bool literal_bool_true;
+    bool literal_bool_false;
 } LiteralInfo;
 
 typedef struct {
@@ -3449,7 +3456,7 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
         return PyUnicode_FromString("any");
     }
-    if (self->types & MS_TYPE_BOOL) {
+    if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
         if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
     }
     if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
@@ -3543,6 +3550,8 @@ typedef struct {
     PyObject *literal_str_values;
     PyObject *literal_str_lookup;
     bool literal_none;
+    bool literal_bool_true;
+    bool literal_bool_false;
     /* Constraints */
     int64_t c_int_min;
     int64_t c_int_max;
@@ -3667,7 +3676,7 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
     }
     /* Do offsets for lt/gt */
     if (offset == -1) {
-        if (x == (-1LL << 63)) {
+        if (x == INT64_MIN) {
             PyErr_SetString(PyExc_ValueError, "lt <= -2**63 is not supported");
             return false;
         }
@@ -4415,7 +4424,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
     if (args == NULL) return -1;
 
     Py_ssize_t size = PyTuple_GET_SIZE(args);
-    if (size < 0) return -1;
+    if (size < 0) goto error;
 
     if (size == 0) {
         PyErr_Format(
@@ -4423,7 +4432,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
             "Literal types must have at least one item, %R is invalid",
             literal
         );
-        return -1;
+        goto error;
     }
 
     for (Py_ssize_t i = 0; i < size; i++) {
@@ -4432,6 +4441,14 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
 
         if (obj == Py_None || obj == NONE_TYPE) {
             state->literal_none = true;
+        }
+        else if (type == &PyBool_Type) {
+            if (obj == Py_True) {
+                state->literal_bool_true = true;
+            }
+            else {
+                state->literal_bool_false = true;
+            }
         }
         else if (type == &PyLong_Type) {
             if (state->literal_int_values == NULL) {
@@ -4469,7 +4486,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
 invalid:
     PyErr_Format(
         PyExc_TypeError,
-        "Literal may only contain None/integers/strings - %R is not supported",
+        "Literal may only contain None/booleans/integers/strings - %R is not supported",
         literal
     );
 
@@ -4507,6 +4524,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             if (info->literal_none) {
                 state->types |= MS_TYPE_NONE;
             }
+            if (info->literal_bool_true) {
+                state->types |= MS_TYPE_BOOLLITERAL_TRUE;
+            }
+            if (info->literal_bool_false) {
+                state->types |= MS_TYPE_BOOLLITERAL_FALSE;
+            }
             Py_DECREF(cached);
             return 0;
         }
@@ -4535,6 +4558,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     if (state->literal_none) {
         state->types |= MS_TYPE_NONE;
     }
+    if (state->literal_bool_true) {
+        state->types |= MS_TYPE_BOOLLITERAL_TRUE;
+    }
+    if (state->literal_bool_false) {
+        state->types |= MS_TYPE_BOOLLITERAL_FALSE;
+    }
 
     if (n == 1) {
         /* A single `Literal` object, cache the lookups on it */
@@ -4545,6 +4574,8 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         Py_XINCREF(state->literal_str_lookup);
         info->str_lookup = state->literal_str_lookup;
         info->literal_none = state->literal_none;
+        info->literal_bool_true = state->literal_bool_true;
+        info->literal_bool_false = state->literal_bool_false;
         PyObject_GC_Track(info);
         PyObject *literal = PyList_GET_ITEM(state->literals, 0);
         int status = PyObject_SetAttr(
@@ -4954,6 +4985,29 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
+static MS_INLINE int
+normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
+    // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
+    // 'typing._GenericAlias'. 'types.GenericAlias' has __slots__ and forwards
+    // attribute access to its origin, so we can't cache type info (as
+    // '__msgspec_cache__') on it; a 'typing._GenericAlias' can.
+    //
+    // only the branches that cache on the alias (struct/dataclass/TypedDict/
+    // NamedTuple/Literal) need to call this. a 'types.GenericAlias' here only arises
+    // when  subclassing a builtin container generic (e.g. 'collections.abc.Mapping') or
+    // from a manually constructed 'types.GenericAlias' (e.g. wrapping 'typing.Literal').
+    //
+    // replace '*t' with a new reference on success (dropping the original), or
+    // return -1 with an exception set.
+    if (MS_LIKELY(Py_TYPE(*t) != &Py_GenericAliasType)) return 0;
+    PyObject *converted = PyObject_CallFunctionObjArgs(
+        state->mod->convert_generic_alias, origin, args, NULL
+    );
+    if (converted == NULL) return -1;
+    Py_SETREF(*t, converted);
+    return 0;
+}
+
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = 0;
@@ -5035,7 +5089,12 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         ms_is_struct_cls(t) ||
         (origin != NULL && ms_is_struct_cls(origin))
     ) {
-        out = typenode_collect_struct(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_struct(state, t);
+        }
     }
     else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
@@ -5095,7 +5154,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             PyTuple_GET_SIZE(PyTuple_GET_ITEM(args, 0)) == 0
         ) {
             /* XXX: this case handles a weird compatibility issue:
-             * - Tuple[()].__args__ == ((),)
+             * - typing.Tuple[()].__args__ == ((),)
              * - tuple[()].__args__ == ()
              */
             out = typenode_collect_array(
@@ -5125,25 +5184,45 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
         }
-        out = PyList_Append(state->literals, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = PyList_Append(state->literals, t);
+        }
     }
     else if (
         is_typeddict_class(state, t) ||
         (origin != NULL && is_typeddict_class(state, origin))
     ) {
-        out = typenode_collect_typeddict(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_typeddict(state, t);
+        }
     }
     else if (
         is_namedtuple_class(state, t) ||
         (origin != NULL && is_namedtuple_class(state, origin))
     ) {
-        out = typenode_collect_namedtuple(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_namedtuple(state, t);
+        }
     }
     else if (
         is_dataclass_or_attrs_class(state, t) ||
         (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        out = typenode_collect_dataclass(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_dataclass(state, t);
+        }
     }
     else {
         if (origin != NULL) {
@@ -5658,7 +5737,7 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
     PyObject *modules = PySys_GetObject("modules");
     if (modules == NULL) return NULL;
     PyObject *module = PyDict_GetItem(modules, name);
-    if (mod == NULL) return NULL;
+    if (module == NULL) return NULL;
     return PyObject_GetAttr(module, mod->str___dict__);
 }
 
@@ -6353,7 +6432,10 @@ structmeta_construct_offsets(
     }
 
     info->offsets = PyMem_New(Py_ssize_t, PyTuple_GET_SIZE(info->fields));
-    if (info->offsets == NULL) return -1;
+    if (info->offsets == NULL) {
+        PyErr_NoMemory();
+        return -1;
+    }
 
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
         PyObject *field = PyTuple_GET_ITEM(info->fields, i);
@@ -8108,6 +8190,16 @@ PyDoc_STRVAR(struct_asdict__doc__,
 "\n"
 "Convert a struct to a dict.\n"
 "\n"
+"This is a one-to-one conversion of the struct instance, modeled after\n"
+"`dataclasses.asdict`. Every field is included unchanged using its raw\n"
+"attribute name. Struct-level settings (``rename``, ``omit_defaults``,\n"
+"``array_like``, ``tag``) are ignored, `msgspec.UNSET` values are kept,\n"
+"nested `msgspec.Struct` / `dataclasses.dataclass` / attrs fields are\n"
+"not recursively converted, and no value-level conversions are applied\n"
+"(e.g. `bytes` is not base64-encoded, `datetime.datetime` is not\n"
+"converted to a string). Use `msgspec.to_builtins` instead when the\n"
+"output is intended for serialization.\n"
+"\n"
 "Parameters\n"
 "----------\n"
 "struct: Struct\n"
@@ -8165,6 +8257,16 @@ PyDoc_STRVAR(struct_astuple__doc__,
 "--\n"
 "\n"
 "Convert a struct to a tuple.\n"
+"\n"
+"This is a one-to-one conversion of the struct instance, modeled after\n"
+"`dataclasses.astuple`. Every field value is included unchanged.\n"
+"Struct-level settings (``rename``, ``omit_defaults``, ``array_like``,\n"
+"``tag``) are ignored, `msgspec.UNSET` values are kept, nested\n"
+"`msgspec.Struct` / `dataclasses.dataclass` / attrs fields are not\n"
+"recursively converted, and no value-level conversions are applied\n"
+"(e.g. `bytes` is not base64-encoded, `datetime.datetime` is not\n"
+"converted to a string). Use `msgspec.to_builtins` instead when the\n"
+"output is intended for serialization.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -9563,17 +9665,6 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    if (enc_hook == Py_None) {
-        enc_hook = NULL;
-    }
-    if (enc_hook != NULL) {
-        if (!PyCallable_Check(enc_hook)) {
-            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
-            return -1;
-        }
-        Py_INCREF(enc_hook);
-    }
-
     /* Process decimal format */
     if (decimal_format == NULL) {
         self->decimal_format = DECIMAL_FORMAT_STRING;
@@ -9635,6 +9726,17 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     /* Process order */
     self->order = parse_order_arg(order);
     if (self->order == ORDER_INVALID) return -1;
+
+    if (enc_hook == Py_None) {
+        enc_hook = NULL;
+    }
+    if (enc_hook != NULL) {
+        if (!PyCallable_Check(enc_hook)) {
+            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(enc_hook);
+    }
 
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
@@ -10116,7 +10218,14 @@ ms_passes_int_constraints(uint64_t ux, bool neg, TypeNode *type, PathNode *path)
 /* Constraint checks for a PyLong that is known not to fit into a uint64/int64 */
 static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+#if PY314_PLUS
+    /* obj is always a PyLong here, so PyLong_GetSign can't fail */
+    int sign = 0;
+    PyLong_GetSign(obj, &sign);
+    bool neg = sign < 0;
+#else
     bool neg = _PyLong_Sign(obj) < 0;
+#endif
 
     if (type->types & MS_CONSTR_INT_MIN) {
         if (neg) {
@@ -10140,6 +10249,7 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         Py_DECREF(base);
         if (remainder == NULL) return false;
         long iremainder = PyLong_AsLong(remainder);
+        Py_DECREF(remainder);
         if (iremainder != 0) {
             _err_int_constraint(
                 "Expected `int` that's a multiple of %lld%U", c, path
@@ -10190,7 +10300,9 @@ ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *pat
     if (size > 4300) goto out_of_range;
     /* CPython int parsing routine requires NULL terminated buffer */
     char *temp = (char *)PyMem_Malloc(size + 1);
-    if (temp == NULL) return NULL;
+    if (temp == NULL) {
+        return PyErr_NoMemory();
+    }
     memcpy(temp, buf, size);
     temp[size] = '\0';
     PyObject *out = PyLong_FromString(temp, NULL, 10);
@@ -10203,18 +10315,26 @@ ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *pat
     if (MS_UNLIKELY(out == NULL)) {
         PyObject *exc_type, *exc, *tb;
 
-        /* Fetch the exception state */
+        /* Fetch the exception state. Take a reference to each if not NULL */
         PyErr_Fetch(&exc_type, &exc, &tb);
 
         if (exc_type == NULL) {
-            /* Some other c-extension has borked, just return */
+            /* Some other c-extension has borked, just return.
+            * References might still have been taken, so decred just in case */
+            Py_XDECREF(exc_type);
+            Py_XDECREF(exc);
+            Py_XDECREF(tb);
             return NULL;
         }
         else if (exc_type == PyExc_ValueError) {
+            Py_XDECREF(exc_type);
+            Py_XDECREF(exc);
+            Py_XDECREF(tb);
             goto out_of_range;
         }
         else {
-            /* Restore the exception state */
+            /* Restore the exception state.
+            * No need to decref here as PyErr_Restore steals references to the args */
             PyErr_Restore(exc_type, exc, tb);
         }
     }
@@ -11936,7 +12056,7 @@ static bool
 double_as_int64(double x, int64_t *out) {
     if (fmod(x, 1.0) != 0.0) return false;
     if (x > (1LL << 53)) return false;
-    if (x < (-1LL << 53)) return false;
+    if (x < -(1LL << 53)) return false;
     *out = (int64_t)x;
     return true;
 }
@@ -15341,6 +15461,18 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
         Py_INCREF(val);
         return val;
     }
+    if (val == Py_True && (type->types & MS_TYPE_BOOLLITERAL_TRUE)) {
+        Py_INCREF(Py_True);
+        return Py_True;
+    }
+    if (val == Py_False && (type->types & MS_TYPE_BOOLLITERAL_FALSE)) {
+        Py_INCREF(Py_False);
+        return Py_False;
+    }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", val);
+        return NULL;
+    }
     return ms_validation_error("bool", type, path);
 }
 
@@ -16966,9 +17098,13 @@ json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
         return json_err_invalid(self, "invalid character");
     }
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE)) {
         Py_INCREF(Py_True);
         return Py_True;
+    }
+    if (type->types & MS_TYPE_BOOLLITERAL_FALSE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_True);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -16987,9 +17123,13 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
         return json_err_invalid(self, "invalid character");
     }
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_FALSE)) {
         Py_INCREF(Py_False);
         return Py_False;
+    }
+    if (type->types & MS_TYPE_BOOLLITERAL_TRUE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_False);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -20411,7 +20551,24 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "Convert a complex object to one composed only of simpler builtin types\n"
 "commonly supported by Python serialization libraries.\n"
 "\n"
-"This is mainly useful for adding msgspec support for other protocols.\n"
+"This is mainly useful for adding msgspec support for other protocols, or\n"
+"for cases where msgspec is only processing part of a message. The\n"
+"conversion applies the same semantics as `msgspec.json.encode` and\n"
+"`msgspec.msgpack.encode`:\n"
+"\n"
+"- Struct-level settings are honored: ``rename``, ``omit_defaults``,\n"
+"  ``array_like``, and ``tag`` for tagged unions.\n"
+"- Fields containing `msgspec.UNSET` are omitted from the output.\n"
+"- Nested `msgspec.Struct` / `dataclasses.dataclass` / attrs /\n"
+"  `typing.TypedDict` / `typing.NamedTuple` values are recursively\n"
+"  expanded.\n"
+"- Types without a direct builtin equivalent (`bytes`, `datetime.datetime`,\n"
+"  `uuid.UUID`, `decimal.Decimal`, `enum.Enum`, ...) are converted to their\n"
+"  serializable representations. See :ref:`to-builtins-vs-asdict` for the\n"
+"  full list.\n"
+"\n"
+"In contrast, `msgspec.structs.asdict` and `msgspec.structs.astuple`\n"
+"perform a plain one-to-one conversion, applying none of the above.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -20638,6 +20795,18 @@ convert_bool(
     if (type->types & MS_TYPE_BOOL) {
         Py_INCREF(obj);
         return obj;
+    }
+    if (obj == Py_True && (type->types & MS_TYPE_BOOLLITERAL_TRUE)) {
+        Py_INCREF(Py_True);
+        return Py_True;
+    }
+    if (obj == Py_False && (type->types & MS_TYPE_BOOLLITERAL_FALSE)) {
+        Py_INCREF(Py_False);
+        return Py_False;
+    }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -22251,6 +22420,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->MsgspecError);
     Py_CLEAR(st->EncodeError);
     Py_CLEAR(st->DecodeError);
+    Py_CLEAR(st->ValidationError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->ABCMetaType);
@@ -22307,6 +22477,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
     Py_CLEAR(st->types_uniontype);
+    Py_CLEAR(st->convert_generic_alias);
 #if PY312_PLUS
     Py_CLEAR(st->typing_typealiastype);
 #endif
@@ -22358,6 +22529,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->MsgspecError);
     Py_VISIT(st->EncodeError);
     Py_VISIT(st->DecodeError);
+    Py_VISIT(st->ValidationError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumMetaType);
     Py_VISIT(st->ABCMetaType);
@@ -22379,9 +22551,13 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
     Py_VISIT(st->types_uniontype);
+    Py_VISIT(st->convert_generic_alias);
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
+    Py_VISIT(st->UUIDType);
+    Py_VISIT(st->uuid_safeuuid_unknown);
+    Py_VISIT(st->DecimalType);
     Py_VISIT(st->astimezone);
     Py_VISIT(st->re_compile);
     return 0;
@@ -22461,42 +22637,29 @@ PyInit__core(void)
         return NULL;
 
     /* Add types */
-    Py_INCREF(&Factory_Type);
-    if (PyModule_AddObject(m, "Factory", (PyObject *)&Factory_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Factory", (PyObject *)&Factory_Type) < 0)
         return NULL;
-    if (PyModule_AddObject(m, "Field", (PyObject *)&Field_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Field", (PyObject *)&Field_Type) < 0)
         return NULL;
-    Py_INCREF(&Meta_Type);
-    if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Meta", (PyObject *)&Meta_Type) < 0)
         return NULL;
-    Py_INCREF(&StructConfig_Type);
-    if (PyModule_AddObject(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
+    if (PyModule_AddObjectRef(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
         return NULL;
-    Py_INCREF(&Ext_Type);
-    if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Ext", (PyObject *)&Ext_Type) < 0)
         return NULL;
-    Py_INCREF(&Raw_Type);
-    if (PyModule_AddObject(m, "Raw", (PyObject *)&Raw_Type) < 0)
+    if (PyModule_AddObjectRef(m, "Raw", (PyObject *)&Raw_Type) < 0)
         return NULL;
-    Py_INCREF(&Encoder_Type);
-    if (PyModule_AddObject(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
         return NULL;
-    Py_INCREF(&Decoder_Type);
-    if (PyModule_AddObject(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
-    Py_INCREF(&JSONEncoder_Type);
-    if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
         return NULL;
-    Py_INCREF(&JSONDecoder_Type);
-    if (PyModule_AddObject(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
+    if (PyModule_AddObjectRef(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
         return NULL;
-    Py_INCREF(&Unset_Type);
-    if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
+    if (PyModule_AddObjectRef(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
         return NULL;
-    Py_INCREF((PyObject *)&StructMetaType);
-    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
-        Py_DECREF((PyObject *)&StructMetaType);
-        Py_DECREF(m);
+    if (PyModule_AddObjectRef(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
         return NULL;
     }
 
@@ -22506,13 +22669,11 @@ PyInit__core(void)
     st->gc_cycle = 0;
 
     /* Add NODEFAULT singleton */
-    Py_INCREF(NODEFAULT);
-    if (PyModule_AddObject(m, "NODEFAULT", NODEFAULT) < 0)
+    if (PyModule_AddObjectRef(m, "NODEFAULT", NODEFAULT) < 0)
         return NULL;
 
     /* Add UNSET singleton */
-    Py_INCREF(UNSET);
-    if (PyModule_AddObject(m, "UNSET", UNSET) < 0)
+    if (PyModule_AddObjectRef(m, "UNSET", UNSET) < 0)
         return NULL;
 
     /* Initialize the exceptions. */
@@ -22547,24 +22708,18 @@ PyInit__core(void)
     );
     if (st->ValidationError == NULL) return NULL;
 
-    Py_INCREF(st->MsgspecError);
-    if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
+    if (PyModule_AddObjectRef(m, "MsgspecError", st->MsgspecError) < 0)
         return NULL;
-    Py_INCREF(st->EncodeError);
-    if (PyModule_AddObject(m, "EncodeError", st->EncodeError) < 0)
+    if (PyModule_AddObjectRef(m, "EncodeError", st->EncodeError) < 0)
         return NULL;
-    Py_INCREF(st->DecodeError);
-    if (PyModule_AddObject(m, "DecodeError", st->DecodeError) < 0)
+    if (PyModule_AddObjectRef(m, "DecodeError", st->DecodeError) < 0)
         return NULL;
-    Py_INCREF(st->ValidationError);
-    if (PyModule_AddObject(m, "ValidationError", st->ValidationError) < 0)
+    if (PyModule_AddObjectRef(m, "ValidationError", st->ValidationError) < 0)
         return NULL;
 
     /* Initialize the struct_lookup_cache */
     st->struct_lookup_cache = PyDict_New();
-    if (st->struct_lookup_cache == NULL) return NULL;
-    Py_INCREF(st->struct_lookup_cache);
-    if (PyModule_AddObject(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
+    if (PyModule_AddObjectRef(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
         return NULL;
 
 #define SET_REF(attr, name) \
@@ -22598,6 +22753,7 @@ PyInit__core(void)
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");
+    SET_REF(convert_generic_alias, "convert_generic_alias");
     Py_DECREF(temp_module);
 
     temp_module = PyImport_ImportModule("types");
@@ -22720,9 +22876,7 @@ PyInit__core(void)
         (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
         "__module__", "msgspec", "__doc__", Struct__doc__
     );
-    if (st->StructType == NULL) return NULL;
-    Py_INCREF(st->StructType);
-    if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
+    if (PyModule_AddObjectRef(m, "Struct", st->StructType) < 0) return NULL;
 #ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif

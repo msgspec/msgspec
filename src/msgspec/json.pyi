@@ -1,68 +1,61 @@
 from collections.abc import Callable, Iterable
+from types import GenericAlias
 from typing import (
     Any,
-    Dict,
     Generic,
     Literal,
-    Optional,
-    Tuple,
     Type,
+    TypeAlias,
     TypeVar,
-    Union,
+    final,
     overload,
 )
 
 from typing_extensions import Buffer
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
-enc_hook_sig = Optional[Callable[[Any], Any]]
-dec_hook_sig = Optional[Callable[[type, Any], Any]]
-float_hook_sig = Optional[Callable[[str], Any]]
-schema_hook_sig = Optional[Callable[[type], dict[str, Any]]]
+_EncHookSig: TypeAlias = Callable[[Any], Any] | None
+_DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
+_FloatHookSig: TypeAlias = Callable[[str], Any] | None
+_SchemaHookSig: TypeAlias = Callable[[type], dict[str, Any]] | None
 
+@final
 class Encoder:
-    enc_hook: enc_hook_sig
+    enc_hook: _EncHookSig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex"]
-    order: Literal[None, "deterministic", "sorted"]
+    order: Literal["deterministic", "sorted"] | None
 
     def __init__(
         self,
         *,
-        enc_hook: enc_hook_sig = None,
+        enc_hook: _EncHookSig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
-        order: Literal[None, "deterministic", "sorted"] = None,
+        order: Literal["deterministic", "sorted"] | None = None,
     ): ...
     def encode(self, obj: Any, /) -> bytes: ...
-    def encode_lines(self, items: Iterable, /) -> bytes: ...
+    def encode_lines(self, items: Iterable[Any], /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
+        self, obj: Any, buffer: bytearray, offset: int | None = 0, /
     ) -> None: ...
 
-class Decoder(Generic[T]):
-    type: Type[T]
+@final
+class Decoder(Generic[_T]):
+    type: Type[_T]  # needed for mypy, because of the same name
     strict: bool
-    dec_hook: dec_hook_sig
-    float_hook: float_hook_sig
+    dec_hook: _DecHookSig
+    float_hook: _FloatHookSig
 
     @overload
     def __init__(
-        self: Decoder[Any],
+        self: Decoder[_T],
+        type: Type[_T],
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
-    ) -> None: ...
-    @overload
-    def __init__(
-        self: Decoder[T],
-        type: Type[T] = ...,
-        *,
-        strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        float_hook: _FloatHookSig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -70,57 +63,50 @@ class Decoder(Generic[T]):
         type: Any = ...,
         *,
         strict: bool = True,
-        dec_hook: dec_hook_sig = None,
-        float_hook: float_hook_sig = None,
+        dec_hook: _DecHookSig = None,
+        float_hook: _FloatHookSig = None,
     ) -> None: ...
-    def decode(self, buf: Union[Buffer, str], /) -> T: ...
-    def decode_lines(self, buf: Union[Buffer, str], /) -> list[T]: ...
+    def decode(self, buf: Buffer | str, /) -> _T: ...
+    def decode_lines(self, buf: Buffer | str, /) -> list[_T]: ...
+    def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
 
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     /,
     *,
+    type: type[_T],
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-) -> Any: ...
+    dec_hook: _DecHookSig = None,
+) -> _T: ...
 @overload
 def decode(
-    buf: Union[Buffer, str],
-    /,
-    *,
-    type: Type[T] = ...,
-    strict: bool = True,
-    dec_hook: dec_hook_sig = None,
-) -> T: ...
-@overload
-def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     /,
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: dec_hook_sig = None,
+    dec_hook: _DecHookSig = None,
 ) -> Any: ...
 def encode(
     obj: Any,
     /,
     *,
-    enc_hook: enc_hook_sig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
+    enc_hook: _EncHookSig = None,
+    order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
 def schema(
     type: Any,
     *,
-    schema_hook: schema_hook_sig = None,
+    schema_hook: _SchemaHookSig = None,
     ref_template: str = "#/$defs/{name}",
-) -> Dict[str, Any]: ...
+) -> dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],
     *,
-    schema_hook: schema_hook_sig = None,
+    schema_hook: _SchemaHookSig = None,
     ref_template: str = "#/$defs/{name}",
-) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]: ...
+) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]: ...
 @overload
 def format(buf: str, /, *, indent: int = 2) -> str: ...
 @overload
