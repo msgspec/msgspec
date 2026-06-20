@@ -8,14 +8,15 @@ on:
     branches:
     - main
     paths:
-      - src/*
-      - tests/prof/*
-      - benchmarks
+      - src/**
+      - tests/prof/**
+      - benchmarks/**
       - pyproject.toml
       - uv.lock
       - MANIFEST.in
       - setup.py
       - .pytest.toml
+      - .github/workflows/codspeed.yml
   workflow_dispatch:
 
 permissions: {}
