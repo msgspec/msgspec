@@ -219,7 +219,15 @@ def test_pickle_load(benchmark: BenchmarkFixture):
 @pytest.fixture(
     params=[
         "msgspec",
-        pytest.param("copy", marks=[pytest.mark.skipif("sys.version_info < (3, 13)")]),
+        pytest.param(
+            "copy",
+            marks=[
+                pytest.mark.skipif(
+                    "sys.version_info < (3, 13)",
+                    reason="only available on 3.13+",
+                )
+            ],
+        ),
     ]
 )
 def replace_fn(request):
