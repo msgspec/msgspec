@@ -6036,7 +6036,7 @@ structmeta_is_classvar(
             if (temp == NULL) return 0;
             temp = PyObject_GetAttrString(temp, "ClassVar");
             int status = temp == mod->typing_classvar;
-            Py_DECREF(temp);
+            Py_XDECREF(temp);
             return status;
         }
     }
