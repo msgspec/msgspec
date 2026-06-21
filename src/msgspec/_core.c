@@ -532,6 +532,7 @@ typedef struct {
     PyObject *get_class_annotations;
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
+    PyObject *convert_generic_alias;
     PyObject *rebuild;
     PyObject *types_uniontype;
 #if PY312_PLUS
@@ -5010,6 +5011,29 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
+static MS_INLINE int
+normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
+    // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
+    // 'typing._GenericAlias'. 'types.GenericAlias' has __slots__ and forwards
+    // attribute access to its origin, so we can't cache type info (as
+    // '__msgspec_cache__') on it; a 'typing._GenericAlias' can.
+    //
+    // only the branches that cache on the alias (struct/dataclass/TypedDict/
+    // NamedTuple/Literal) need to call this. a 'types.GenericAlias' here only arises
+    // when  subclassing a builtin container generic (e.g. 'collections.abc.Mapping') or
+    // from a manually constructed 'types.GenericAlias' (e.g. wrapping 'typing.Literal').
+    //
+    // replace '*t' with a new reference on success (dropping the original), or
+    // return -1 with an exception set.
+    if (MS_LIKELY(Py_TYPE(*t) != &Py_GenericAliasType)) return 0;
+    PyObject *converted = PyObject_CallFunctionObjArgs(
+        state->mod->convert_generic_alias, origin, args, NULL
+    );
+    if (converted == NULL) return -1;
+    Py_SETREF(*t, converted);
+    return 0;
+}
+
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = 0;
@@ -5091,7 +5115,12 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         ms_is_struct_cls(t) ||
         (origin != NULL && ms_is_struct_cls(origin))
     ) {
-        out = typenode_collect_struct(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_struct(state, t);
+        }
     }
     else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
@@ -5194,25 +5223,45 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
         }
-        out = PyList_Append(state->literals, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = PyList_Append(state->literals, t);
+        }
     }
     else if (
         is_typeddict_class(state, t) ||
         (origin != NULL && is_typeddict_class(state, origin))
     ) {
-        out = typenode_collect_typeddict(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_typeddict(state, t);
+        }
     }
     else if (
         is_namedtuple_class(state, t) ||
         (origin != NULL && is_namedtuple_class(state, origin))
     ) {
-        out = typenode_collect_namedtuple(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_namedtuple(state, t);
+        }
     }
     else if (
         is_dataclass_or_attrs_class(state, t) ||
         (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        out = typenode_collect_dataclass(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_dataclass(state, t);
+        }
     }
     else {
         if (origin != NULL) {
@@ -22548,6 +22597,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
     Py_CLEAR(st->types_uniontype);
+    Py_CLEAR(st->convert_generic_alias);
 #if PY312_PLUS
     Py_CLEAR(st->typing_typealiastype);
 #endif
@@ -22621,6 +22671,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
     Py_VISIT(st->types_uniontype);
+    Py_VISIT(st->convert_generic_alias);
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
@@ -22822,6 +22873,7 @@ PyInit__core(void)
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");
+    SET_REF(convert_generic_alias, "convert_generic_alias");
     Py_DECREF(temp_module);
 
     temp_module = PyImport_ImportModule("types");
