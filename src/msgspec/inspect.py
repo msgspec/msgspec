@@ -5,19 +5,8 @@ import decimal
 import enum
 import uuid
 from collections.abc import Iterable
-from typing import (
-    Any,
-    Final,
-    Literal,
-    Type as typing_Type,
-    TypeVar,
-    Union,
-)
-
-try:
-    from types import UnionType as _types_UnionType  # type: ignore
-except Exception:
-    _types_UnionType = type("UnionType", (), {})  # type: ignore
+from types import UnionType as _types_UnionType
+from typing import Any, Final, Literal, TypeVar, Union
 
 try:
     from typing import TypeAliasType as _TypeAliasType  # type: ignore
@@ -305,7 +294,7 @@ class EnumType(Type):
         The corresponding `enum.Enum` type.
     """
 
-    cls: typing_Type[enum.Enum]
+    cls: type[enum.Enum]
 
 
 class LiteralType(Type):
@@ -569,7 +558,7 @@ class StructType(Type):
         ``True`` any unknown fields will result in an error.
     """
 
-    cls: typing_Type[msgspec.Struct]
+    cls: type[msgspec.Struct]
     fields: tuple[Field, ...]
     tag_field: str | None = None
     tag: str | int | None = None
