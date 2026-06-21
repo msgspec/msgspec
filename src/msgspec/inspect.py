@@ -468,6 +468,8 @@ class DictType(Type):
 class FrozenDictType(Type):
     """A type corresponding to `frozendict`.
 
+    Can only be emitted on Python 3.15+.
+
     Parameters
     ----------
     key_type: Type
@@ -480,8 +482,6 @@ class FrozenDictType(Type):
     max_length: int, optional
         If set, an instance of this type must have length less than or equal
         to ``max_length``.
-
-    Can only be emitted on Python 3.15+.
     """
 
     key_type: Type
