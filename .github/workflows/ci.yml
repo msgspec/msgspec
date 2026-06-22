@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
     - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - labeled
+    - unlabeled
     paths:
     # Changes to the package itself
     - src/msgspec/**
@@ -195,7 +201,6 @@ jobs:
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
       build-all: ${{ github.event_name == 'release' }}
-      build-riscv64: ${{ github.event_name == 'release' || contains(github.event.pull_request.labels.*.name, 'build-riscv64') }}
 
   upload-pypi:
     name: Upload artifacts to PyPI

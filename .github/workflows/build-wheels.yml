@@ -10,27 +10,63 @@ on:
       build-all:
         description: Build all wheels including musllinux
         type: boolean
-      build-riscv64:
-        description: Build riscv64 wheels (slow; skipped by default)
-        type: boolean
-        default: false
 
 jobs:
   build-wheels:
-    name: Build ${{ matrix.target }}
-    runs-on: "${{ matrix.os }}"
+    name: Build ${{ matrix.wheel.target }}
+    runs-on: "${{ matrix.wheel.os }}"
     permissions:
       actions: read
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(inputs.build-riscv64 && '{"include":[{"target":"Linux (aarch64)","os":"ubuntu-24.04-arm","archs":"aarch64"},{"target":"Linux (x86_64)","os":"ubuntu-latest","archs":"x86_64"},{"target":"Linux (riscv64)","os":"ubuntu-24.04-riscv","archs":"riscv64"},{"target":"macOS (arm64)","os":"macos-latest","archs":"arm64"},{"target":"macOS (x86_64)","os":"macos-15-intel","archs":"x86_64"},{"target":"Windows (ARM64)","os":"windows-11-arm","archs":"ARM64"},{"target":"Windows (AMD64)","os":"windows-latest","archs":"AMD64"},{"target":"Pyodide (wasm32)","os":"ubuntu-latest","archs":"wasm32","cibw_platform":"pyodide"}]}' || '{"include":[{"target":"Linux (aarch64)","os":"ubuntu-24.04-arm","archs":"aarch64"},{"target":"Linux (x86_64)","os":"ubuntu-latest","archs":"x86_64"},{"target":"macOS (arm64)","os":"macos-latest","archs":"arm64"},{"target":"macOS (x86_64)","os":"macos-15-intel","archs":"x86_64"},{"target":"Windows (ARM64)","os":"windows-11-arm","archs":"ARM64"},{"target":"Windows (AMD64)","os":"windows-latest","archs":"AMD64"},{"target":"Pyodide (wasm32)","os":"ubuntu-latest","archs":"wasm32","cibw_platform":"pyodide"}]}') }}
+      matrix:
+        wheel:
+        - target: Linux (aarch64)
+          os: ubuntu-24.04-arm
+          archs: aarch64
+        - target: Linux (x86_64)
+          os: ubuntu-latest
+          archs: x86_64
+        - target: Linux (riscv64)
+          os: ubuntu-24.04-riscv
+          archs: riscv64
+          required-label: build-riscv64
+        - target: macOS (arm64)
+          os: macos-latest
+          archs: arm64
+        - target: macOS (x86_64)
+          os: macos-15-intel
+          archs: x86_64
+        - target: Windows (ARM64)
+          os: windows-11-arm
+          archs: ARM64
+        - target: Windows (AMD64)
+          os: windows-latest
+          archs: AMD64
+        - target: Pyodide (wasm32)
+          os: ubuntu-latest
+          archs: wasm32
+          cibw_platform: pyodide
+        exclude:
+        - wheel:
+            target: Linux (riscv64)
+            os: ubuntu-24.04-riscv
+            archs: riscv64
+            # Unlabeled PRs match riscv64's required-label; otherwise empty keeps it.
+            required-label: >-
+              ${{
+                github.event_name == 'pull_request' &&
+                !contains(github.event.pull_request.labels.*.name, 'build-riscv64') &&
+                'build-riscv64' ||
+                ''
+              }}
 
     env:
-      CIBW_ARCHS: "${{ matrix.archs }}"
-      CIBW_PLATFORM: "${{ matrix.cibw_platform || 'auto' }}"
+      CIBW_ARCHS: "${{ matrix.wheel.archs }}"
+      CIBW_PLATFORM: "${{ matrix.wheel.cibw_platform || 'auto' }}"
       CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
-      ARTIFACT_NAME: artifact-wheels-${{ matrix.cibw_platform || matrix.os }}-${{ matrix.archs }}
+      ARTIFACT_NAME: artifact-wheels-${{ matrix.wheel.cibw_platform || matrix.wheel.os }}-${{ matrix.wheel.archs }}
       PACKAGE_DIR: dist/${{ inputs.sdist-name }}
 
     steps:
