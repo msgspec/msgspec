@@ -13,30 +13,61 @@ on:
 
 jobs:
   build-wheels:
-    name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
-    runs-on: "${{ matrix.os }}"
+    name: Build ${{ matrix.wheel.target }}
+    runs-on: "${{ matrix.wheel.os }}"
     permissions:
       actions: read
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - os: ubuntu-24.04-arm
+        wheel:
+        - target: Linux (aarch64)
+          os: ubuntu-24.04-arm
           archs: aarch64
-        - os: ubuntu-latest
+        - target: Linux (x86_64)
+          os: ubuntu-latest
           archs: x86_64
-        - os: macos-latest
+        - target: Linux (riscv64)
+          os: ubuntu-24.04-riscv
+          archs: riscv64
+          required-label: build-riscv64
+        - target: macOS (arm64)
+          os: macos-latest
           archs: arm64
-        - os: macos-15-intel
+        - target: macOS (x86_64)
+          os: macos-15-intel
           archs: x86_64
-        - os: windows-11-arm
+        - target: Windows (ARM64)
+          os: windows-11-arm
           archs: ARM64
-        - os: windows-latest
+        - target: Windows (AMD64)
+          os: windows-latest
           archs: AMD64
+        - target: Pyodide (wasm32)
+          os: ubuntu-latest
+          archs: wasm32
+          cibw_platform: pyodide
+        exclude:
+        - wheel:
+            target: Linux (riscv64)
+            os: ubuntu-24.04-riscv
+            archs: riscv64
+            # Unlabeled PRs match riscv64's required-label; otherwise empty keeps it.
+            required-label: >-
+              ${{
+                github.event_name == 'pull_request' &&
+                !contains(github.event.pull_request.labels.*.name, 'build-riscv64') &&
+                'build-riscv64' ||
+                ''
+              }}
 
     env:
+      CIBW_ARCHS: "${{ matrix.wheel.archs }}"
+      CIBW_PLATFORM: "${{ matrix.wheel.cibw_platform || 'auto' }}"
       CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
+      ARTIFACT_NAME: artifact-wheels-${{ matrix.wheel.cibw_platform || matrix.wheel.os }}-${{ matrix.wheel.archs }}
+      PACKAGE_DIR: dist/${{ inputs.sdist-name }}
 
     steps:
     - name: Checkout code
@@ -59,11 +90,8 @@ jobs:
     # incompatible with the repository's full-SHA pinning requirement.
     - name: Build & Test Wheels
       if: runner.os != 'Windows'
-      env:
-        CIBW_ARCHS: "${{ matrix.archs }}"
-        PACKAGE_DIR: "dist/${{ inputs.sdist-name }}"
       run: >-
-        uvx --from cibuildwheel==3.2.1
+        uvx --from cibuildwheel==4.1.0
         cibuildwheel
         --config-file .cibuildwheel.toml
         --output-dir wheelhouse
@@ -71,11 +99,8 @@ jobs:
 
     - name: Build & Test Wheels
       if: runner.os == 'Windows'
-      env:
-        CIBW_ARCHS: "${{ matrix.archs }}"
-        PACKAGE_DIR: "dist/${{ inputs.sdist-name }}"
       run: >-
-        uvx --from cibuildwheel==3.2.1
+        uvx --from cibuildwheel==4.1.0
         cibuildwheel
         --config-file .cibuildwheel.toml
         --output-dir wheelhouse
@@ -84,6 +109,6 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
       with:
-        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        name: "${{ env.ARTIFACT_NAME }}"
         path: wheelhouse/*.whl
         if-no-files-found: error

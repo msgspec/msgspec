@@ -13,6 +13,8 @@ import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
+from .utils import emscripten_stack_limited
+
 try:
     # This is needed for `ruff` to recognize `frozendict` name
     # and to not raise `F821`:
@@ -80,6 +82,7 @@ class TestToBuiltins:
         assert to_builtins(1, enc_hook=None) == 1
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []

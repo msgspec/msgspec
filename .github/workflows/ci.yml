@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
     - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - labeled
+    - unlabeled
     paths:
     # Changes to the package itself
     - src/msgspec/**
