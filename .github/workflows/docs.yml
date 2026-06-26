@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: Repository ref to build
+        description: Repository ref or SHA to check out and build
         required: true
         type: string
       cache-namespace:
