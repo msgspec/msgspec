@@ -27,7 +27,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout code
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       with:
         persist-credentials: false
         ref: "${{ inputs.ref }}"
@@ -39,12 +39,12 @@ jobs:
         ref: "${{ inputs.ref }}"
 
     - name: Install Python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
       with:
         python-version-file: pyproject.toml
 
     - name: Install uv
-      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
       with:
         enable-cache: false
 
@@ -58,7 +58,7 @@ jobs:
       run: just doc-build
 
     - name: Upload docs
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
         name: docs-site
         path: site
@@ -75,19 +75,19 @@ jobs:
       contents: read
     steps:
     - name: Checkout code
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       with:
         persist-credentials: false
         ref: "${{ inputs.ref }}"
 
     - name: Download docs
-      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
       with:
         name: docs-site
         path: site
 
     - name: Restore link check cache
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+      uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
       with:
         path: .lycheecache
         # Caches are immutable. Restore the newest cache in this trusted
@@ -96,7 +96,7 @@ jobs:
         restore-keys: cache-lychee-${{ inputs.cache-namespace }}-
 
     - name: Check links
-      uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2
+      uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2.8.0
       with:
         lycheeVersion: v0.21.0
         fail: true
