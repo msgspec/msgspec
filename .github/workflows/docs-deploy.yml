@@ -23,19 +23,18 @@ concurrency:
 jobs:
   docs:
     name: Build and check docs
+    if: github.event_name == 'push'
     uses: ./.github/workflows/docs.yml
     permissions:
       actions: read
       contents: read
     with:
-      cache-namespace: "${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || 'main' }}"
-      ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
-      sha: "${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
+      cache-namespace: main
+      ref: "${{ github.sha }}"
+      sha: "${{ github.sha }}"
 
   preview:
     name: Deploy preview
-    needs:
-    - docs
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -43,13 +42,51 @@ jobs:
       name: docs-preview
       url: "${{ steps.deploy.outputs.pages-deployment-alias-url }}"
     permissions:
+      actions: read
       contents: read
     steps:
     - name: Download docs
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-      with:
-        name: docs-site
-        path: site
+      env:
+        GH_TOKEN: "${{ github.token }}"
+        HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
+      run: |
+        set -euo pipefail
+
+        run_id=""
+        run_url=""
+
+        for attempt in {1..60}; do
+          run="$(
+            gh run list \
+              --workflow docs-pr.yml \
+              --event pull_request \
+              --commit "${HEAD_SHA}" \
+              --limit 1 \
+              --json databaseId,url \
+              --jq 'if length == 1 then [.[0].databaseId, .[0].url] | @tsv else empty end'
+          )"
+
+          if [ -z "${run}" ]; then
+            echo "Waiting for docs pr run at ${HEAD_SHA} (${attempt}/60)."
+            sleep 15
+            continue
+          fi
+
+          IFS=$'\t' read -r run_id run_url <<< "${run}"
+          echo "Found docs pr run ${run_url}."
+          break
+        done
+
+        if [ -z "${run_id}" ]; then
+          echo "::error::Timed out waiting for docs pr run at ${HEAD_SHA}."
+          exit 1
+        fi
+
+        gh run watch "${run_id}" --compact --exit-status --interval 15
+
+        rm -rf site
+        mkdir -p site
+        gh run download "${run_id}" --name docs-site --dir site
 
     - &validate-docs-site
       name: Validate docs site
@@ -57,6 +94,12 @@ jobs:
         set -euo pipefail
 
         test -f site/index.html
+
+        symlink="$(find site -type l -print -quit)"
+        if [ -n "${symlink}" ]; then
+          echo "::error::Symbolic links are not allowed in docs artifacts: ${symlink}"
+          exit 1
+        fi
 
         # https://developers.cloudflare.com/pages/get-started/direct-upload/#functions
         for path in site/_worker.js functions; do
@@ -115,8 +158,6 @@ jobs:
 
     - name: Check production deployment
       id: gate
-      env:
-        GH_TOKEN: "${{ github.token }}"
       run: |
         git -C snapshot --work-tree="${GITHUB_WORKSPACE}/site" add --all --force
 
@@ -126,7 +167,7 @@ jobs:
           exit 0
         fi
 
-        latest_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq ".object.sha")"
+        latest_sha="$(git -C snapshot ls-remote --heads origin refs/heads/main | awk '{ print $1 }')"
         if [ "${latest_sha}" != "${GITHUB_SHA}" ]; then
           echo "ready=false" >> "${GITHUB_OUTPUT}"
           echo "Production deployment skipped because ${GITHUB_SHA} is no longer the main branch tip (${latest_sha})." >> "${GITHUB_STEP_SUMMARY}"
