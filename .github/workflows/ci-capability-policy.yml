@@ -28,8 +28,11 @@ jobs:
       with:
         persist-credentials: false
         # pull_request_target runs this trusted workflow from the default branch.
-        # The proposed merge is checked out only to parse its workflow YAML.
+        # The proposed merge is checked out only to parse workflow YAML as data.
+        # Do not execute checked-out repository content in this workflow.
         ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+        sparse-checkout: .github
+        allow-unsafe-pr-checkout: true
 
     - name: Audit CI definitions
       env:
