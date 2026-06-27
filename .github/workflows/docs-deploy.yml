@@ -48,6 +48,7 @@ jobs:
     - name: Download docs
       env:
         GH_TOKEN: "${{ github.token }}"
+        GH_REPO: "${{ github.repository }}"
         HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
       run: |
         set -euo pipefail
