@@ -1229,7 +1229,7 @@ instead of additional custom metaclasses.</p></li>
 understand the implications of disabling the GC.</p>
 </div>
 <p>Python uses <a class="reference external" href="https://en.wikipedia.org/wiki/Reference_counting">reference counting</a> to detect when memory can be freed, with a
-periodic <a class="reference external" href="https://devguide.python.org/garbage_collector/">cyclic garbage collector</a> pass to detect and free cyclic references.
+periodic <a class="reference external" href="https://github.com/python/cpython/blob/main/InternalDocs/garbage_collector.md">cyclic garbage collector</a> pass to detect and free cyclic references.
 Garbage collection (GC) is triggered by the number of uncollected GC-enabled
 (objects that contain other objects) objects passing a certain threshold. This
 design means that garbage collection passes often run during code that creates
