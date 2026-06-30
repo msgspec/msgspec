@@ -29,11 +29,6 @@ from typing import (
     Union,
 )
 
-if sys.version_info >= (3, 15):
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from builtins import frozendict
-
 import pytest
 
 from .utils import (
@@ -50,6 +45,11 @@ except ImportError:
 
 import msgspec
 from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 

@@ -5,11 +5,6 @@ import sys
 import uuid
 from decimal import Decimal
 
-if sys.version_info >= (3, 15):
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from builtins import frozendict
-
 import pytest
 
 import msgspec
@@ -28,6 +23,11 @@ except ImportError:
     tomli_w = None
 
 from .utils import py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 needs_decode = pytest.mark.skipif(
     tomllib is None, reason="Neither tomllib or tomli are installed"

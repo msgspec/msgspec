@@ -19,11 +19,6 @@ from typing import (
     TypeVar,
 )
 
-if sys.version_info >= (3, 15):
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from builtins import frozendict
-
 import pytest
 
 import msgspec
@@ -32,6 +27,7 @@ from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 from .utils import (
     emscripten_stack_limited,
     max_call_depth,
+    py315_or_later_only,
     temp_module,
 )
 
@@ -39,6 +35,11 @@ try:
     import attrs
 except ImportError:
     attrs = None
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
@@ -1283,6 +1284,7 @@ class TestDict:
                 convert(dictcls({"x": x}), Ex)
 
 
+@py315_or_later_only
 class TestFrozenDict:
     def check_frozen(self, val, expected):
         assert isinstance(expected, frozendict)

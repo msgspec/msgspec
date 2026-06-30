@@ -9,16 +9,16 @@ import weakref
 from dataclasses import dataclass, make_dataclass
 from typing import Any, NamedTuple
 
-if sys.version_info >= (3, 15):
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from builtins import frozendict
-
 import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
 from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 PY311 = sys.version_info[:2] >= (3, 11)
 

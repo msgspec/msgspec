@@ -24,17 +24,17 @@ from typing import (
     Union,
 )
 
-if sys.version_info >= (3, 15):
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from builtins import frozendict
-
 import pytest
 
 import msgspec
 from msgspec import Meta
 
 from .utils import py315_or_later_only, temp_module
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 T = TypeVar("T")
 
