@@ -5,6 +5,11 @@ import sys
 import uuid
 from decimal import Decimal
 
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 import pytest
 
 import msgspec
@@ -13,14 +18,6 @@ try:
     import yaml  # noqa
 except ImportError:
     pytestmark = pytest.mark.skip(reason="PyYAML is not installed")
-
-
-try:
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from _future_builtins_ import frozendict
-except ImportError:
-    pass
 
 
 UTC = datetime.timezone.utc

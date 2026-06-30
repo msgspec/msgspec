@@ -29,9 +29,14 @@ from typing import (
     Union,
 )
 
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 import pytest
 
-from .utils import max_call_depth, temp_module
+from .utils import emscripten_stack_limited, max_call_depth, temp_module
 
 try:
     import attrs
@@ -40,13 +45,6 @@ except ImportError:
 
 import msgspec
 from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
-
-try:
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from _future_builtins_ import frozendict
-except ImportError:
-    pass
 
 UTC = datetime.timezone.utc
 
@@ -4744,6 +4742,7 @@ class TestTypeAlias:
             "type Temp[T] = tuple[T, Ex[T]]; type Ex[T] = tuple[Temp[T], T];",
         ],
     )
+    @emscripten_stack_limited
     def test_recursive_typealias_errors(self, src):
         """Eventually we should support this, but for now just test that it
         errors cleanly"""

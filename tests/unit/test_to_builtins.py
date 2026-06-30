@@ -9,16 +9,16 @@ import weakref
 from dataclasses import dataclass, make_dataclass
 from typing import Any, NamedTuple
 
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
-try:
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from _future_builtins_ import frozendict
-except ImportError:
-    pass
+from .utils import emscripten_stack_limited
 
 PY311 = sys.version_info[:2] >= (3, 11)
 
@@ -80,6 +80,7 @@ class TestToBuiltins:
         assert to_builtins(1, enc_hook=None) == 1
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []

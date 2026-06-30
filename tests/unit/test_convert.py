@@ -19,24 +19,22 @@ from typing import (
     TypeVar,
 )
 
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 import pytest
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
-from .utils import max_call_depth, temp_module
+from .utils import emscripten_stack_limited, max_call_depth, temp_module
 
 try:
     import attrs
 except ImportError:
     attrs = None
-
-try:
-    # This is needed for `ruff` to recognize `frozendict` name
-    # and to not raise `F821`:
-    from _future_builtins_ import frozendict
-except ImportError:
-    pass
 
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
@@ -1127,6 +1125,7 @@ class TestNamedTuple:
         with pytest.raises(ValidationError, match="Expected `array`, got `object`"):
             convert({"a": 1, "b": "two"}, Example)
 
+    @emscripten_stack_limited
     def test_namedtuple_cyclic_recursion(self):
         source = """
         from __future__ import annotations

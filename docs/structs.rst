@@ -1114,7 +1114,7 @@ collected (leading to a memory leak).
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 .. _reference counting: https://en.wikipedia.org/wiki/Reference_counting
-.. _cyclic garbage collector: https://devguide.python.org/garbage_collector/
+.. _cyclic garbage collector: https://github.com/python/cpython/blob/main/InternalDocs/garbage_collector.md
 .. _tagged unions: https://en.wikipedia.org/wiki/Tagged_union
 .. _rich: https://rich.readthedocs.io/en/stable/pretty.html
 .. _keyword-only parameters: https://docs.python.org/3/glossary.html#term-parameter

@@ -25,6 +25,8 @@ import pytest
 
 import msgspec
 
+from .utils import emscripten_stack_limited
+
 UTC = datetime.timezone.utc
 
 
@@ -308,6 +310,7 @@ class TestEncoderMisc:
         return o
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    @emscripten_stack_limited
     def test_encode_infinite_recursive_object_errors(self, case):
         enc = msgspec.msgpack.Encoder()
         o = getattr(self, "rec_obj%d" % case)()
@@ -373,6 +376,7 @@ class TestEncoderMisc:
         res = msgspec.msgpack.decode(msg)
         assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
 
+    @emscripten_stack_limited
     def test_encode_enc_hook_recursion_error(self):
         enc = msgspec.msgpack.Encoder(enc_hook=lambda x: x)
 
