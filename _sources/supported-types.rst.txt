@@ -18,6 +18,8 @@ Most combinations of the following types are supported (with a few restrictions)
 - `dict` / `typing.Dict`
 - `set` / `typing.Set`
 - `frozenset` / `typing.FrozenSet`
+- `frozendict <https://docs.python.org/3.15/library/stdtypes.html#frozendict>`__
+  for Python 3.15+
 
 **Msgspec types**
 

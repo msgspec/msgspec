@@ -1628,7 +1628,7 @@ perform a plain one-to-one conversion, applying none of the above.</p>
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to convert.</p></li>
 <li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – An iterable of types to treat as additional builtin types. These types will
 be passed through <code class="docutils literal notranslate"><span class="pre">to_builtins</span></code> unchanged. Currently supports <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>,
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">frozendict</span></code>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>,
 and custom types.</p></li>
 <li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to convert all object keys to strings. Default is False.</p></li>
@@ -2097,6 +2097,57 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 </dd></dl>
 
 <dl class="py class">
+<dt class="sig sig-object py" id="msgspec.inspect.DictType">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">DictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.DictType" title="Link to this definition">¶</a></dt>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The key type.</p></li>
+<li><p><strong>value_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The value type.</p></li>
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="msgspec.inspect.TypedDictType">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">TypedDictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.TypedDictType" title="Link to this definition">¶</a></dt>
+<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> type.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding TypedDict type.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="msgspec.inspect.FrozenDictType">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">FrozenDictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.FrozenDictType" title="Link to this definition">¶</a></dt>
+<dd><p>A type corresponding to <code class="xref py py-obj docutils literal notranslate"><span class="pre">frozendict</span></code>.</p>
+<p>Can only be emitted on Python 3.15+.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The key type.</p></li>
+<li><p><strong>value_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The value type.</p></li>
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.VarTupleType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">VarTupleType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.VarTupleType" title="Link to this definition">¶</a></dt>
 <dd><p>A type corresponding to a variadic <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
@@ -2125,24 +2176,6 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="msgspec.inspect.DictType">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">DictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.DictType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>key_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The key type.</p></li>
-<li><p><strong>value_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The value type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
-to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
-to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.Field">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">Field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encode_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">required</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.Field" title="Link to this definition">¶</a></dt>
 <dd><p>A record describing a field in an object-like type.</p>
@@ -2160,20 +2193,6 @@ optional fields may exist with no default value.</p></li>
 is set.</p></li>
 <li><p><strong>default_factory</strong> (<em>Any</em><em>, </em><em>optional</em>) – A callable that creates a default value for the field. Will be
 <code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is set.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="msgspec.inspect.TypedDictType">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">TypedDictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.TypedDictType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> type.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding TypedDict type.</p></li>
-<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2443,11 +2462,12 @@ is set.</p></li>
 <li><a class="reference internal" href="#msgspec.inspect.ListType"><code class="docutils literal notranslate"><span class="pre">ListType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.SetType"><code class="docutils literal notranslate"><span class="pre">SetType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.FrozenSetType"><code class="docutils literal notranslate"><span class="pre">FrozenSetType</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.inspect.DictType"><code class="docutils literal notranslate"><span class="pre">DictType</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.inspect.TypedDictType"><code class="docutils literal notranslate"><span class="pre">TypedDictType</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.inspect.FrozenDictType"><code class="docutils literal notranslate"><span class="pre">FrozenDictType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.VarTupleType"><code class="docutils literal notranslate"><span class="pre">VarTupleType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.TupleType"><code class="docutils literal notranslate"><span class="pre">TupleType</span></code></a></li>
-<li><a class="reference internal" href="#msgspec.inspect.DictType"><code class="docutils literal notranslate"><span class="pre">DictType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.Field"><code class="docutils literal notranslate"><span class="pre">Field</span></code></a></li>
-<li><a class="reference internal" href="#msgspec.inspect.TypedDictType"><code class="docutils literal notranslate"><span class="pre">TypedDictType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.NamedTupleType"><code class="docutils literal notranslate"><span class="pre">NamedTupleType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.DataclassType"><code class="docutils literal notranslate"><span class="pre">DataclassType</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.StructType"><code class="docutils literal notranslate"><span class="pre">StructType</span></code></a></li>

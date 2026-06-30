@@ -552,6 +552,44 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </pre></div>
 </div>
 </section>
+<section id="think-about-type-conversion">
+<h2>Think about type conversion<a class="headerlink" href="#think-about-type-conversion" title="Link to this heading">¶</a></h2>
+<p>When converting raw data into Python types, the internal machinery
+will treat different datastructures differently.
+Some type conversions are faster than others.</p>
+<p>For example, this model:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">items</span><span class="p">:</span> <span class="n">frozendict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>  <span class="c1"># requires Python3.15+ to be used</span>
+
+<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;items&quot;: {&quot;pen&quot;: 1, &quot;book&quot;: 2}}&#39;</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="c1"># Example(items=frozendict({&quot;pen&quot;: 1, &quot;book&quot;: 2}))</span>
+</pre></div>
+</div>
+<p>As <code class="docutils literal notranslate"><span class="pre">frozendict</span></code> does not allow adding items one at a time,
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> will first parse <code class="docutils literal notranslate"><span class="pre">items</span></code> as a regular <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>,
+and will then convert it to <code class="docutils literal notranslate"><span class="pre">frozendict</span></code>, which results in the
+total decoding operation having <code class="docutils literal notranslate"><span class="pre">O(n*2)</span></code> time complexity.
+Which might be slow on big dictionaries and consume more memory.
+Regular <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> would be more efficient to use.</p>
+<p>The same can be said for <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a> vs <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">items</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;items&quot;: [&quot;pen&quot;, &quot;book&quot;]}&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="go">Example(items=(&quot;pen&quot;, &quot;book&quot;))</span>
+</pre></div>
+</div>
+<p>We would first create a <code class="docutils literal notranslate"><span class="pre">list</span></code> object and then convert
+it to variable-sized <code class="docutils literal notranslate"><span class="pre">tuple</span></code>,
+using double the memory and <code class="docutils literal notranslate"><span class="pre">O(n*2)</span></code> time to do that.
+This is true for all conversions, that require an intermediate representation.</p>
+<p>To achieve the best performance,
+use collection types that can be constructed natively:
+<code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">set</span></code>, <code class="docutils literal notranslate"><span class="pre">frozenset</span></code>, fixed-sized <code class="docutils literal notranslate"><span class="pre">tuple</span></code>, and <code class="docutils literal notranslate"><span class="pre">dict</span></code>.</p>
+</section>
 </section>
 
         </article>
@@ -628,6 +666,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 <li><a class="reference internal" href="#use-messagepack">Use MessagePack</a></li>
 <li><a class="reference internal" href="#use-gc-false">Use <code class="docutils literal notranslate"><span class="pre">gc=False</span></code></a></li>
 <li><a class="reference internal" href="#use-array-like-true">Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></a></li>
+<li><a class="reference internal" href="#think-about-type-conversion">Think about type conversion</a></li>
 </ul>
 </li>
 </ul>
