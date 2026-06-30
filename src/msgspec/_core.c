@@ -556,6 +556,13 @@ ms_err_truncated(void)
     return -1;
 }
 
+static int
+ms_decimal_format_error(void)
+{
+    PyErr_SetString(PyExc_TypeError, "callable returned a value containing a Decimal");
+    return -1;
+}
+
 /*************************************************************************
  * Utilities                                                             *
  *************************************************************************/
@@ -13478,11 +13485,7 @@ mpack_encode_decimal(EncoderState *self, PyObject *obj)
     }
     else {
         if (self->in_decimal_callable) {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "callable returned a value containing a Decimal"
-            );
-            return -1;
+            return ms_decimal_format_error();
         }
         temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
         if (temp == NULL) return -1;
@@ -14133,11 +14136,7 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
 
     if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
         if (self->in_decimal_callable) {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "callable returned a value containing a Decimal"
-            );
-            return -1;
+            return ms_decimal_format_error();
         }
         temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
         if (temp == NULL) return -1;
