@@ -9678,15 +9678,22 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     if (decimal_format == NULL) {
         self->decimal_format = DECIMAL_FORMAT_STRING;
     }
-    else if (PyUnicode_CheckExact(decimal_format)) {
+    else if (PyCallable_Check(decimal_format)) {
+        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
+        Py_INCREF(decimal_format);
+        self->decimal_callable = decimal_format;
+    }
+    else {
         bool ok = false;
-        if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
-            self->decimal_format = DECIMAL_FORMAT_STRING;
-            ok = true;
-        }
-        else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
-            self->decimal_format = DECIMAL_FORMAT_NUMBER;
-            ok = true;
+        if (PyUnicode_CheckExact(decimal_format)) {
+            if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
+                self->decimal_format = DECIMAL_FORMAT_STRING;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
+                self->decimal_format = DECIMAL_FORMAT_NUMBER;
+                ok = true;
+            }
         }
         if (!ok) {
             PyErr_Format(
@@ -9696,19 +9703,6 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
             );
             return -1;
         }
-    }
-    else if (PyCallable_Check(decimal_format)) {
-        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
-        Py_INCREF(decimal_format);
-        self->decimal_callable = decimal_format;
-    }
-    else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "`decimal_format` must be 'string', 'number', or a callable, got %R",
-            decimal_format
-        );
-        return -1;
     }
 
     /* Process uuid format */
@@ -14155,24 +14149,24 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         return out;
     }
 
-        temp = PyObject_Str(obj);
-        if (temp == NULL) return -1;
+    temp = PyObject_Str(obj);
+    if (temp == NULL) return -1;
 
-        Py_ssize_t size;
-        const char* buf = unicode_str_and_size_nocheck(temp, &size);
-        bool decimal_as_string = (self->decimal_format == DECIMAL_FORMAT_STRING);
+    Py_ssize_t size;
+    const char* buf = unicode_str_and_size_nocheck(temp, &size);
+    bool decimal_as_string = (self->decimal_format == DECIMAL_FORMAT_STRING);
 
-        Py_ssize_t required = size + (2 * decimal_as_string);
-        if (ms_ensure_space(self, size + 2) < 0) {
-            Py_DECREF(temp);
-            return -1;
-        }
-        char *p = self->output_buffer_raw + self->output_len;
-        if (MS_LIKELY(decimal_as_string)) *p++ = '"';
-        memcpy(p, buf, size);
-        if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
-        self->output_len += required;
+    Py_ssize_t required = size + (2 * decimal_as_string);
+    if (ms_ensure_space(self, size + 2) < 0) {
         Py_DECREF(temp);
+        return -1;
+    }
+    char *p = self->output_buffer_raw + self->output_len;
+    if (MS_LIKELY(decimal_as_string)) *p++ = '"';
+    memcpy(p, buf, size);
+    if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
+    self->output_len += required;
+    Py_DECREF(temp);
 
     return 0;
 }

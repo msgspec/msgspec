@@ -4735,16 +4735,13 @@ class TestDecimal:
         enc = proto.Encoder(decimal_format=fn)
         assert enc.decimal_format is fn
 
-    def test_encoder_invalid_decimal_format(self, proto):
+    @pytest.mark.parametrize("decimal_format", ["bad", 1, {}])
+    def test_encoder_invalid_decimal_format(self, proto, decimal_format):
         with pytest.raises(
-            ValueError, match="must be 'string', 'number', or a callable, got 'bad'"
+            ValueError,
+            match=f"must be 'string', 'number', or a callable, got {decimal_format!r}",
         ):
-            proto.Encoder(decimal_format="bad")
-
-        with pytest.raises(
-            TypeError, match="must be 'string', 'number', or a callable, got 1"
-        ):
-            proto.Encoder(decimal_format=1)
+            proto.Encoder(decimal_format=decimal_format)
 
     @pytest.mark.parametrize(
         ("value", "expected"),
