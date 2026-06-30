@@ -14137,7 +14137,24 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
 {
     PyObject *temp;
 
-    if (MS_LIKELY(self->decimal_format != DECIMAL_FORMAT_CALLABLE)) {
+    if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
+        if (self->in_decimal_callable) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "callable returned a value containing a Decimal"
+            );
+            return -1;
+        }
+        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
+        if (temp == NULL) return -1;
+
+        self->in_decimal_callable = true;
+        int out = json_encode(self, temp);
+        self->in_decimal_callable = false;
+        Py_DECREF(temp);
+        return out;
+    }
+
         temp = PyObject_Str(obj);
         if (temp == NULL) return -1;
 
@@ -14156,24 +14173,6 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
         self->output_len += required;
         Py_DECREF(temp);
-    }
-    else {
-        if (self->in_decimal_callable) {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "callable returned a value containing a Decimal"
-            );
-            return -1;
-        }
-        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
-        if (temp == NULL) return -1;
-
-        self->in_decimal_callable = true;
-        int out = json_encode(self, temp);
-        self->in_decimal_callable = false;
-        Py_DECREF(temp);
-        return out;
-    }
 
     return 0;
 }
