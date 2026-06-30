@@ -18,7 +18,7 @@ import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
-from .utils import emscripten_stack_limited
+from .utils import emscripten_stack_limited, py315_or_later_only
 
 PY311 = sys.version_info[:2] >= (3, 11)
 
@@ -320,9 +320,7 @@ class TestToBuiltins:
         assert type(expected) is dict
         assert val == expected
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     @pytest.mark.parametrize("subclass", [False, True])
     def test_frozendict(self, subclass):
         if subclass:
@@ -341,9 +339,7 @@ class TestToBuiltins:
 
         self.check_non_frozen(to_builtins(in_type()), {})
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_builtin_types(self):
         msg = to_builtins(frozendict({"test": 1}), builtin_types=(frozendict,))
         assert type(msg) is frozendict
@@ -361,9 +357,7 @@ class TestToBuiltins:
         assert type(msg["test"]) is frozendict
         assert msg == frozendict({"test": frozendict({1: "a"})})
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_str_subclass_key(self):
         class mystr(str):
             pass
@@ -372,25 +366,19 @@ class TestToBuiltins:
         self.check_non_frozen(msg, {"test": 1})
         assert type(list(msg.keys())[0]) is str
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_unsupported_key(self):
         msg = frozendict({Bad(): 1})
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(msg)
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_unsupported_value(self):
         msg = frozendict({"x": Bad()})
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(msg)
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_str_keys(self):
         self.check_non_frozen(
             to_builtins(frozendict({FruitStr.BANANA: 1}), str_keys=True),
@@ -409,9 +397,7 @@ class TestToBuiltins:
             {"2": 1},
         )
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_frozendict_sequence_keys(self):
         msg = frozendict({frozenset([1, 2]): 1})
         self.check_non_frozen(to_builtins(msg), {(1, 2): 1})

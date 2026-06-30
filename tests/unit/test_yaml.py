@@ -19,6 +19,7 @@ try:
 except ImportError:
     pytestmark = pytest.mark.skip(reason="PyYAML is not installed")
 
+from .utils import py315_or_later_only
 
 UTC = datetime.timezone.utc
 
@@ -116,7 +117,7 @@ def test_roundtrip_typed(val, type):
     assert res == val
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 def test_roundtrip_frozendict():
     val = frozendict({"x": 1})
     msg = msgspec.yaml.encode(val)

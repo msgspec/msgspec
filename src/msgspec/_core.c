@@ -2899,7 +2899,7 @@ AssocList_Sort(AssocList* list) {
  * O | TYPEDDICT | DATACLASS |
  * O | NAMEDTUPLE |
  * O | STR_REGEX |
- * T | DICT | FROZENDICT [key, value] |
+ * T | DICT [key, value] | FROZENDICT [key, value] |
  * T | LIST | SET | FROZENSET | VARTUPLE |
  * I | INT_MIN |
  * I | INT_MAX |
@@ -5139,6 +5139,15 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
         );
     }
+    else if (origin == (PyObject*)(&PyList_Type)) {
+        kind = CK_ARRAY;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
+        out = typenode_collect_array(
+            state,
+            MS_TYPE_LIST,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
+        );
+    }
 #if PY315_PLUS
     else if (origin == (PyObject*)(&PyFrozenDict_Type)) {
         kind = CK_MAP;
@@ -5151,15 +5160,6 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         );
     }
 #endif
-    else if (origin == (PyObject*)(&PyList_Type)) {
-        kind = CK_ARRAY;
-        if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
-        out = typenode_collect_array(
-            state,
-            MS_TYPE_LIST,
-            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
-        );
-    }
     else if (origin == (PyObject*)(&PySet_Type)) {
         kind = CK_ARRAY;
         if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;

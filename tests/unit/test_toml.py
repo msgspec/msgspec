@@ -27,6 +27,7 @@ try:
 except ImportError:
     tomli_w = None
 
+from .utils import py315_or_later_only
 
 needs_decode = pytest.mark.skipif(
     tomllib is None, reason="Neither tomllib or tomli are installed"
@@ -138,7 +139,7 @@ def test_roundtrip_typed(val, type):
     assert res == val
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 @needs_encode
 @needs_decode
 def test_roundtrip_frozendict():

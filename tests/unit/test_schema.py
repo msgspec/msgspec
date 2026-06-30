@@ -34,7 +34,7 @@ import pytest
 import msgspec
 from msgspec import Meta
 
-from .utils import temp_module
+from .utils import py315_or_later_only, temp_module
 
 T = TypeVar("T")
 
@@ -246,12 +246,12 @@ def test_dict_typed(cls):
     }
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 def test_frozendict_any():
     assert msgspec.json.schema(frozendict) == {"type": "object"}
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 def test_frozendict_typed():
     typ = frozendict[str, bool]
     assert msgspec.json.schema(typ) == {

@@ -36,7 +36,12 @@ if sys.version_info >= (3, 15):
 
 import pytest
 
-from .utils import emscripten_stack_limited, max_call_depth, temp_module
+from .utils import (
+    emscripten_stack_limited,
+    max_call_depth,
+    py315_or_later_only,
+    temp_module,
+)
 
 try:
     import attrs
@@ -1074,9 +1079,7 @@ class TestUnionTypeErrors:
         assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_err_union_frozendict_dict_like_types(self, proto):
         for typ in [
             frozendict | Person,
@@ -1089,9 +1092,7 @@ class TestUnionTypeErrors:
             assert "more than one dict-like type" in str(rec.value)
             assert repr(typ) in str(rec.value)
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_err_union_frozendict_and_dict(self, proto):
         for typ in [
             frozendict | dict,
@@ -4890,9 +4891,7 @@ class TestAbstractTypes:
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     @pytest.mark.parametrize(
         "typ",
         [
@@ -5037,9 +5036,7 @@ class TestOrder:
         with pytest.raises(TypeError):
             proto.encode({"x": 1, 1: 2}, order="deterministic")
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
     @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
     @pytest.mark.parametrize("use_encoder", [False, True])
@@ -5056,16 +5053,12 @@ class TestOrder:
 
         assert res == sol
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_order_frozendict_non_str_errors(self, proto):
         with pytest.raises(TypeError, match="Only dicts with str keys"):
             proto.encode(frozendict({"b": 2, 1: "a"}), order="deterministic")
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 15), reason="frozendict was added in 3.15"
-    )
+    @py315_or_later_only
     def test_order_frozendict_unsortable(self, proto):
         with pytest.raises(TypeError):
             proto.encode(frozendict({"x": 1, 1: 2}), order="deterministic")
@@ -5515,7 +5508,7 @@ class TestLax:
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 class TestFrozendict:
     def test_decode_frozendict_not_object(self, proto):
         dec = proto.Decoder(frozendict[str, int])

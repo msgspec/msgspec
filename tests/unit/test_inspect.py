@@ -37,7 +37,7 @@ import msgspec
 import msgspec.inspect as mi
 from msgspec import Meta
 
-from .utils import temp_module
+from .utils import py315_or_later_only, temp_module
 
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
@@ -291,7 +291,7 @@ def test_dict(typ, kw, has_args):
     assert mi.type_info(typ) == sol
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
+@py315_or_later_only
 @pytest.mark.parametrize("kw", [{}, dict(min_length=0), dict(max_length=3)])
 @pytest.mark.parametrize("has_args", [False, True])
 def test_frozendict(kw, has_args):

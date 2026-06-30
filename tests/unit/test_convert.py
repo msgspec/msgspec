@@ -29,7 +29,11 @@ import pytest
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
-from .utils import emscripten_stack_limited, max_call_depth, temp_module
+from .utils import (
+    emscripten_stack_limited,
+    max_call_depth,
+    temp_module,
+)
 
 try:
     import attrs
@@ -1279,7 +1283,6 @@ class TestDict:
                 convert(dictcls({"x": x}), Ex)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="frozendict was added in 3.15")
 class TestFrozenDict:
     def check_frozen(self, val, expected):
         assert isinstance(expected, frozendict)
