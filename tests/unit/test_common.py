@@ -5042,15 +5042,18 @@ class TestOrder:
     @pytest.mark.parametrize("use_encoder", [False, True])
     def test_order_frozendict(self, msg, order, use_encoder, proto):
         if use_encoder:
-            res = proto.Encoder(order=order).encode(msg)
+            res = proto.Encoder(order=order).encode(frozendict(msg))
         else:
-            res = proto.encode(msg, order=order)
+            res = proto.encode(frozendict(msg), order=order)
 
+        # `frozendict` must be equal to the regular `dict`:
+        assert isinstance(msg, dict)
         if order is not None:
-            sol = proto.encode(frozendict(sorted(msg.items())))
+            sol = proto.encode(dict(sorted(msg.items())))
         else:
             sol = proto.encode(msg)
 
+        assert isinstance(res, bytes)
         assert res == sol
 
     @py315_or_later_only
