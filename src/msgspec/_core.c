@@ -20225,6 +20225,17 @@ cleanup:;
     return out;
 }
 
+#if PY315_PLUS
+static PyObject *
+to_builtins_frozendict(ToBuiltinsState *self, PyObject *obj) {
+    PyObject *out = to_builtins_dict(self, obj);
+    if (self->builtin_types & MS_BUILTIN_FROZENDICT) {
+        return _PyFrozenDict_NewSteal(out);
+    }
+    return out;
+}
+#endif
+
 static PyObject *
 to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
@@ -20506,8 +20517,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     }
 #if PY315_PLUS
     else if (PyFrozenDict_Check(obj)) {
-        if (self->builtin_types & MS_BUILTIN_FROZENDICT) goto builtin;
-        return to_builtins_dict(self, obj);
+        return to_builtins_frozendict(self, obj);
     }
 #endif
     else if (ms_is_struct_type(type)) {

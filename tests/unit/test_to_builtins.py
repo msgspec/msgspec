@@ -331,12 +331,17 @@ class TestToBuiltins:
         else:
             in_type = frozendict
 
-        msg = in_type({FruitStr.BANANA: 1, "b": [FruitInt.APPLE], 3: "three"})
+        raw = {FruitStr.BANANA: 1, "b": [FruitInt.APPLE], 3: "three"}
+        msg = in_type(raw)
 
         res = to_builtins(msg)
         self.check_non_frozen(res, {"banana": 1, "b": [-1], 3: "three"})
         assert res is not msg
 
+        self.check_non_frozen(
+            to_builtins(raw, builtin_types=[frozendict]),
+            {"banana": 1, "b": [-1], 3: "three"},
+        )
         self.check_non_frozen(to_builtins(in_type()), {})
 
     @py315_or_later_only
@@ -349,13 +354,22 @@ class TestToBuiltins:
             frozendict(
                 {
                     "test": frozendict({1: "a"}),
+                    FruitStr.BANANA: 1,
+                    "b": [FruitInt.APPLE],
                 }
             ),
             builtin_types=(frozendict,),
         )
         assert type(msg) is frozendict
         assert type(msg["test"]) is frozendict
-        assert msg == frozendict({"test": frozendict({1: "a"})})
+        assert type(list(msg.keys())[1]) is str
+        assert msg == frozendict(
+            {
+                "test": frozendict({1: "a"}),
+                "banana": 1,
+                "b": [-1],
+            }
+        )
 
     @py315_or_later_only
     def test_frozendict_str_subclass_key(self):
@@ -629,9 +643,9 @@ class TestOrder:
             to_builtins(1, order="bad")
 
     @staticmethod
-    def assert_eq(left, right):
+    def assert_eq(left, right, typ=dict):
         assert left == right
-        if isinstance(left, dict):
+        if isinstance(left, typ):
             assert list(left) == list(right)
 
     @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
@@ -648,6 +662,15 @@ class TestOrder:
     def test_order_dict_unsortable(self):
         with pytest.raises(TypeError):
             to_builtins({"x": 1, 1: 2}, order="deterministic")
+
+    @py315_or_later_only
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    def test_frozendict_builtin_types_sorted(self, msg, order):
+        msg = frozendict(msg)
+        res = to_builtins(msg, builtin_types=[frozendict], order=order)
+        sol = frozendict(sorted(msg.items())) if order else msg
+        self.assert_eq(res, sol, typ=frozendict)
 
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
