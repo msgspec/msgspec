@@ -569,6 +569,13 @@ ms_err_truncated(void)
     return -1;
 }
 
+static int
+ms_decimal_format_error(void)
+{
+    PyErr_SetString(PyExc_TypeError, "callable returned a value containing a Decimal");
+    return -1;
+}
+
 /*************************************************************************
  * Utilities                                                             *
  *************************************************************************/
@@ -9613,6 +9620,7 @@ cleanup:
 enum decimal_format {
     DECIMAL_FORMAT_STRING = 0,
     DECIMAL_FORMAT_NUMBER = 1,
+    DECIMAL_FORMAT_CALLABLE = 2,
 };
 
 enum uuid_format {
@@ -9624,10 +9632,12 @@ enum uuid_format {
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
     PyObject *enc_hook;         /* `enc_hook` callback */
+    PyObject *decimal_callable; /* `decimal_format` callable */
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
     enum order_mode order;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
+    bool in_decimal_callable;
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
@@ -9638,6 +9648,7 @@ typedef struct EncoderState {
 typedef struct Encoder {
     PyObject_HEAD
     PyObject *enc_hook;
+    PyObject *decimal_callable;
     MsgspecState *mod;
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
@@ -9709,8 +9720,14 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process decimal format */
+    self->decimal_callable = NULL;
     if (decimal_format == NULL) {
         self->decimal_format = DECIMAL_FORMAT_STRING;
+    }
+    else if (PyCallable_Check(decimal_format)) {
+        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
+        Py_INCREF(decimal_format);
+        self->decimal_callable = decimal_format;
     }
     else {
         bool ok = false;
@@ -9727,7 +9744,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         if (!ok) {
             PyErr_Format(
                 PyExc_ValueError,
-                "`decimal_format` must be 'string' or 'number', got %R",
+                "`decimal_format` must be 'string', 'number', or a callable, got %R",
                 decimal_format
             );
             return -1;
@@ -9790,6 +9807,7 @@ static int
 Encoder_traverse(Encoder *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->enc_hook);
+    Py_VISIT(self->decimal_callable);
     return 0;
 }
 
@@ -9797,6 +9815,7 @@ static int
 Encoder_clear(Encoder *self)
 {
     Py_CLEAR(self->enc_hook);
+    Py_CLEAR(self->decimal_callable);
     return 0;
 }
 
@@ -9871,6 +9890,8 @@ encoder_encode_into_common(
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_buffer = buf,
@@ -9918,6 +9939,8 @@ encoder_encode_common(
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_len = 0,
@@ -9975,6 +9998,8 @@ encode_common(
         .mod = mod,
         .enc_hook = enc_hook,
         .decimal_format = DECIMAL_FORMAT_STRING,
+        .decimal_callable = NULL,
+        .in_decimal_callable = false,
         .uuid_format = UUID_FORMAT_CANONICAL,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
@@ -10006,7 +10031,13 @@ Encoder_decimal_format(Encoder *self, void *closure) {
     if (self->decimal_format == DECIMAL_FORMAT_STRING) {
         return PyUnicode_InternFromString("string");
     }
-    return PyUnicode_InternFromString("number");
+    else if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
+        return PyUnicode_InternFromString("number");
+    }
+    else {
+        Py_INCREF(self->decimal_callable);
+        return self->decimal_callable;
+    }
 }
 
 static PyObject*
@@ -12594,11 +12625,14 @@ PyDoc_STRVAR(Encoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
-"decimal_format : {'string', 'number'}, optional\n"
+"decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
-"    they're encoded as strings, if 'number', they're encoded as floats.\n"
-"    Defaults to 'string', which is the recommended value since 'number'\n"
-"    may result in precision loss when decoding.\n"
+"    they're encoded as strings, if 'number', they're encoded as floats. If\n"
+"    a callable is provided, it will be called with the `decimal.Decimal`\n"
+"    object and must return a JSON-serializable value (but **not** another\n"
+"    `decimal.Decimal` or a nested structure containing `decimal.Decimal`).\n"
+"    Defaults to 'string', which is the recommended value since 'number' may\n"
+"    result in precision loss when decoding.\n"
 "uuid_format : {'canonical', 'hex', 'bytes'}, optional\n"
 "    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
 "    and 'hex' formats encode them as strings with and without hyphens\n"
@@ -13483,10 +13517,20 @@ mpack_encode_decimal(EncoderState *self, PyObject *obj)
         if (temp == NULL) return -1;
         out = mpack_encode_str(self, temp);
     }
-    else {
+    else if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
         temp = PyNumber_Float(obj);
         if (temp == NULL) return -1;
         out = mpack_encode_float(self, temp);
+    }
+    else {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
+        if (temp == NULL) return -1;
+        self->in_decimal_callable = true;
+        out = mpack_encode(self, temp);
+        self->in_decimal_callable = false;
     }
     Py_DECREF(temp);
     return out;
@@ -13817,12 +13861,14 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
-"decimal_format : {'string', 'number'}, optional\n"
+"decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
-"    they're encoded as strings, if 'number', they're encoded as floats.\n"
-"    Defaults to 'string', which is the recommended value since 'number'\n"
-"    may result in precision loss when decoding for some JSON library\n"
-"    implementations.\n"
+"    they're encoded as strings, if 'number', they're encoded as floats. If\n"
+"    a callable is provided, it will be called with the `decimal.Decimal`\n"
+"    object and must return a JSON-serializable value (but **not** another\n"
+"    `decimal.Decimal` or a nested structure containing `decimal.Decimal`).\n"
+"    Defaults to 'string', which is the recommended value since 'number' may\n"
+"    result in precision loss when decoding for some JSON library implementations.\n"
 "uuid_format : {'canonical', 'hex'}, optional\n"
 "    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
 "    and 'hex' formats encode them as strings with and without hyphens\n"
@@ -14130,7 +14176,23 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 json_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *temp = PyObject_Str(obj);
+    PyObject *temp;
+
+    if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
+        if (temp == NULL) return -1;
+
+        self->in_decimal_callable = true;
+        int out = json_encode(self, temp);
+        self->in_decimal_callable = false;
+        Py_DECREF(temp);
+        return out;
+    }
+
+    temp = PyObject_Str(obj);
     if (temp == NULL) return -1;
 
     Py_ssize_t size;
@@ -14142,14 +14204,11 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         Py_DECREF(temp);
         return -1;
     }
-
     char *p = self->output_buffer_raw + self->output_len;
     if (MS_LIKELY(decimal_as_string)) *p++ = '"';
     memcpy(p, buf, size);
     if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
-
     self->output_len += required;
-
     Py_DECREF(temp);
 
     return 0;
@@ -14853,6 +14912,8 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_len = 0,
@@ -16486,7 +16547,10 @@ mpack_decode_ext(
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         return ms_validation_error("ext", type, path);
@@ -16503,7 +16567,10 @@ mpack_decode_ext(
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else {
         pycode = PyLong_FromLong(code);
