@@ -16486,7 +16486,10 @@ mpack_decode_ext(
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         return ms_validation_error("ext", type, path);
@@ -16503,7 +16506,10 @@ mpack_decode_ext(
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else {
         pycode = PyLong_FromLong(code);
