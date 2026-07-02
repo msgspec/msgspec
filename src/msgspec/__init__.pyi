@@ -1,5 +1,6 @@
 import enum
 from collections.abc import Callable, Iterable, Mapping
+from decimal import Decimal
 from inspect import Signature
 from typing import (
     Any,
@@ -159,16 +160,18 @@ class Raw(bytes):
     def __new__(cls, msg: Buffer | str) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
+_NumericBound = int | float | Decimal | None
+
 @final
 class Meta:
     def __init__(
         self,
         *,
-        gt: int | float | None = None,
-        ge: int | float | None = None,
-        lt: int | float | None = None,
-        le: int | float | None = None,
-        multiple_of: int | float | None = None,
+        gt: _NumericBound = None,
+        ge: _NumericBound = None,
+        lt: _NumericBound = None,
+        le: _NumericBound = None,
+        multiple_of: _NumericBound = None,
         pattern: str | None = None,
         min_length: int | None = None,
         max_length: int | None = None,
@@ -179,11 +182,11 @@ class Meta:
         extra_json_schema: dict[str, Any] | None = None,
         extra: dict[str, Any] | None = None,
     ) -> None: ...
-    gt: Final[int | float | None]
-    ge: Final[int | float | None]
-    lt: Final[int | float | None]
-    le: Final[int | float | None]
-    multiple_of: Final[int | float | None]
+    gt: Final[_NumericBound]
+    ge: Final[_NumericBound]
+    lt: Final[_NumericBound]
+    le: Final[_NumericBound]
+    multiple_of: Final[_NumericBound]
     pattern: Final[str | None]
     min_length: Final[int | None]
     max_length: Final[int | None]
