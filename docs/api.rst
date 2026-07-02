@@ -172,11 +172,12 @@ Inspect
 .. autoclass:: ListType
 .. autoclass:: SetType
 .. autoclass:: FrozenSetType
+.. autoclass:: DictType
+.. autoclass:: TypedDictType
+.. autoclass:: FrozenDictType
 .. autoclass:: VarTupleType
 .. autoclass:: TupleType
-.. autoclass:: DictType
 .. autoclass:: Field
-.. autoclass:: TypedDictType
 .. autoclass:: NamedTupleType
 .. autoclass:: DataclassType
 .. autoclass:: StructType

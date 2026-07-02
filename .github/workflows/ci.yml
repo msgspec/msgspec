@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
     - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - labeled
+    - unlabeled
     paths:
     # Changes to the package itself
     - src/msgspec/**
@@ -14,13 +20,7 @@ on:
     - setup.py
     - MANIFEST.in
     # Changes to CI execution
-    - .github/workflows/ci.yml
-    - .github/workflows/prepare-build.yml
-    - .github/workflows/build-wheels.yml
-    - .github/workflows/profile.yml
-    - .github/actions/latest-supported-python/action.yml
-    - .github/actions/fetch-release-history/action.yml
-    - .github/actions/load-env/action.yml
+    - .github/workflows/*
     - .cibuildwheel.toml
     - .justfile
     # Changes to testing
@@ -35,10 +35,18 @@ on:
     types:
     - published
 
+permissions: {}
+
+env:
+  UV_NO_EDITABLE: "true"
+  UV_NO_SYNC: "true"
+
 jobs:
   prepare:
     name: Validate build
     uses: ./.github/workflows/prepare-build.yml
+    permissions:
+      contents: read
     with:
       run-static-analysis: true
       fetch-latest-python: true
@@ -48,6 +56,8 @@ jobs:
     needs:
     - prepare
     runs-on: "${{ matrix.os }}"
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -61,21 +71,23 @@ jobs:
         - "3.12"
         - "3.13"
         - "3.14"
+        - "3.15-dev"
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Load environment file
-      uses: ./.github/actions/load-env
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
 
     - name: Install Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
       with:
         python-version: "${{ matrix.python-version }}"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
 
     - name: Install command runner
       run: uv tool install rust-just
@@ -91,16 +103,16 @@ jobs:
         PYTHONMALLOC: "malloc"
         ASAN_OPTIONS: "detect_leaks=0"
       run: >-
-        LD_PRELOAD=`gcc -print-file-name=libasan.so`
+        LD_PRELOAD=$(gcc -print-file-name=libasan.so)
         just env-run test coverage run -m pytest tests/unit -s
 
     - name: Generate coverage files
       run: |-
         just env-run test coverage xml
-        gcov -abcu `find build/temp*/ -name *.o`
+        find build/temp*/ -name '*.o' -exec gcov -abcu {} +
 
     - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
         name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
         path: |-
@@ -116,14 +128,18 @@ jobs:
     - test
     runs-on: ubuntu-latest
     permissions:
+      actions: read
+      contents: read
       id-token: write
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
 
     - name: Download coverage artifacts
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
       with:
         pattern: coverage-*
         path: coverage-files
@@ -132,7 +148,7 @@ jobs:
       run: tree -sh coverage-files
 
     - name: Upload Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
       with:
         use_oidc: true
         directory: coverage-files
@@ -142,21 +158,24 @@ jobs:
     needs:
     - test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Load environment file
-      uses: ./.github/actions/load-env
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
 
     - name: Install Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
       with:
         python-version-file: pyproject.toml
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
 
     - name: Install command runner
       run: uv tool install rust-just
@@ -176,18 +195,12 @@ jobs:
     - test
     - prepare
     uses: ./.github/workflows/build-wheels.yml
+    permissions:
+      actions: read
+      contents: read
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
       build-all: ${{ github.event_name == 'release' }}
-
-  profile:
-    name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
-    needs:
-    - prepare
-    - build-wheels
-    uses: ./.github/workflows/profile.yml
-    with:
-      python: "${{ needs.prepare.outputs.latest-supported-python }}"
 
   upload-pypi:
     name: Upload artifacts to PyPI
@@ -197,14 +210,15 @@ jobs:
     - build-wheels
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       id-token: write
 
     steps:
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
       with:
         pattern: artifact-*
         merge-multiple: true
         path: dist
 
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0

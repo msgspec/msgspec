@@ -71,11 +71,11 @@ The libraries we're comparing are the following:
 - pydantic_ (both 1.10.13 and 2.5.2)
 - cattrs_ (23.2.3)
 
-Each benchmark creates a message containing one or more ``File``/``Directory``
+Each benchmark creates a message containing one or more ``File`` / ``Directory``
 instances, then serializes, deserializes, and validates it in a loop.
 
 The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation>`__.
+`here <https://github.com/msgspec/msgspec/tree/main/benchmarks/bench_validation>`__.
 
 .. raw:: html
 
@@ -118,7 +118,7 @@ JSON Serialization
 ------------------
 
 ``msgspec`` includes its own high performance JSON library, which may be used
-by itself as a replacement for the standard library's `json.dumps`/`json.loads`
+by itself as a replacement for the standard library's `json.dumps` / `json.loads`
 functions. Here we compare msgspec's JSON implementation against several other
 popular Python JSON libraries.
 
@@ -130,7 +130,7 @@ popular Python JSON libraries.
 - json_ (standard library)
 
 The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_encodings.py>`__.
+`here <https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_encodings.py>`__.
 
 .. raw:: html
 
@@ -187,7 +187,7 @@ For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_large_json.py>`__.
+<https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_large_json.py>`__.
 
 **Results (smaller is better):**
 
@@ -248,11 +248,11 @@ For each library, the following operations are benchmarked:
   boilerplate add overhead when defining classes, slowing import times for
   libraries that make use of these classes.
 - Time to create an instance of that class.
-- Time to compare two instances for equality (``==``/``!=``).
-- Time to compare two instances for order (``<``/``>``/``<=``/``>=``)
+- Time to compare two instances for equality (``==`` / ``!=``).
+- Time to compare two instances for order (``<`` / ``>`` / ``<=`` / ``>=``)
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_structs.py>`__.
+<https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_structs.py>`__.
 
 **Results (smaller is better):**
 
@@ -299,7 +299,7 @@ of the benchmarked type, then measure:
 - The total amount of memory used by this data structure
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_gc.py>`__.
+<https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_gc.py>`__.
 
 **Results (smaller is better):**
 
@@ -342,7 +342,7 @@ Here we compare the on-disk size of ``msgspec`` and ``pydantic``, its closest
 equivalent.
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_library_size.py>`__.
+<https://github.com/msgspec/msgspec/blob/main/benchmarks/bench_library_size.py>`__.
 
 **Results (smaller is better)**
 
@@ -531,7 +531,7 @@ smaller on disk.
     </script>
 
 
-.. _msgspec: https://jcristharif.com/msgspec/
+.. _msgspec: https://msgspec.dev
 .. _msgpack: https://github.com/msgpack/msgpack-python
 .. _ormsgpack: https://github.com/ormsgpack/ormsgpack
 .. _MessagePack: https://msgpack.org

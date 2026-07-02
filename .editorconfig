@@ -1,0 +1,12 @@
+root = true
+
+[*.{py,c,h,rst,yml,yaml,toml,md}]
+trim_trailing_whitespace = true
+insert_final_newline = true
+indent_style = space
+
+[*.{py,c,h,rst}]
+indent_size = 4
+
+[*.{yml,yaml,toml,md}]
+indent_size = 2

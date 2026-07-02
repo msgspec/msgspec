@@ -7,19 +7,24 @@ import sys
 import uuid
 import weakref
 from dataclasses import dataclass, make_dataclass
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple
 
 import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
-PY310 = sys.version_info[:2] >= (3, 10)
+from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 PY311 = sys.version_info[:2] >= (3, 11)
 
-py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 
-slots_params = [False, pytest.param(True, marks=[py310_plus])]
+slots_params = [False, True]
 
 
 class FruitInt(enum.IntEnum):
@@ -75,6 +80,7 @@ class TestToBuiltins:
         assert to_builtins(1, enc_hook=None) == 1
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []
@@ -309,6 +315,99 @@ class TestToBuiltins:
         ):
             to_builtins(msg, str_keys=True)
 
+    def check_non_frozen(self, val, expected):
+        assert type(val) is dict
+        assert type(expected) is dict
+        assert val == expected
+
+    @py315_or_later_only
+    @pytest.mark.parametrize("subclass", [False, True])
+    def test_frozendict(self, subclass):
+        if subclass:
+
+            class in_type(frozendict):
+                pass
+
+        else:
+            in_type = frozendict
+
+        msg = in_type({FruitStr.BANANA: 1, "b": [FruitInt.APPLE], 3: "three"})
+
+        res = to_builtins(msg)
+        self.check_non_frozen(res, {"banana": 1, "b": [-1], 3: "three"})
+        assert res is not msg
+
+        self.check_non_frozen(to_builtins(in_type()), {})
+
+    @py315_or_later_only
+    def test_frozendict_builtin_types(self):
+        msg = to_builtins(frozendict({"test": 1}), builtin_types=(frozendict,))
+        assert type(msg) is frozendict
+        assert msg == frozendict({"test": 1})
+
+        msg = to_builtins(
+            frozendict(
+                {
+                    "test": frozendict({1: "a"}),
+                }
+            ),
+            builtin_types=(frozendict,),
+        )
+        assert type(msg) is frozendict
+        assert type(msg["test"]) is frozendict
+        assert msg == frozendict({"test": frozendict({1: "a"})})
+
+    @py315_or_later_only
+    def test_frozendict_str_subclass_key(self):
+        class mystr(str):
+            pass
+
+        msg = to_builtins(frozendict({mystr("test"): 1}))
+        self.check_non_frozen(msg, {"test": 1})
+        assert type(list(msg.keys())[0]) is str
+
+    @py315_or_later_only
+    def test_frozendict_unsupported_key(self):
+        msg = frozendict({Bad(): 1})
+        with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+            to_builtins(msg)
+
+    @py315_or_later_only
+    def test_frozendict_unsupported_value(self):
+        msg = frozendict({"x": Bad()})
+        with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+            to_builtins(msg)
+
+    @py315_or_later_only
+    def test_frozendict_str_keys(self):
+        self.check_non_frozen(
+            to_builtins(frozendict({FruitStr.BANANA: 1}), str_keys=True),
+            {"banana": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({"banana": 1}), str_keys=True),
+            {"banana": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({FruitInt.BANANA: 1}), str_keys=True),
+            {"2": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({2: 1}), str_keys=True),
+            {"2": 1},
+        )
+
+    @py315_or_later_only
+    def test_frozendict_sequence_keys(self):
+        msg = frozendict({frozenset([1, 2]): 1})
+        self.check_non_frozen(to_builtins(msg), {(1, 2): 1})
+
+        with pytest.raises(
+            TypeError,
+            match="Only dicts with str-like or number-like keys are supported",
+        ):
+            to_builtins(msg, str_keys=True)
+
     @pytest.mark.parametrize("tagged", [False, True])
     def test_struct_object(self, tagged):
         class Ex(Struct, tag=tagged):
@@ -467,23 +566,23 @@ class TestToBuiltins:
         if kind == "struct":
 
             class Ex(Struct):
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "attrs":
             attrs = pytest.importorskip("attrs")
 
             @attrs.define
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         res = to_builtins(Ex(1, UNSET))
         assert res == {"x": 1}
@@ -607,21 +706,21 @@ class TestOrder:
         if kind == "struct":
 
             class Ex(Struct):
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         else:
             attrs = pytest.importorskip("attrs")
 
             @attrs.define(slots=(kind == "attrs"))
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
 
         res = to_builtins(Ex(), order="sorted")
         self.assert_eq(res, {})

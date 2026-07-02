@@ -98,7 +98,7 @@ Option mapping
 --------------
 
 ``orjson`` uses bitwise ``OPT_*`` flags. ``msgspec`` uses keyword arguments on
-``Encoder``/``Decoder`` or the ``encode``/``decode`` functions.
+``Encoder`` / ``Decoder`` or the ``encode`` / ``decode`` functions.
 
 Sorting keys
 ^^^^^^^^^^^^
@@ -313,7 +313,7 @@ through other means:
    * - orjson
      - msgspec workaround
    * - ``OPT_NON_STR_KEYS``
-     - Use ``enc_hook``/``dec_hook`` or ``msgspec.to_builtins(obj, str_keys=True)``
+     - Use ``enc_hook`` / ``dec_hook`` or ``msgspec.to_builtins(obj, str_keys=True)``
    * - ``OPT_OMIT_MICROSECONDS``
      - Convert before encoding: ``dt.replace(microsecond=0)``. ``enc_hook`` cannot
        be used here because ``datetime`` is a natively supported type.

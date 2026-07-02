@@ -13,55 +13,102 @@ on:
 
 jobs:
   build-wheels:
-    name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
-    runs-on: "${{ matrix.os }}"
+    name: Build ${{ matrix.wheel.target }}
+    runs-on: "${{ matrix.wheel.os }}"
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - os: ubuntu-24.04-arm
+        wheel:
+        - target: Linux (aarch64)
+          os: ubuntu-24.04-arm
           archs: aarch64
-        - os: ubuntu-latest
+        - target: Linux (x86_64)
+          os: ubuntu-latest
           archs: x86_64
-        - os: macos-latest
+        - target: Linux (riscv64)
+          os: ubuntu-24.04-riscv
+          archs: riscv64
+          required-label: build-riscv64
+        - target: macOS (arm64)
+          os: macos-latest
           archs: arm64
-        - os: macos-15-intel
+        - target: macOS (x86_64)
+          os: macos-15-intel
           archs: x86_64
-        - os: windows-11-arm
+        - target: Windows (ARM64)
+          os: windows-11-arm
           archs: ARM64
-        - os: windows-latest
+        - target: Windows (AMD64)
+          os: windows-latest
           archs: AMD64
+        - target: Pyodide (wasm32)
+          os: ubuntu-latest
+          archs: wasm32
+          cibw_platform: pyodide
+        exclude:
+        - wheel:
+            target: Linux (riscv64)
+            os: ubuntu-24.04-riscv
+            archs: riscv64
+            # Unlabeled PRs match riscv64's required-label; otherwise empty keeps it.
+            required-label: >-
+              ${{
+                github.event_name == 'pull_request' &&
+                !contains(github.event.pull_request.labels.*.name, 'build-riscv64') &&
+                'build-riscv64' ||
+                ''
+              }}
 
     env:
+      CIBW_ARCHS: "${{ matrix.wheel.archs }}"
+      CIBW_PLATFORM: "${{ matrix.wheel.cibw_platform || 'auto' }}"
       CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
+      ARTIFACT_NAME: artifact-wheels-${{ matrix.wheel.cibw_platform || matrix.wheel.os }}-${{ matrix.wheel.archs }}
+      PACKAGE_DIR: dist/${{ inputs.sdist-name }}
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
 
     - name: Download source distribution
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
       with:
         name: artifact-sdist
         path: dist
 
-    # TODO: Remove this once the action supports specifying extras, see:
-    # https://github.com/pypa/cibuildwheel/pull/2630
     - name: Install uv
-      if: runner.os != 'Linux'
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
+
+    # The upstream composite action calls actions/setup-python@v6, which is
+    # incompatible with the repository's full-SHA pinning requirement.
+    - name: Build & Test Wheels
+      if: runner.os != 'Windows'
+      run: >-
+        uvx --from cibuildwheel==4.1.0
+        cibuildwheel
+        --config-file .cibuildwheel.toml
+        --output-dir wheelhouse
+        "${PACKAGE_DIR}"
 
     - name: Build & Test Wheels
-      uses: pypa/cibuildwheel@v3.2.1
-      with:
-        config-file: .cibuildwheel.toml
-        package-dir: dist/${{ inputs.sdist-name }}
-      env:
-        CIBW_ARCHS: "${{ matrix.archs }}"
+      if: runner.os == 'Windows'
+      run: >-
+        uvx --from cibuildwheel==4.1.0
+        cibuildwheel
+        --config-file .cibuildwheel.toml
+        --output-dir wheelhouse
+        "$env:PACKAGE_DIR"
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
-        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        name: "${{ env.ARTIFACT_NAME }}"
         path: wheelhouse/*.whl
         if-no-files-found: error

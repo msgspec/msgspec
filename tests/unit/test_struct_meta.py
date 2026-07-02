@@ -631,7 +631,7 @@ def test_struct_abc_via_init_subclass_and__abc_init():
 
 def test_struct_meta_pattern_ref_leak():
     # ensure that we're not keeping around references to re.Pattern longer than necessary
-    # see https://github.com/jcrist/msgspec/pull/899 for details
+    # see https://github.com/msgspec/msgspec/pull/899 for details
 
     # clear cache to get a baseline
     re.purge()

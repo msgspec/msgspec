@@ -8,6 +8,11 @@ import pytest
 
 import msgspec
 
+requires_subprocess = pytest.mark.skipif(
+    not getattr(subprocess, "_can_fork_exec", True),
+    reason="subprocess support required",
+)
+
 
 def test_raw_noargs():
     r = msgspec.Raw()
@@ -16,9 +21,9 @@ def test_raw_noargs():
     assert not r
 
 
-@pytest.mark.parametrize("type", [bytes, bytearray, memoryview, str])
-def test_raw_constructor(type):
-    msg = "test" if type is str else type(b"test")
+@pytest.mark.parametrize("typ", [bytes, bytearray, memoryview, str])
+def test_raw_constructor(typ):
+    msg = "test" if typ is str else typ(b"test")
     r = msgspec.Raw(msg)
     assert bytes(r) == b"test"
     assert len(r) == 4
@@ -71,8 +76,9 @@ def test_raw_copy():
     assert ref() is None
 
 
+@requires_subprocess
 def test_raw_copy_doesnt_leak():
-    """See https://github.com/jcrist/msgspec/pull/709"""
+    """See https://github.com/msgspec/msgspec/pull/709"""
     script = textwrap.dedent(
         """
         import msgspec

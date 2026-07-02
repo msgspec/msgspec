@@ -45,18 +45,18 @@ Use Structs
 They're :ref:`fast to encode/decode <json-benchmark>` and :ref:`fast to use
 <struct-benchmark>`. If you have data with a known schema, we recommend
 defining a `msgspec.Struct` type (or types) for your schema and preferring that
-over other types like `dict`/`dataclasses`/...
+over other types like `dict` / `dataclasses` / etc.
 
 
 Avoid Encoding Default Values
 -----------------------------
 
-By default, ``msgspec`` encodes all fields in a Struct type, including optional
+By default, ``msgspec`` encodes all fields in a ``Struct`` type, including optional
 fields (those configured with a default value). If the default values are known
 on the decoding end (making serializing them redundant), it may be beneficial
 to omit default values from the encoded message. This can be done by
-configuring ``omit_defaults=True`` as part of the Struct definition Omitting
-defaults reduces the size of the encoded message, and often also improves
+configuring ``omit_defaults=True`` as part of the ``Struct`` definition.
+Omitting defaults reduces the size of the encoded message, and often also improves
 encoding and decoding performance (since there's less work to do).
 
 For more information, see :ref:`omit_defaults`.
@@ -116,12 +116,12 @@ For a more in-depth example of this technique, see the
 Reduce Allocations
 ------------------
 
-Every call to ``encode``/``Encoder.encode`` allocates a new `bytes` object for
+Every call to ``encode`` / ``Encoder.encode`` allocates a new `bytes` object for
 the output. ``msgspec`` exposes an alternative ``Encoder.encode_into`` (e.g.
 `msgspec.json.Encoder.encode_into`) that writes into a pre-allocated
 `bytearray` instead (possibly reallocating to increase capacity).
 
-This has a few uses:
+This has the following uses.
 
 Reusing an output buffer
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -209,7 +209,7 @@ Some protocols require prepending a prefix to an encoded message. This comes up
 in `Length-prefix framing
 <https://eli.thegreenplace.net/2011/08/02/length-prefix-framing-for-protocol-buffers>`__
 , where every message is prefixed by its length stored as a fixed-width integer
-(e.g. a big-endian uint32). Like line-delimited JSON above, this is more
+(e.g. a big-endian ``uint32``). Like line-delimited JSON above, this is more
 efficient to do using ``Encoder.encode_into`` to avoid excessive copying.
 
 .. code-block:: python
@@ -253,8 +253,8 @@ allocate a large number of objects at once may suffer reduced performance due
 to Python's garbage collector (GC). By default, `msgspec.Struct` types
 implement a few optimizations to reduce the load on the GC (and thus reduce the
 frequency and duration of a GC pause). If you find that GC is still a problem,
-and **are certain** that your Struct types may never participate in a reference
-cycle, then you **may** benefit from setting ``gc=False`` on your Struct
+and **are certain** that your ``Struct`` types may never participate in a reference
+cycle, then you **may** benefit from setting ``gc=False`` on your ``Struct``
 types.  Depending on workload, this can result in a measurable decrease in
 pause time and frequency due to GC passes. See :ref:`struct-gc` for more
 details.
@@ -286,6 +286,53 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
 
     >>> msgspec.json.decode(msg, type=Example)
     Example(my_first_field="some string", my_second_field=2)
+
+
+Think about type conversion
+---------------------------
+
+When converting raw data into Python types, the internal machinery
+will treat different datastructures differently.
+Some type conversions are faster than others.
+
+For example, this model:
+
+.. code-block:: python
+
+  class Example(msgspec.Struct):
+      items: frozendict[str, int]  # requires Python3.15+ to be used
+
+  msg = b'{"items": {"pen": 1, "book": 2}}'
+  msgspec.json.decode(msg, type=Example)
+  # Example(items=frozendict({"pen": 1, "book": 2}))
+
+As ``frozendict`` does not allow adding items one at a time,
+``msgspec`` will first parse ``items`` as a regular :class:`dict`,
+and will then convert it to ``frozendict``, which results in the
+total decoding operation having ``O(n*2)`` time complexity.
+Which might be slow on big dictionaries and consume more memory.
+Regular :class:`dict` would be more efficient to use.
+
+The same can be said for :class:`tuple` vs :class:`list`:
+
+.. code-block:: python
+
+    >>> class Example(msgspec.Struct):
+    ...     items: tuple[str, ...]
+
+    >>> msg = b'{"items": ["pen", "book"]}'
+
+    >>> msgspec.json.decode(msg, type=Example)
+    Example(items=("pen", "book"))
+
+We would first create a ``list`` object and then convert
+it to variable-sized ``tuple``,
+using double the memory and ``O(n*2)`` time to do that.
+This is true for all conversions, that require an intermediate representation.
+
+To achieve the best performance,
+use collection types that can be constructed natively:
+``list``, ``set``, ``frozenset``, fixed-sized ``tuple``, and ``dict``.
 
 
 .. _JSON: https://json.org

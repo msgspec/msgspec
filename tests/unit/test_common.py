@@ -7,6 +7,8 @@ import decimal
 import enum
 import gc
 import sys
+import textwrap
+import types
 import typing
 import uuid
 import weakref
@@ -17,15 +19,11 @@ from typing import (
     Annotated,
     ClassVar,
     Deque,
-    Dict,
     Final,
     Generic,
-    List,
     Literal,
     NamedTuple,
     NewType,
-    Optional,
-    Tuple,
     TypedDict,
     TypeVar,
     Union,
@@ -33,7 +31,12 @@ from typing import (
 
 import pytest
 
-from .utils import max_call_depth, temp_module
+from .utils import (
+    emscripten_stack_limited,
+    max_call_depth,
+    py315_or_later_only,
+    temp_module,
+)
 
 try:
     import attrs
@@ -43,17 +46,27 @@ except ImportError:
 import msgspec
 from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 UTC = datetime.timezone.utc
 
-PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 
-py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
 T = TypeVar("T")
+
+
+def make_new_alias(alias):
+    """Replicate the logic to produce a typing._GenericAlias from a types.GenericAlias"""
+    return typing._GenericAlias(alias.__origin__, alias.__origin__.__parameters__)[
+        alias.__args__
+    ]
 
 
 def assert_eq(x, y):
@@ -197,7 +210,7 @@ class TestDecoder:
             assert typ is Custom
             return Custom(*obj)
 
-        dec = proto.Decoder(type=List[Custom], dec_hook=dec_hook)
+        dec = proto.Decoder(type=list[Custom], dec_hook=dec_hook)
         buf = proto.encode([[1, 2], [3, 4], [5, 6]])
         msg = dec.decode(buf)
         assert called
@@ -211,7 +224,7 @@ class TestDecoder:
             nonlocal called
             called = True
 
-        dec = proto.Decoder(type=Optional[Custom], dec_hook=dec_hook)
+        dec = proto.Decoder(type=Custom | None, dec_hook=dec_hook)
         msg = dec.decode(proto.encode(None))
         assert not called
         assert msg is None
@@ -231,7 +244,7 @@ class TestDecoder:
 
         msg = proto.encode(["some string"])
         with pytest.raises(msgspec.ValidationError, match=r"Oh no! - at `\$\[0\]`"):
-            proto.decode(msg, type=List[Custom], dec_hook=dec_hook)
+            proto.decode(msg, type=list[Custom], dec_hook=dec_hook)
 
     def test_decode_dec_hook_errors_passthrough(self, proto):
         def dec_hook(typ, obj):
@@ -244,7 +257,7 @@ class TestDecoder:
 
         msg = proto.encode(["some string"])
         with pytest.raises(NotImplementedError, match=r"Oh no!"):
-            proto.decode(msg, type=List[Custom], dec_hook=dec_hook)
+            proto.decode(msg, type=list[Custom], dec_hook=dec_hook)
 
     def test_decode_dec_hook_wrong_type(self, proto):
         dec = proto.Decoder(type=Custom, dec_hook=lambda t, o: o)
@@ -395,7 +408,7 @@ class TestThreadSafe:
             msg = base64.b64decode(obj)
             return Custom(dec.decode(msg))
 
-        dec = proto.Decoder(Tuple[Union[Custom, None], int], dec_hook=dec_hook)
+        dec = proto.Decoder(tuple[Custom | None, int], dec_hook=dec_hook)
         msg = proto.encode(
             (base64.b64encode(proto.encode((None, 1))).decode("utf-8"), 2)
         )
@@ -853,6 +866,31 @@ class TestLiterals:
         ):
             msgspec.msgpack.Decoder(Literal[()])
 
+    def test_native_literal_generic_alias(self):
+        typ = Literal[1, 2]
+        assert type(typ) is typing._LiteralGenericAlias
+        dec = msgspec.json.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        # a second decoder reuses the info cached on the alias itself
+        dec2 = msgspec.json.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert dec.decode(b"2") == 2
+        assert dec2.decode(b"1") == 1
+        with pytest.raises(ValidationError):
+            dec.decode(b"3")
+
+    def test_types_generic_alias_literal(self):
+        typ = types.GenericAlias(typing.Literal, (1, 2))
+        assert type(typ) is types.GenericAlias
+        dec = msgspec.json.Decoder(typ)
+        assert dec.decode(b"1") == 1
+        assert dec.decode(b"2") == 2
+        with pytest.raises(ValidationError):
+            dec.decode(b"3")
+        # building a second decoder must not error either
+        assert msgspec.json.Decoder(typ).decode(b"2") == 2
+
     @pytest.mark.parametrize(
         "values",
         [
@@ -871,8 +909,8 @@ class TestLiterals:
         [
             Literal["ok", b"bad"],
             Literal[1, object()],
-            Literal[1, 2, List[int]],
-            Literal[1, 2, List],
+            Literal[1, 2, list[int]],
+            Literal[1, 2, list],
         ],
     )
     def test_invalid_values(self, typ):
@@ -914,7 +952,7 @@ class TestLiterals:
     def test_multiple_literals(self):
         integers = Literal[-1, -2, -3]
         strings = Literal["apple", "banana"]
-        both = Union[integers, strings]
+        both = integers | strings
 
         dec = msgspec.msgpack.Decoder(both)
 
@@ -971,19 +1009,37 @@ class TestLiterals:
             dec.decode(msgspec.msgpack.encode(False))
 
     def test_mix_bool_and_bool_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal[True], bool])
+        dec = msgspec.msgpack.Decoder(Literal[True] | bool)
         assert dec.decode(msgspec.msgpack.encode(True)) is True
         assert dec.decode(msgspec.msgpack.encode(False)) is False
 
     def test_mix_int_and_int_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal[-1, 1], int])
+        dec = msgspec.msgpack.Decoder(Literal[-1, 1] | int)
         for x in [-1, 1, 10]:
             assert dec.decode(msgspec.msgpack.encode(x)) == x
 
     def test_mix_str_and_str_literal(self):
-        dec = msgspec.msgpack.Decoder(Union[Literal["a", "b"], str])
+        dec = msgspec.msgpack.Decoder(Literal["a", "b"] | str)
         for x in ["a", "b", "c"]:
             assert dec.decode(msgspec.msgpack.encode(x)) == x
+
+
+class TestCallable:
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            pytest.param(typing.Callable[[int], str], id="typing"),
+            pytest.param(collections.abc.Callable[[int], str], id="collections.abc"),
+        ],
+    )
+    def test_callable_generic_alias(self, typ):
+        # 'Callable[...]' is a '_CallableGenericAlias'. The 'typing' flavour subclasses
+        # 'typing._GenericAlias' while the 'collections.abc' flavour subclasses
+        # 'types.GenericAlias' - but neither is an *exact* 'types.GenericAlias', so the
+        # conversion leaves both untouched
+        dec = msgspec.json.Decoder(typ)
+        with pytest.raises(ValidationError, match="Expected `Callable`"):
+            dec.decode(b"null")
 
 
 class TestUnionTypeErrors:
@@ -1000,7 +1056,7 @@ class TestUnionTypeErrors:
         with pytest.raises(TypeError):
             proto.Decoder(Test)
 
-    @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
+    @pytest.mark.parametrize("typ", [int | Deque, Deque | int])
     def test_err_union_with_custom_type(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1010,11 +1066,11 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ",
         [
-            Union[dict, Person],
-            Union[Person, dict],
-            Union[PersonDict, dict],
-            Union[PersonDataclass, dict],
-            Union[Person, PersonDict],
+            dict | Person,
+            Person | dict,
+            PersonDict | dict,
+            PersonDataclass | dict,
+            Person | PersonDict,
         ],
     )
     def test_err_union_with_multiple_dict_like_types(self, typ, proto):
@@ -1023,13 +1079,41 @@ class TestUnionTypeErrors:
         assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
+    @py315_or_later_only
+    def test_err_union_frozendict_dict_like_types(self, proto):
+        for typ in [
+            frozendict | Person,
+            Person | frozendict,
+            PersonDict | frozendict,
+            Union[PersonDataclass, frozendict],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict-like type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
+
+    @py315_or_later_only
+    def test_err_union_frozendict_and_dict(self, proto):
+        for typ in [
+            frozendict | dict,
+            dict | frozendict,
+            dict[str, int] | frozendict,
+            frozendict[str, int] | dict,
+            frozendict[str, int] | dict[str, bool],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
+
     @pytest.mark.parametrize(
         "typ",
         [
+            PersonArray | list,
+            tuple | PersonArray,
+            PersonArray | PersonTuple,
+            PersonTuple | frozenset,
             Union[PersonArray, list],
-            Union[tuple, PersonArray],
-            Union[PersonArray, PersonTuple],
-            Union[PersonTuple, frozenset],
         ],
     )
     def test_err_union_with_struct_array_like_and_array(self, typ, proto):
@@ -1038,9 +1122,15 @@ class TestUnionTypeErrors:
         assert "more than one array-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
-    def test_err_union_with_multiple_int_like_types(self, types, proto):
-        typ = Union[types]
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            FruitInt | int,
+            FruitInt | Literal[1, 2],
+            Union[FruitInt, int],
+        ],
+    )
+    def test_err_union_with_multiple_int_like_types(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
         assert "int-like" in str(rec.value)
@@ -1058,7 +1148,7 @@ class TestUnionTypeErrors:
         ],
     )
     def test_err_union_with_multiple_str_like_types(self, typ, proto):
-        union = Union[FruitStr, typ]
+        union = FruitStr | typ
         with pytest.raises(TypeError) as rec:
             proto.Decoder(union)
         assert "str-like" in str(rec.value)
@@ -1067,15 +1157,15 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ,kind",
         [
-            (Union[FruitInt, VeggieInt], "int enum"),
-            (Union[FruitStr, VeggieStr], "str enum"),
-            (Union[Dict[int, float], dict], "dict"),
-            (Union[List[int], List[float]], "array-like"),
-            (Union[List[int], tuple], "array-like"),
-            (Union[set, tuple], "array-like"),
-            (Union[Tuple[int, ...], list], "array-like"),
-            (Union[Tuple[int, float, str], set], "array-like"),
-            (Union[Deque, int, Custom], "custom"),
+            (FruitInt | VeggieInt, "int enum"),
+            (FruitStr | VeggieStr, "str enum"),
+            (dict[int, float] | dict, "dict"),
+            (list[int] | list[float], "array-like"),
+            (list[int] | tuple, "array-like"),
+            (set | tuple, "array-like"),
+            (tuple[int, ...] | list, "array-like"),
+            (tuple[int, float, str] | set, "array-like"),
+            (Deque | int | Custom, "custom"),
         ],
     )
     def test_err_union_conflicts(self, typ, kind, proto):
@@ -1084,7 +1174,6 @@ class TestUnionTypeErrors:
         assert f"more than one {kind}" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @py310_plus
     def test_310_union_types(self, proto):
         dec = proto.Decoder(int | str | None)
         for msg in [1, "abc", None]:
@@ -1101,7 +1190,7 @@ class TestStructUnion:
         class Test2(Struct, tag=True, array_like=False):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1119,7 +1208,7 @@ class TestStructUnion:
         class Test2(Struct, array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1138,7 +1227,7 @@ class TestStructUnion:
 
         other = list if array_like else dict
 
-        typ = Union[Test1, Test2, other]
+        typ = Test1 | Test2 | other
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1158,7 +1247,7 @@ class TestStructUnion:
         class Test2(Struct, tag_field="bar", array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1175,7 +1264,7 @@ class TestStructUnion:
         class Test2(Struct, tag="two", array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2]
+        typ = Test1 | Test2
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1206,7 +1295,7 @@ class TestStructUnion:
         class Test3(Struct, tag=tags[2], array_like=array_like):
             x: int
 
-        typ = Union[Test1, Test2, Test3]
+        typ = Test1 | Test2 | Test3
 
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
@@ -1233,7 +1322,7 @@ class TestStructUnion:
             x: int
             y: int
 
-        dec = proto.Decoder(Union[Test1, Test2])
+        dec = proto.Decoder(Test1 | Test2)
         enc = proto.Encoder()
 
         # Tag can be in any position
@@ -1291,7 +1380,7 @@ class TestStructUnion:
         class Test3(Struct, tag=tag3, array_like=True):
             pass
 
-        dec = proto.Decoder(Union[Test1, Test2, Test3])
+        dec = proto.Decoder(Test1 | Test2 | Test3)
         enc = proto.Encoder()
 
         # Decoding works
@@ -1339,7 +1428,7 @@ class TestStructUnion:
             x: int
             y: int
 
-        dec = proto.Decoder(Union[Test1, Test2, None, int, str])
+        dec = proto.Decoder(Test1 | Test2 | int | str | None)
         enc = proto.Encoder()
 
         for msg in [Test1(1, 2), Test2(3, 4), None, 5, 6]:
@@ -1366,9 +1455,9 @@ class TestStructUnion:
             x: int
             y: int
 
-        typ1 = Union[Test2, Test1]
-        typ2 = Union[Test1, Test2]
-        typ3 = Union[Test1, Test2, int, None]
+        typ1 = Test2 | Test1
+        typ2 = Test1 | Test2
+        typ3 = Test1 | Test2 | int | None
 
         for typ in [typ1, typ2, typ3]:
             for msg in [Test1(1, 2), Test2(3, 4)]:
@@ -1439,7 +1528,7 @@ class TestGenericStruct:
 
     def test_generic_struct_invalid_types_not_cached(self, proto):
         class Ex(Struct, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -1462,7 +1551,7 @@ class TestGenericStruct:
     def test_generic_struct(self, proto, array_like):
         class Ex(Struct, Generic[T], array_like=array_like):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -1473,7 +1562,7 @@ class TestGenericStruct:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -1482,18 +1571,56 @@ class TestGenericStruct:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
+    @py312_plus
+    def test_generic_with_typevar_syntax(self, proto):
+        source = """
+        from msgspec import Struct
+        class Ex[T](Struct):
+            x: T
+            y: list[T]
+        """
+
+        with temp_module(source) as mod:
+            sol = mod.Ex(1, [1, 2])
+            msg = proto.encode(sol)
+
+            res = proto.decode(msg, type=mod.Ex)
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[int])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[Union[int, str]])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[int | str])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[float])
+            assert type(res.x) is float
+
+            with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+                proto.decode(msg, type=mod.Ex[str])
+
+    @pytest.mark.parametrize(
+        "optional_union",
+        [
+            pytest.param("Ex[T] | None", id="native-union"),
+            pytest.param("Optional[Ex[T]]", id="typing.Optional"),
+        ],
+    )
     @pytest.mark.parametrize("array_like", [False, True])
-    def test_recursive_generic_struct(self, proto, array_like):
+    def test_recursive_generic_struct(self, proto, array_like, optional_union):
         source = f"""
         from __future__ import annotations
-        from typing import Union, Generic, TypeVar
+        from typing import Union, Generic, TypeVar, Optional
         from msgspec import Struct
 
         T = TypeVar("T")
 
         class Ex(Struct, Generic[T], array_like={array_like}):
             a: T
-            b: Union[Ex[T], None]
+            b: {optional_union}
         """
 
         with temp_module(source) as mod:
@@ -1514,14 +1641,14 @@ class TestGenericStruct:
     @pytest.mark.parametrize("array_like", [False, True])
     def test_generic_struct_union(self, proto, array_like):
         class Test1(Struct, Generic[T], tag=True, array_like=array_like):
-            a: Union[T, None]
+            a: T | None
             b: int
 
         class Test2(Struct, Generic[T], tag=True, array_like=array_like):
             x: T
             y: int
 
-        typ = Union[Test1[T], Test2[T]]
+        typ = Test1[T] | Test2[T]
 
         msg1 = Test1(1, 2)
         s1 = proto.encode(msg1)
@@ -1552,9 +1679,9 @@ class TestGenericStruct:
         assert loc in str(rec.value)
 
     def test_unbound_typevars_use_bound_if_set(self, proto):
-        T = TypeVar("T", bound=Union[int, str])
+        T = TypeVar("T", bound=int | str)
 
-        dec = proto.Decoder(List[T])
+        dec = proto.Decoder(list[T])
         sol = [1, "two", 3, "four"]
         msg = proto.encode(sol)
         assert dec.decode(msg) == sol
@@ -1569,9 +1696,339 @@ class TestGenericStruct:
     def test_unbound_typevars_with_constraints_unsupported(self, proto):
         T = TypeVar("T", int, str)
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(List[T])
+            proto.Decoder(list[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic(self, mapping_type: str, future: bool):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            T = typing.TypeVar("T")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo({mapping_type}[str, T], Struct, typing.Generic[T], metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multilevel(
+        self, mapping_type: str, future: bool, leaf: str
+    ):
+        # the builtin generic must be listed *before* 'typing.Generic[T]'. With
+        # 'Generic' first its '__class_getitem__' wins, so 'Base[U]' resolves to a
+        # 'typing._GenericAlias' instead of a 'types.GenericAlias'
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            T = typing.TypeVar("T")
+            U = typing.TypeVar("U")
+            V = typing.TypeVar("V")
+            W = typing.TypeVar("W")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Base({mapping_type}[str, T], Struct, typing.Generic[T], metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+
+            class Child1(Base[U], typing.Generic[U]):
+                pass
+
+            class Child2(Child1[V], typing.Generic[V]):
+                pass
+
+            class Child3(Child2[W], typing.Generic[W]):
+                pass
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_multilevel_typevar_syntax(
+        self, mapping_type: str, leaf: str
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Base[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+
+            class Child1[U](Base[U]):
+                pass
+
+            class Child2[V](Child1[V]):
+                pass
+
+            class Child3[W](Child2[W]):
+                pass
+            """
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax(
+        self, mapping_type: str, future: bool
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            gc.collect()
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            gc.collect()
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            gc.collect()
+            assert sys.getrefcount(info) <= 3
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multiple_typevars(
+        self, mapping_type: str, future: bool
+    ):
+        # struct inheriting a builtin generic with *two* type vars. 'Pair[int, str]'
+        # is a 'types.GenericAlias' carrying two args; the conversion must subscript
+        # the rebuilt alias with the args *tuple* (not spread the args), otherwise
+        # generics with more than one type var raise a 'TypeError'
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            K = typing.TypeVar("K")
+            V = typing.TypeVar("V")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Pair({mapping_type}[K, V], Struct, typing.Generic[K, V], metaclass=CombinedMeta):
+                key: K
+                val: V
+
+                def __getitem__(self, x):
+                    return getattr(self, x)
+
+                def __len__(self):
+                    return 2
+
+                def __iter__(self):
+                    return iter(("key", "val"))
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = mod.Pair[int, str]
+            assert type(typ) is types.GenericAlias
+            assert msgspec.json.decode(b'{"key": 1, "val": "a"}', type=typ) == mod.Pair(
+                1, "a"
+            )
+            with pytest.raises(ValidationError, match="Expected `int`"):
+                msgspec.json.decode(b'{"key": "x", "val": "a"}', type=typ)
+            with pytest.raises(ValidationError, match="Expected `str`"):
+                msgspec.json.decode(b'{"key": 1, "val": 2}', type=typ)
+
+            # the 'types.GenericAlias' must also be normalised when nested inside a
+            # union (collected via recursion) or a container (collected as its own
+            # node), not just at the top level
+            msg = b'{"key": 1, "val": "a"}'
+            assert msgspec.json.decode(msg, type=typing.Optional[typ]) == mod.Pair(
+                1, "a"
+            )
+            assert msgspec.json.decode(b"[" + msg + b"]", type=list[typ]) == [
+                mod.Pair(1, "a")
+            ]
+
+    def test_manual_types_generic_alias_robustness(self):
+        # 'types.GenericAlias' instances can be built manually around arbitrary
+        # origins (e.g. 'types.GenericAlias(...)' or a C-level 'Py_GenericAlias'),
+        # not just via ordinary subscription. Feeding such aliases to msgspec used to
+        # segfault when the origin wasn't a regularly-parametrised generic; ensure
+        # they now either decode or raise a clean Python error.
+        class GenericStruct(Struct, Generic[T]):
+            x: T
+
+        class PlainStruct(Struct):
+            x: int
+
+        # well-formed manual alias behaves exactly like the native subscription
+        alias = types.GenericAlias(GenericStruct, (int,))
+        assert msgspec.json.decode(b'{"x": 1}', type=alias) == GenericStruct(1)
+        with pytest.raises(ValidationError, match="Expected `int`"):
+            msgspec.json.decode(b'{"x": "bad"}', type=alias)
+
+        # parametrising a non-generic type is meaningless
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(PlainStruct, (int,)))
+
+        # too many
+        with pytest.raises(TypeError):
+            msgspec.json.Decoder(types.GenericAlias(GenericStruct, (int, str)))
 
 
 class TestStructPostInit:
@@ -1594,7 +2051,7 @@ class TestStructPostInit:
             class Ex2(Struct, array_like=array_like, tag=True):
                 pass
 
-            typ = Union[Ex, Ex2]
+            typ = Ex | Ex2
         else:
             typ = Ex
 
@@ -1623,7 +2080,7 @@ class TestStructPostInit:
             class Ex2(Struct, array_like=array_like, tag=True):
                 pass
 
-            typ = Union[Ex, Ex2]
+            typ = Ex | Ex2
         else:
             typ = Ex
 
@@ -1636,7 +2093,7 @@ class TestStructPostInit:
             expected = exc_class
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(msg, type=List[typ])
+            proto.decode(msg, type=list[typ])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -1676,7 +2133,7 @@ class TestGenericDataclassOrAttrs:
     def test_generic_invalid_types_not_cached(self, decorator, proto):
         @decorator
         class Ex(Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -1700,7 +2157,7 @@ class TestGenericDataclassOrAttrs:
         @decorator
         class Ex(Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -1711,7 +2168,7 @@ class TestGenericDataclassOrAttrs:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -1739,6 +2196,39 @@ class TestGenericDataclassOrAttrs:
         @decorator
         class Ex(Generic[T]):
             a: T
+            b: Ex[T] | None
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+    @py312_plus
+    def test_typevar_syntax(self, module, proto):
+        pytest.importorskip(module)
+        if module == "dataclasses":
+            import_ = "from dataclasses import dataclass as decorator"
+        else:
+            import_ = "from attrs import define as decorator"
+
+        source = f"""
+        from __future__ import annotations
+        from typing import Union
+        from msgspec import Struct
+        {import_}
+
+        @decorator
+        class Ex[T]:
+            a: T
             b: Union[Ex[T], None]
         """
 
@@ -1755,9 +2245,9 @@ class TestGenericDataclassOrAttrs:
             assert "Expected `int`, got `str`" in str(rec.value)
 
     def test_unbound_typevars_use_bound_if_set(self, proto):
-        T = TypeVar("T", bound=Union[int, str])
+        T = TypeVar("T", bound=int | str)
 
-        dec = proto.Decoder(List[T])
+        dec = proto.Decoder(list[T])
         sol = [1, "two", 3, "four"]
         msg = proto.encode(sol)
         assert dec.decode(msg) == sol
@@ -1772,9 +2262,288 @@ class TestGenericDataclassOrAttrs:
     def test_unbound_typevars_with_constraints_unsupported(self, proto):
         T = TypeVar("T", int, str)
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(List[T])
+            proto.Decoder(list[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic(self, mapping_type: str, future: bool):
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        T = typing.TypeVar("T")
+
+        @dataclasses.dataclass
+        class Foo(typing.Generic[T], {mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multilevel(
+        self, mapping_type: str, future: bool, leaf: str
+    ):
+        # the builtin generic must be listed *before* 'typing.Generic[T]'. With
+        # 'Generic' first its '__class_getitem__' wins, so 'Base[U]' resolves to a
+        # 'typing._GenericAlias' instead of a 'types.GenericAlias'
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        T = typing.TypeVar("T")
+        U = typing.TypeVar("U")
+        V = typing.TypeVar("V")
+        W = typing.TypeVar("W")
+
+        @dataclasses.dataclass
+        class Base({mapping_type}[str, T], typing.Generic[T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+
+        @dataclasses.dataclass
+        class Child1(Base[U], typing.Generic[U]):
+            pass
+
+        @dataclasses.dataclass
+        class Child2(Child1[V], typing.Generic[V]):
+            pass
+
+        @dataclasses.dataclass
+        class Child3(Child2[W], typing.Generic[W]):
+            pass
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize("leaf", ["Child1", "Child2", "Child3"])
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_multilevel_typevar_syntax(
+        self, mapping_type: str, leaf: str
+    ):
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        @dataclasses.dataclass
+        class Base[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+
+        @dataclasses.dataclass
+        class Child1[U](Base[U]):
+            pass
+
+        @dataclasses.dataclass
+        class Child2[V](Child1[V]):
+            pass
+
+        @dataclasses.dataclass
+        class Child3[W](Child2[W]):
+            pass
+        """
+
+        with temp_module(source) as mod:
+            typ = getattr(mod, leaf)[int]
+            msgspec.json.decode(b'{"data": {"x": 1}}', type=typ)
+            with pytest.raises(ValidationError):
+                msgspec.json.decode(b'{"data": {"x": "not_an_int"}}', type=typ)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax(
+        self, mapping_type: str, future: bool
+    ):
+        source = f"""
+        import dataclasses
+        import collections
+        import typing
+
+        @dataclasses.dataclass
+        class Foo[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+        import dataclasses
+        import collections
+        import typing
+
+        @dataclasses.dataclass
+        class Foo[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            assert sys.getrefcount(info) <= 3
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(True, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic_multiple_typevars(
+        self, mapping_type: str, future: bool
+    ):
+        # builtin generic is listed *before* 'typing.Generic' so that
+        # 'Pair[int, str]' is a 'types.GenericAlias' (see
+        # test_inherited_builtin_generic_multilevel). it carries two args, so the
+        # conversion must subscript the rebuilt alias with the args *tuple* rather
+        # than spreading them, else generics with more than one type var raise.
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        K = typing.TypeVar("K")
+        V = typing.TypeVar("V")
+
+        @dataclasses.dataclass
+        class Pair({mapping_type}[K, V], typing.Generic[K, V]):
+            key: K
+            val: V
+
+            def __getitem__(self, x):
+                return getattr(self, x)
+
+            def __len__(self):
+                return 2
+
+            def __iter__(self):
+                return iter(("key", "val"))
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+
+        with temp_module(source) as mod:
+            typ = mod.Pair[int, str]
+            assert type(typ) is types.GenericAlias
+            assert msgspec.json.decode(b'{"key": 1, "val": "a"}', type=typ) == mod.Pair(
+                1, "a"
+            )
+            with pytest.raises(ValidationError, match="Expected `int`"):
+                msgspec.json.decode(b'{"key": "x", "val": "a"}', type=typ)
+            with pytest.raises(ValidationError, match="Expected `str`"):
+                msgspec.json.decode(b'{"key": 1, "val": 2}', type=typ)
 
 
 class TestStructOmitDefaults:
@@ -1782,9 +2551,9 @@ class TestStructOmitDefaults:
         class Test(Struct, omit_defaults=True):
             a: int = 0
             b: bool = False
-            c: Optional[str] = None
+            c: str | None = None
             d: list = []
-            e: Union[list, set] = set()
+            e: list | set = set()
             f: dict = {}
 
         cases = [
@@ -2018,6 +2787,16 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    def test_types_generic_alias_non_generic_errors(self):
+        # mostly a smoke test to weed out some bogus stuff that may get passed to us.
+        # parametrising a non-generic TypedDict via a manually-built
+        # 'types.GenericAlias' is meaningless and shoulf raise
+        class Ex(TypedDict):
+            a: int
+
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(Ex, (int,)))
+
     def test_type_cached(self, proto):
         class Ex(TypedDict):
             a: int
@@ -2051,12 +2830,14 @@ class TestTypedDict:
             b: int
 
         with pytest.raises(TypeError, match="may not contain more than one TypedDict"):
+            proto.Decoder(Ex1 | Ex2)
+        with pytest.raises(TypeError, match="may not contain more than one TypedDict"):
             proto.Decoder(Union[Ex1, Ex2])
 
     def test_subtype_error(self, proto):
         class Ex(TypedDict):
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2069,7 +2850,7 @@ class TestTypedDict:
 
         class Ex(TypedDict):
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2269,7 +3050,7 @@ class TestTypedDict:
         TypedDict = pytest.importorskip("typing_extensions").TypedDict
 
         class Ex(TypedDict, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -2283,7 +3064,7 @@ class TestTypedDict:
 
         class Ex(TypedDict, Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(x=1, y=[1, 2])
         msg = proto.encode(sol)
@@ -2294,7 +3075,7 @@ class TestTypedDict:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -2315,7 +3096,7 @@ class TestTypedDict:
 
         class Ex(TypedDict, Generic[T]):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -2332,6 +3113,16 @@ class TestTypedDict:
 
 
 class TestNamedTuple:
+    def test_types_generic_alias_non_generic_errors(self):
+        # Parametrizing a non-generic NamedTuple via a manually-built
+        # 'types.GenericAlias' is meaningless and must raise, not silently ignore the
+        # args.
+        class Ex(NamedTuple):
+            a: int
+
+        with pytest.raises(TypeError, match="not a generic type"):
+            msgspec.json.Decoder(types.GenericAlias(Ex, (int,)))
+
     def test_type_cached(self, proto):
         class Ex(NamedTuple):
             a: int
@@ -2365,12 +3156,14 @@ class TestNamedTuple:
             b: int
 
         with pytest.raises(TypeError, match="may not contain more than one NamedTuple"):
+            proto.Decoder(Ex1 | Ex2)
+        with pytest.raises(TypeError, match="may not contain more than one NamedTuple"):
             proto.Decoder(Union[Ex1, Ex2])
 
     def test_subtype_error(self, proto):
         class Ex(NamedTuple):
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2383,7 +3176,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple):
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2488,7 +3281,7 @@ class TestNamedTuple:
         NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
 
         class Ex(NamedTuple, Generic[T]):
-            x: Union[List[T], Tuple[float]]
+            x: list[T] | tuple[float]
 
         for typ in [Ex, Ex[int]]:
             for _ in range(2):
@@ -2502,7 +3295,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple, Generic[T]):
             x: T
-            y: List[T]
+            y: list[T]
 
         sol = Ex(1, [1, 2])
         msg = proto.encode(sol)
@@ -2513,7 +3306,7 @@ class TestNamedTuple:
         res = proto.decode(msg, type=Ex[int])
         assert res == sol
 
-        res = proto.decode(msg, type=Ex[Union[int, str]])
+        res = proto.decode(msg, type=Ex[int | str])
         assert res == sol
 
         res = proto.decode(msg, type=Ex[float])
@@ -2534,7 +3327,7 @@ class TestNamedTuple:
 
         class Ex(NamedTuple, Generic[T]):
             a: T
-            b: Union[Ex[T], None]
+            b: Ex[T] | None
         """
 
         with temp_module(source) as mod:
@@ -2603,7 +3396,6 @@ class TestDataclass:
         sol = proto.encode({"x": 1, "y": 2})
         assert res == sol
 
-    @py310_plus
     def test_encode_dataclass_slots(self, proto):
         @dataclass(slots=True)
         class Test:
@@ -2615,7 +3407,6 @@ class TestDataclass:
         sol = proto.encode({"x": 1, "y": 2})
         assert res == sol
 
-    @py310_plus
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_dataclass_missing_fields(self, proto, slots):
         @dataclass(slots=slots)
@@ -2632,7 +3423,6 @@ class TestDataclass:
             res = proto.decode(proto.encode(x))
             assert res == sol
 
-    @py310_plus
     @pytest.mark.parametrize("slots_base", [True, False])
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_dataclass_subclasses(self, proto, slots_base, slots):
@@ -2789,7 +3579,7 @@ class TestDataclass:
         @dataclass
         class Ex:
             a: int
-            b: Union[list, tuple]
+            b: list | tuple
 
         with pytest.raises(TypeError, match="may not contain more than one array-like"):
             proto.Decoder(Ex)
@@ -2804,7 +3594,7 @@ class TestDataclass:
         @dataclass
         class Ex:
             a: int
-            b: Union[Ex, None]
+            b: Ex | None
         """
 
         with temp_module(source) as mod:
@@ -2852,8 +3642,6 @@ class TestDataclass:
     @pytest.mark.parametrize("slots", [False, True])
     def test_decode_dataclass(self, proto, slots):
         if slots:
-            if not PY310:
-                pytest.skip(reason="Python 3.10+ required")
             kws = {"slots": True}
         else:
             kws = {}
@@ -2889,8 +3677,6 @@ class TestDataclass:
     @pytest.mark.parametrize("slots", [False, True])
     def test_decode_dataclass_defaults(self, proto, frozen, slots):
         if slots:
-            if not PY310:
-                pytest.skip(reason="Python 3.10+ required")
             kws = {"slots": True}
         else:
             kws = {}
@@ -2964,7 +3750,7 @@ class TestDataclass:
         )
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+            proto.decode(proto.encode([{"a": 1}]), type=list[Example])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -3168,7 +3954,7 @@ class TestAttrs:
         )
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+            proto.decode(proto.encode([{"a": 1}]), type=list[Example])
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)
@@ -3380,8 +4166,11 @@ class TestTime:
         import zoneinfo
 
         try:
-            x = datetime.time(1, 2, 3, 456789, zoneinfo.ZoneInfo("America/Chicago"))
+            x = datetime.datetime(
+                2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
+            )
         except zoneinfo.ZoneInfoNotFoundError:
+            # Some envs in CI do not have `tzdata`:
             pytest.skip(reason="Failed to load timezone")
         sol = msgspec.json.encode(x.isoformat())
         res = msgspec.json.encode(x)
@@ -3954,6 +4743,7 @@ class TestTypeAlias:
             "type Temp[T] = tuple[T, Ex[T]]; type Ex[T] = tuple[Temp[T], T];",
         ],
     )
+    @emscripten_stack_limited
     def test_recursive_typealias_errors(self, src):
         """Eventually we should support this, but for now just test that it
         errors cleanly"""
@@ -4101,11 +4891,34 @@ class TestAbstractTypes:
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
 
+    @py315_or_later_only
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            typing.MutableMapping,
+            typing.Mapping,
+            collections.abc.MutableMapping,
+            collections.abc.Mapping,
+        ],
+    )
+    def test_abstract_mapping_frozendict(self, proto, typ):
+        sol = frozendict({"x": 1, "y": 2})
+        msg = proto.encode(sol)
+        res = proto.decode(msg, type=typ)
+        assert res == sol
+        assert type(res) is dict  # does not roundtrip
+        with pytest.raises(ValidationError, match="Expected `object`, got `str`"):
+            proto.decode(proto.encode("a"), type=typ)
+
+        assert proto.decode(msg, type=typ[str, int]) == sol
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode(frozendict({"a": "b"})), type=typ[str, int])
+
 
 class TestUnset:
     def test_unset_type_annotation_ignored(self, proto):
         class Ex(Struct):
-            x: Union[int, UnsetType]
+            x: int | UnsetType
 
         dec = proto.Decoder(Ex)
         msg = proto.encode({"x": 1})
@@ -4120,23 +4933,23 @@ class TestUnset:
         if kind == "struct":
 
             class Ex(Struct):
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         elif kind == "attrs":
             attrs = pytest.importorskip("attrs")
 
             @attrs.define
             class Ex:
-                x: Union[int, UnsetType]
-                y: Union[int, UnsetType]
+                x: int | UnsetType
+                y: int | UnsetType
 
         res = proto.encode(Ex(1, UNSET))
         sol = proto.encode({"x": 1})
@@ -4152,8 +4965,8 @@ class TestUnset:
 
     def test_unset_encode_struct_omit_defaults(self, proto):
         class Ex(Struct, omit_defaults=True):
-            x: Union[int, UnsetType] = UNSET
-            y: Union[int, UnsetType] = UNSET
+            x: int | UnsetType = UNSET
+            y: int | UnsetType = UNSET
             z: int = 0
 
         for x, y in [(Ex(), {}), (Ex(y=2), {"y": 2}), (Ex(z=1), {"z": 1})]:
@@ -4223,6 +5036,36 @@ class TestOrder:
         with pytest.raises(TypeError):
             proto.encode({"x": 1, 1: 2}, order="deterministic")
 
+    @py315_or_later_only
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    @pytest.mark.parametrize("use_encoder", [False, True])
+    def test_order_frozendict(self, msg, order, use_encoder, proto):
+        if use_encoder:
+            res = proto.Encoder(order=order).encode(frozendict(msg))
+        else:
+            res = proto.encode(frozendict(msg), order=order)
+
+        # `frozendict` must be equal to the regular `dict`:
+        assert isinstance(msg, dict)
+        if order is not None:
+            sol = proto.encode(dict(sorted(msg.items())))
+        else:
+            sol = proto.encode(msg)
+
+        assert isinstance(res, bytes)
+        assert res == sol
+
+    @py315_or_later_only
+    def test_order_frozendict_non_str_errors(self, proto):
+        with pytest.raises(TypeError, match="Only dicts with str keys"):
+            proto.encode(frozendict({"b": 2, 1: "a"}), order="deterministic")
+
+    @py315_or_later_only
+    def test_order_frozendict_unsortable(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode(frozendict({"x": 1, 1: 2}), order="deterministic")
+
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
     def test_order_set(self, typ, proto, rand, order):
@@ -4282,21 +5125,21 @@ class TestOrder:
         if kind == "struct":
 
             class Ex(Struct):
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
         else:
             attrs = pytest.importorskip("attrs")
 
             @attrs.define(slots=(kind == "attrs"))
             class Ex:
-                z: Union[int, UnsetType] = UNSET
-                x: Union[int, UnsetType] = UNSET
+                z: int | UnsetType = UNSET
+                x: int | UnsetType = UNSET
 
         res = proto.encode(Ex(), order="sorted")
         sol = proto.encode({})
@@ -4374,7 +5217,7 @@ class TestFinal:
 class TestLax:
     @pytest.mark.parametrize("strict", [True, False])
     def test_strict_lax_decoder(self, proto, strict):
-        dec = proto.Decoder(List[int], strict=strict)
+        dec = proto.Decoder(list[int], strict=strict)
 
         assert dec.strict is strict
 
@@ -4620,13 +5463,13 @@ class TestLax:
         ],
     )
     def test_lax_union_valid(self, x, sol, proto):
-        typ = Union[int, float, bool, None]
+        typ = int | float | bool | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
 
     @pytest.mark.parametrize("x", ["1a", "1.5a", "falsx", "trux", "nulx"])
     def test_lax_union_invalid(self, x, proto):
-        typ = Union[int, float, bool, None]
+        typ = int | float | bool | None
         msg = proto.encode(x)
         with pytest.raises(
             ValidationError, match="Expected `int | float | bool | null`"
@@ -4647,10 +5490,7 @@ class TestLax:
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
         msg = proto.encode(x)
-        typ = Union[
-            Annotated[int, Meta(ge=0), Meta(le=1000)],
-            Annotated[float, Meta(le=100)],
-        ]
+        typ = Annotated[int, Meta(ge=0), Meta(le=1000)] | Annotated[float, Meta(le=100)]
         with pytest.raises(ValidationError, match=err):
             proto.decode(msg, type=typ, strict=False)
 
@@ -4666,6 +5506,27 @@ class TestLax:
         ],
     )
     def test_lax_union_extended(self, proto, x, sol):
-        typ = Union[int, float, bool, None, datetime.date]
+        typ = int | float | bool | datetime.date | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
+
+
+@py315_or_later_only
+class TestFrozendict:
+    def test_decode_frozendict_not_object(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode([])
+        with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
+            dec.decode(msg)
+
+    def test_decode_frozendict_typed(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode(frozendict({"abc": 1}))
+
+        res = dec.decode(msg)
+        assert res == {"abc": 1}
+        assert type(res) is frozendict
+
+        msg = proto.encode(frozendict({"abc": "xyz"}))
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            dec.decode(msg)

@@ -4,7 +4,6 @@ import enum
 import sys
 import uuid
 from decimal import Decimal
-from typing import Dict, FrozenSet, List, Set, Tuple
 
 import pytest
 
@@ -15,6 +14,12 @@ try:
 except ImportError:
     pytestmark = pytest.mark.skip(reason="PyYAML is not installed")
 
+from .utils import py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -95,13 +100,13 @@ def test_roundtrip_any(val):
         (uuid.uuid4(), uuid.UUID),
         (ExEnum.one, ExEnum),
         (ExIntEnum.one, ExIntEnum),
-        ([1, 2], List[int]),
-        ((1, 2), Tuple[int, ...]),
-        ({1, 2}, Set[int]),
-        (frozenset({1, 2}), FrozenSet[int]),
-        (("one", 2), Tuple[str, int]),
-        ({"one": 2}, Dict[str, int]),
-        ({1: "two"}, Dict[int, str]),
+        ([1, 2], list[int]),
+        ((1, 2), tuple[int, ...]),
+        ({1, 2}, set[int]),
+        (frozenset({1, 2}), frozenset[int]),
+        (("one", 2), tuple[str, int]),
+        ({"one": 2}, dict[str, int]),
+        ({1: "two"}, dict[int, str]),
         (ExStruct(1, "two"), ExStruct),
         (ExDataclass(1, "two"), ExDataclass),
     ],
@@ -110,6 +115,15 @@ def test_roundtrip_typed(val, type):
     msg = msgspec.yaml.encode(val)
     res = msgspec.yaml.decode(msg, type=type)
     assert res == val
+
+
+@py315_or_later_only
+def test_roundtrip_frozendict():
+    val = frozendict({"x": 1})
+    msg = msgspec.yaml.encode(val)
+    res = msgspec.yaml.decode(msg, type=frozendict[str, int])
+    assert res == val
+    assert type(res) is frozendict
 
 
 def test_encode_error():
@@ -150,13 +164,13 @@ def test_decode_parse_error(msg):
 
 def test_decode_validation_error():
     with pytest.raises(msgspec.ValidationError, match="Expected `str`"):
-        msgspec.yaml.decode(b"[1, 2, 3]", type=List[str])
+        msgspec.yaml.decode(b"[1, 2, 3]", type=list[str])
 
 
 @pytest.mark.parametrize("strict", [True, False])
 def test_decode_strict_or_lax(strict):
     msg = b"a: ['1', '2']"
-    typ = Dict[str, List[int]]
+    typ = dict[str, list[int]]
 
     if strict:
         with pytest.raises(msgspec.ValidationError, match="Expected `int`"):

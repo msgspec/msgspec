@@ -71,7 +71,7 @@ class Package(msgspec.Struct, gc=False):
     subdir: str
     version: str
     license: str = ""
-    noarch: Union[str, bool, None] = None
+    noarch: str | bool | None = None
     size: int = 0
     timestamp: int = 0
 
