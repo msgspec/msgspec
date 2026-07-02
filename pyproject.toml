@@ -33,6 +33,7 @@ keywords = [
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: WebAssembly :: Emscripten",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -86,11 +87,12 @@ hooks = [
 ]
 test-base = [
   "pytest>=9",
+  "pytest-randomly",
 ]
 test-prof = [
   { include-group = "test-base" },
   "memray; sys_platform != 'win32'",
-  "pytest-benchmark",
+  "pytest-codspeed",
   "pytest-memray; sys_platform != 'win32'",
 ]
 test-typing = [

@@ -1,0 +1,96 @@
+name: CodSpeed
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+    paths:
+      - src/**
+      - tests/prof/**
+      - benchmarks/**
+      - pyproject.toml
+      - uv.lock
+      - MANIFEST.in
+      - setup.py
+      - .pytest.toml
+      - .github/workflows/codspeed.yml
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  UV_NO_EDITABLE: "true"
+  # cisable glibc CPU-feature detection (AVX2) so benchmarks use the same
+  # memory routines regardless of which CPU the runner lands on, reducing
+  # cross-run variance. See:
+  # https://codspeed.io/blog/why-glibc-faster-github-actions#how-to-fix-it-
+  GLIBC_TUNABLES: "glibc.cpu.hwcaps=-AVX512F,-AVX512DQ,-AVX512_VBMI2,-AVX2,-AVX,-ERMS,-FSRM"
+  RANDOMLY_SEED: "3485796098"
+
+jobs:
+  perf_benchmarks:
+    name: performance benchmarks
+    runs-on: codspeed-macro
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
+
+    - name: Build msgspec and install profiling dependencies
+      run: uv sync --group test-prof
+
+    - name: Run benchmarks
+      uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f  # v4.18.1
+      with:
+        mode: simulation
+        run: uv run --no-sync pytest tests/prof/perf --codspeed --randomly-seed="$RANDOMLY_SEED" -k arm
+
+  memory_benchmarks:
+    name: Memory benchmarks
+    runs-on: codspeed-macro
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
+
+    - name: Build msgspec and install profiling dependencies
+      run: uv sync --group test-prof
+
+    - name: Run benchmarks
+      uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f  # v4.18.1
+      with:
+        mode: memory
+        run: uv run --no-sync pytest tests/prof/perf --randomly-seed="$RANDOMLY_SEED" --codspeed -k amd -m memory

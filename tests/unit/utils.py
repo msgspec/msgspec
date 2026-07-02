@@ -5,6 +5,17 @@ import types
 import uuid
 from contextlib import contextmanager
 
+import pytest
+
+emscripten_stack_limited = pytest.mark.skipif(
+    sys.platform == "emscripten",
+    reason="Pyodide can overflow the JS/Wasm stack before raising RecursionError",
+)
+
+py315_or_later_only = pytest.mark.skipif(
+    sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+)
+
 
 @contextmanager
 def temp_module(code):

@@ -5,6 +5,7 @@ import gc
 import operator
 import pickle
 import sys
+import textwrap
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
@@ -2604,10 +2605,30 @@ class TestClassVar:
     def test_classvar(self, case, future_annotations):
         source = getattr(self, f"case{case}")()
         if future_annotations:
-            source = "        from __future__ import annotations\n" + source
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
         with temp_module(source) as mod:
             assert mod.Ex.__struct_fields__ == ("a", "b")
+            assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
+
+    def test_wrong_classvar(self):
+        # See https://github.com/msgspec/msgspec/issues/1096
+        source = """
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class typing:
+            pass
+
+        class Ex(Struct):
+            a: typing.ClassVar
+        """
+
+        with pytest.raises(
+            AttributeError,
+            match="'typing' has no attribute 'ClassVar'",
+        ):
+            temp_module(source).__enter__()  # It used to crash, but must not!
 
 
 class TestPostInit:
