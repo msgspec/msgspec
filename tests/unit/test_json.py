@@ -19,6 +19,8 @@ import pytest
 
 import msgspec
 
+from .utils import emscripten_stack_limited
+
 UTC = datetime.timezone.utc
 
 
@@ -176,6 +178,7 @@ class TestEncoderMisc:
         return o
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    @emscripten_stack_limited
     def test_encode_infinite_recursive_object_errors(self, case):
         enc = msgspec.json.Encoder()
         o = getattr(self, "rec_obj%d" % case)()
@@ -238,6 +241,7 @@ class TestEncoderMisc:
         res = json.loads(msg)
         assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
 
+    @emscripten_stack_limited
     def test_encode_enc_hook_recursion_error(self):
         enc = msgspec.json.Encoder(enc_hook=lambda x: x)
 
@@ -2136,6 +2140,12 @@ class TestDict:
 
         with pytest.raises(TypeError):
             msgspec.json.encode({Custom("x"): 1}, enc_hook=enc_hook)
+
+    @emscripten_stack_limited
+    def test_encode_dict_custom_key_recursion_error(self):
+        class Custom:
+            def __init__(self, value):
+                self.value = value
 
         with pytest.raises(RecursionError):
             msgspec.json.encode({Custom("x"): 1}, enc_hook=lambda x: x)

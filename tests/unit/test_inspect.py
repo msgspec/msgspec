@@ -32,7 +32,12 @@ import msgspec
 import msgspec.inspect as mi
 from msgspec import Meta
 
-from .utils import temp_module
+from .utils import py315_or_later_only, temp_module
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
@@ -283,6 +288,23 @@ def test_dict(typ, kw, has_args):
     if kw:
         typ = Annotated[typ, Meta(**kw)]
     sol = mi.DictType(key_type=key, value_type=val, **kw)
+    assert mi.type_info(typ) == sol
+
+
+@py315_or_later_only
+@pytest.mark.parametrize("kw", [{}, dict(min_length=0), dict(max_length=3)])
+@pytest.mark.parametrize("has_args", [False, True])
+def test_frozendict(kw, has_args):
+    if has_args:
+        typ = frozendict[int, float]
+        key = mi.IntType()
+        val = mi.FloatType()
+    else:
+        typ = frozendict
+        key = val = mi.AnyType()
+    if kw:
+        typ = Annotated[typ, Meta(**kw)]
+    sol = mi.FrozenDictType(key_type=key, value_type=val, **kw)
     assert mi.type_info(typ) == sol
 
 

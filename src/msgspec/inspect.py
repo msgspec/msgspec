@@ -3,21 +3,11 @@ from __future__ import annotations
 import datetime
 import decimal
 import enum
+import sys
 import uuid
 from collections.abc import Iterable
-from typing import (
-    Any,
-    Final,
-    Literal,
-    Type as typing_Type,
-    TypeVar,
-    Union,
-)
-
-try:
-    from types import UnionType as _types_UnionType  # type: ignore
-except Exception:
-    _types_UnionType = type("UnionType", (), {})  # type: ignore
+from types import UnionType as _types_UnionType
+from typing import Any, Final, Literal, TypeVar, Union
 
 try:
     from typing import TypeAliasType as _TypeAliasType  # type: ignore
@@ -80,7 +70,10 @@ __all__ = (
     "StructType",
     "is_struct",
     "is_struct_type",
+    "FrozenDictType",
 )
+
+_PY315_PLUS = sys.version_info >= (3, 15)
 
 
 def __dir__():
@@ -305,7 +298,7 @@ class EnumType(Type):
         The corresponding `enum.Enum` type.
     """
 
-    cls: typing_Type[enum.Enum]
+    cls: type[enum.Enum]
 
 
 class LiteralType(Type):
@@ -473,6 +466,31 @@ class DictType(Type):
     max_length: int | None = None
 
 
+class FrozenDictType(Type):
+    """A type corresponding to `frozendict`.
+
+    Can only be emitted on Python 3.15+.
+
+    Parameters
+    ----------
+    key_type: Type
+        The key type.
+    value_type: Type
+        The value type.
+    min_length: int, optional
+        If set, an instance of this type must have length greater than or equal
+        to ``min_length``.
+    max_length: int, optional
+        If set, an instance of this type must have length less than or equal
+        to ``max_length``.
+    """
+
+    key_type: Type
+    value_type: Type
+    min_length: Union[int, None] = None
+    max_length: Union[int, None] = None
+
+
 class Field(msgspec.Struct):
     """A record describing a field in an object-like type.
 
@@ -570,7 +588,7 @@ class StructType(Type):
         ``True`` any unknown fields will result in an error.
     """
 
-    cls: typing_Type[msgspec.Struct]
+    cls: type[msgspec.Struct]
     fields: tuple[Field, ...]
     tag_field: str | None = None
     tag: str | int | None = None
@@ -888,6 +906,13 @@ class _Translator:
                 return TupleType(tuple(self.translate(a) for a in args))
         elif t is dict:
             return DictType(
+                self.translate(args[0]) if args else AnyType(),
+                self.translate(args[1]) if args else AnyType(),
+                min_length=min_length,
+                max_length=max_length,
+            )
+        elif _PY315_PLUS and t is frozendict:  # noqa: F821
+            return FrozenDictType(
                 self.translate(args[0]) if args else AnyType(),
                 self.translate(args[1]) if args else AnyType(),
                 min_length=min_length,
