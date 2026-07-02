@@ -320,6 +320,11 @@ class TestToBuiltins:
         assert type(expected) is dict
         assert val == expected
 
+    def check_frozen(self, val, expected):
+        assert type(val) is frozendict
+        assert type(expected) is frozendict
+        assert val == expected
+
     @py315_or_later_only
     @pytest.mark.parametrize("subclass", [False, True])
     def test_frozendict(self, subclass):
@@ -338,11 +343,20 @@ class TestToBuiltins:
         self.check_non_frozen(res, {"banana": 1, "b": [-1], 3: "three"})
         assert res is not msg
 
+        self.check_frozen(
+            to_builtins(msg, builtin_types=[frozendict]),
+            frozendict({"banana": 1, "b": [-1], 3: "three"}),
+        )
         self.check_non_frozen(
             to_builtins(raw, builtin_types=[frozendict]),
             {"banana": 1, "b": [-1], 3: "three"},
         )
+
         self.check_non_frozen(to_builtins(in_type()), {})
+        self.check_frozen(
+            to_builtins(in_type(), builtin_types=[frozendict]),
+            frozendict(),
+        )
 
     @py315_or_later_only
     def test_frozendict_builtin_types(self):
@@ -670,7 +684,8 @@ class TestOrder:
         msg = frozendict(msg)
         res = to_builtins(msg, builtin_types=[frozendict], order=order)
         sol = frozendict(sorted(msg.items())) if order else msg
-        self.assert_eq(res, sol, typ=frozendict)
+        self.assert_eq(res, sol)
+        assert type(res) is frozendict
 
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
