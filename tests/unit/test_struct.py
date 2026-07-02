@@ -9,7 +9,7 @@ import textwrap
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 import pytest
 
@@ -2629,6 +2629,218 @@ class TestClassVar:
             match="'typing' has no attribute 'ClassVar'",
         ):
             temp_module(source).__enter__()  # It used to crash, but must not!
+
+
+class TestClassVarOverride:
+    """Test that ClassVar annotation in child struct correctly overrides/removes parent fields."""
+
+    def test_struct_fields_without_classvar(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: str = "overridden"
+            extra: str = ""
+
+        assert MsgChild.__struct_fields__ == ("base", "name", "extra")
+        assert MsgChild.__struct_defaults__ == ("base_name", "overridden", "")
+
+    def test_struct_fields_classvar_override(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        assert MsgChild.__struct_fields__ == ("base", "extra")
+        assert MsgChild.__struct_defaults__ == ("base_name", "")
+
+    def test_construct_without_classvar_field(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        c = MsgChild(extra="hello")
+        assert c.base == "base_name"
+        assert c.name == "overridden"
+        assert c.extra == "hello"
+
+    def test_construct_with_classvar_as_argument_rejected(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        with pytest.raises(TypeError):
+            MsgChild(name="bob", extra="x")
+
+    def test_encode_excludes_classvar_field(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        c = MsgChild(extra="hello")
+        encoded = msgspec.json.encode(c)
+        assert b'"name"' not in encoded
+        assert b'"base"' in encoded
+        assert b'"extra"' in encoded
+
+    def test_decode_without_classvar_field(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        c = msgspec.json.decode(b'{"extra":"hello"}', type=MsgChild)
+        assert c.base == "base_name"
+        assert c.name == "overridden"
+        assert c.extra == "hello"
+
+    def test_decode_with_classvar_field_in_json(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        c = msgspec.json.decode(b'{"name":"json_name","extra":"hello"}', type=MsgChild)
+        assert c.name == "overridden"
+        assert c.extra == "hello"
+
+    def test_classvar_field_not_in_repr(self):
+        class MsgBase(msgspec.Struct):
+            base: str = "base_name"
+            name: str = "default_name"
+
+        class MsgChild(MsgBase):
+            name: ClassVar[str] = "overridden"
+            extra: str = ""
+
+        c = MsgChild(extra="hello")
+        # "name" would match "base_name", check for "name=" instead
+        assert "name=" not in repr(c)
+        assert "base=" in repr(c)
+        assert "extra=" in repr(c)
+
+    def test_classvar_override_cleanup(self):
+        """Comprehensive test covering all cleanup scenarios in one multi-level hierarchy.
+
+        Layout:
+          Gp (rename via field() on c)
+          └─ Parent (rename="upper", adds d, e)
+               └─ Child (removes b, c, e via ClassVar; adds f)
+
+        Removed: b (plain inherited), c (renamed at Gp), e (plain from Parent)
+        Survives: a (plain from Gp), d (renamed by Parent rename="upper"), f (new)
+        """
+
+        # ── GrandParent ──────────────────────────────────
+        class Gp(msgspec.Struct):
+            a: int = 1  # survives, plain
+            b: str = "gp_b"  # → removed by Child, plain inherited
+            c: float = msgspec.field(  # → removed by Child, renamed at Gp level
+                name="c_enc", default=3.0
+            )
+
+        # ── Parent ──────────────────────────────────────
+        class Parent(Gp, rename="upper"):
+            d: str = "parent_d"  # survives, rename via struct rename
+            e: int = 10  # → removed by Child
+
+        # ── Child ───────────────────────────────────────
+        class Child(Parent):
+            b: ClassVar[str] = "cv_b"  # remove from Gp, plain inherited
+            c: ClassVar[float] = 33.0  # remove from Gp, had field-level rename
+            e: ClassVar[int] = 100  # remove from Parent, no rename
+            f: str = "child_f"  # new field
+
+        # ── Assert cleanup of struct_fields and defaults ──
+        assert Child.__struct_fields__ == ("a", "d", "f"), (
+            f"Expected ('a','d','f'), got {Child.__struct_fields__}"
+        )
+        assert Child.__struct_defaults__ == (1, "parent_d", "child_f"), (
+            f"Unexpected defaults: {Child.__struct_defaults__}"
+        )
+
+        # ── Assert encode fields (rename propagation) ──
+        # Parent has rename="upper", which also applies to child's new field f
+        assert Child.__struct_encode_fields__ == ("a", "D", "F"), (
+            f"Unexpected encode fields: {Child.__struct_encode_fields__}"
+        )
+
+        # ── Assert ClassVar values are accessible ──
+        assert Child.b == "cv_b"
+        assert Child.c == 33.0
+        assert Child.e == 100
+
+        # ── Construct without removed fields ──
+        c = Child(f="hello")
+        assert c.a == 1
+        assert c.d == "parent_d"
+        assert c.f == "hello"
+        assert c.b == "cv_b"
+        assert c.c == 33.0
+        assert c.e == 100
+        # Removed fields not in repr
+        assert "b=" not in repr(c)
+        assert "c=" not in repr(c)
+        assert "e=" not in repr(c)
+
+        # ── Reject removed field as constructor argument ──
+        with pytest.raises(TypeError):
+            Child(b="x", f="y")
+        with pytest.raises(TypeError):
+            Child(c=99.0, f="y")
+        with pytest.raises(TypeError):
+            Child(e=999, f="y")
+
+        # ── Encode excludes removed fields ──
+        encoded = msgspec.json.encode(c)
+        assert b'"a"' in encoded
+        assert b'"D"' in encoded  # renamed by Parent
+        assert b'"F"' in encoded  # renamed by Parent rename="upper"
+        assert b'"b"' not in encoded
+        assert b'"c"' not in encoded
+        assert b'"e"' not in encoded
+
+        # ── Decode without removed fields ──
+        c2 = msgspec.json.decode(b'{"a":10,"D":"new_d","F":"world"}', type=Child)
+        assert c2.a == 10
+        assert c2.d == "new_d"
+        assert c2.f == "world"
+        assert c2.b == "cv_b"
+        assert c2.c == 33.0
+        assert c2.e == 100
+
+        # ── Decode with removed fields in JSON ──
+        c3 = msgspec.json.decode(
+            b'{"b":"ignored","c":9.9,"e":0,"a":20,"D":"x","F":"z"}', type=Child
+        )
+        assert c3.a == 20
+        assert c3.d == "x"
+        assert c3.f == "z"
+        assert c3.b == "cv_b"  # ClassVar value, not JSON
+        assert c3.c == 33.0
+        assert c3.e == 100
 
 
 class TestPostInit:
