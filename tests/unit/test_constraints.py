@@ -514,6 +514,23 @@ class TestDecimalConstraints:
         with pytest.raises(msgspec.ValidationError):
             msgspec.convert(Decimal("0"), typ)
 
+    def test_multiple_of_decimal_subclass_bound_bool_override(self, proto):
+        # A subclass bound with an overridden `__bool__` must not affect
+        # validation: bounds are normalized to plain `Decimal` on collection,
+        # and the remainder is compared against zero explicitly rather than
+        # through `__bool__`.
+        class WeirdDecimal(Decimal):
+            def __bool__(self):
+                return True  # even for zero
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=WeirdDecimal("0.1"))]
+
+        dec = proto.Decoder(Ex)
+        assert dec.decode(proto.encode(Ex(Decimal("0.3")))).x == Decimal("0.3")
+        with pytest.raises(msgspec.ValidationError, match="multiple of"):
+            dec.decode(proto.encode(Ex(Decimal("0.05"))))
+
     def test_decimal_subclass_bound(self, proto):
         # A `Decimal` subclass is a valid bound value: unlike `int`/`float`
         # (where only exact instances are accepted), a subclass is genuinely a

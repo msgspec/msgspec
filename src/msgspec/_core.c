@@ -2830,11 +2830,11 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
 #define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
 #define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
-/* Decimal constraints - stored as PyObject* (Decimal instances) */
-#define MS_CONSTR_DECIMAL_GT          (1ull << 38)
-#define MS_CONSTR_DECIMAL_GE          (1ull << 39)
-#define MS_CONSTR_DECIMAL_LT          (1ull << 40)
-#define MS_CONSTR_DECIMAL_LE          (1ull << 41)
+/* Decimal constraints - a single bit, the details slot holds a 5-tuple
+ * (gt, ge, lt, le, multiple_of) of Decimal instances (None when unset).
+ * Grouped into one slot since there aren't enough free bits left for
+ * per-constraint bits. */
+#define MS_CONSTR_DECIMAL           (1ull << 38)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2855,7 +2855,6 @@ AssocList_Sort(AssocList* list) {
 #define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 58)
 #define MS_CONSTR_TZ_AWARE          (1ull << 59)
 #define MS_CONSTR_TZ_NAIVE          (1ull << 60)
-#define MS_CONSTR_DECIMAL_MULTIPLE_OF (1ull << 61)
 /* Extra flag bit, used by TypedDict/dataclass implementations */
 #define MS_EXTRA_FLAG               (1ull << 63)
 
@@ -2897,9 +2896,7 @@ AssocList_Sort(AssocList* list) {
  * S | ARRAY_MAX_LENGTH |
  * S | MAP_MIN_LENGTH |
  * S | MAP_MAX_LENGTH |
- * O | DECIMAL_GT | DECIMAL_GE |
- * O | DECIMAL_LT | DECIMAL_LE |
- * O | DECIMAL_MULTIPLE_OF |
+ * O | DECIMAL [5-tuple (gt, ge, lt, le, multiple_of)] |
  * T | FIXTUPLE [size, types ...] |
  * */
 
@@ -2929,14 +2926,11 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_19 MS_CONSTR_ARRAY_MAX_LENGTH
 #define SLOT_20 MS_CONSTR_MAP_MIN_LENGTH
 #define SLOT_21 MS_CONSTR_MAP_MAX_LENGTH
-#define SLOT_22 (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)
-#define SLOT_23 (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)
-#define SLOT_24 MS_CONSTR_DECIMAL_MULTIPLE_OF
+#define SLOT_22 MS_CONSTR_DECIMAL
 
 /* Common groups */
 #define MS_INT_CONSTRS (SLOT_08 | SLOT_09 | SLOT_10)
 #define MS_FLOAT_CONSTRS (SLOT_11 | SLOT_12 | SLOT_13)
-#define MS_DECIMAL_CONSTRS (SLOT_22 | SLOT_23 | SLOT_24)
 #define MS_STR_CONSTRS (SLOT_05 | SLOT_14 | SLOT_15)
 #define MS_BYTES_CONSTRS (SLOT_16 | SLOT_17)
 #define MS_ARRAY_CONSTRS (SLOT_18 | SLOT_19)
@@ -3372,36 +3366,12 @@ TypeNode_get_constr_map_max_length(TypeNode *type) {
 }
 
 static MS_INLINE PyObject *
-TypeNode_get_constr_decimal_min(TypeNode *type) {
+TypeNode_get_constr_decimal(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
             SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
             SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
-        )
-    );
-    return (PyObject *)(type->details[i].pointer);
-}
-
-static MS_INLINE PyObject *
-TypeNode_get_constr_decimal_max(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
-            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
-            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22
-        )
-    );
-    return (PyObject *)(type->details[i].pointer);
-}
-
-static MS_INLINE PyObject *
-TypeNode_get_constr_decimal_multiple_of(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
-            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
-            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23
         )
     );
     return (PyObject *)(type->details[i].pointer);
@@ -3413,7 +3383,7 @@ TypeNode_get_fixtuple(TypeNode *type, Py_ssize_t *offset, Py_ssize_t *size) {
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
             SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
-            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23 | SLOT_24
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22
         )
     );
     *size = type->details[i].py_ssize_t;
@@ -3477,17 +3447,9 @@ TypeNode_Free(TypeNode *self) {
         TypeNode *node = (TypeNode *)(self->details[i + fixtuple_offset].pointer);
         TypeNode_Free(node);
     }
-    /* Free Decimal constraint PyObject* stored after scalar constraint slots */
-    if (self->types & (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)) {
-        PyObject *obj = TypeNode_get_constr_decimal_min(self);
-        Py_XDECREF(obj);
-    }
-    if (self->types & (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)) {
-        PyObject *obj = TypeNode_get_constr_decimal_max(self);
-        Py_XDECREF(obj);
-    }
-    if (self->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
-        PyObject *obj = TypeNode_get_constr_decimal_multiple_of(self);
+    /* Free the Decimal constraints tuple stored after scalar constraint slots */
+    if (self->types & MS_CONSTR_DECIMAL) {
+        PyObject *obj = TypeNode_get_constr_decimal(self);
         Py_XDECREF(obj);
     }
     PyMem_Free(self);
@@ -3503,16 +3465,10 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
         PyObject *obj = (PyObject *)(self->details[i].pointer);
         Py_VISIT(obj);
     }
-    /* Visit Decimal constraint PyObject* (direct references on this node) before
-     * recursing into children, which may return early. */
-    if (self->types & (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)) {
-        Py_VISIT(TypeNode_get_constr_decimal_min(self));
-    }
-    if (self->types & (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)) {
-        Py_VISIT(TypeNode_get_constr_decimal_max(self));
-    }
-    if (self->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
-        Py_VISIT(TypeNode_get_constr_decimal_multiple_of(self));
+    /* Visit the Decimal constraints tuple (a direct reference on this node)
+     * before recursing into children, which may return early. */
+    if (self->types & MS_CONSTR_DECIMAL) {
+        Py_VISIT(TypeNode_get_constr_decimal(self));
     }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
         int out;
@@ -3630,10 +3586,9 @@ typedef struct {
     bool literal_none;
     bool literal_bool_true;
     bool literal_bool_false;
-    /* Decimal constraints (stored as PyObject* Decimal instances) */
-    PyObject *py_decimal_min;
-    PyObject *py_decimal_max;
-    PyObject *py_decimal_multiple_of;
+    /* Decimal constraints, a 5-tuple (gt, ge, lt, le, multiple_of) of
+     * Decimal instances (None when unset) */
+    PyObject *py_decimal_constrs;
     /* Constraints */
     int64_t c_int_min;
     int64_t c_int_max;
@@ -3922,25 +3877,41 @@ typenode_collect_constraints(
         }
     }
     else if (kind == CK_DECIMAL) {
-        if (constraints->gt != NULL) {
-            state->types |= MS_CONSTR_DECIMAL_GT;
-            if (!_constr_as_decimal(constraints->gt, &(state->py_decimal_min))) return -1;
+        PyObject *bounds[5] = {
+            constraints->gt, constraints->ge,
+            constraints->lt, constraints->le,
+            constraints->multiple_of,
+        };
+        PyObject *converted[5] = {NULL, NULL, NULL, NULL, NULL};
+        bool any = false;
+        for (size_t i = 0; i < 5; i++) {
+            if (bounds[i] == NULL) continue;
+            if (!_constr_as_decimal(bounds[i], &converted[i])) {
+                for (size_t j = 0; j < i; j++) {
+                    Py_XDECREF(converted[j]);
+                }
+                return -1;
+            }
+            any = true;
         }
-        else if (constraints->ge != NULL) {
-            state->types |= MS_CONSTR_DECIMAL_GE;
-            if (!_constr_as_decimal(constraints->ge, &(state->py_decimal_min))) return -1;
-        }
-        if (constraints->lt != NULL) {
-            state->types |= MS_CONSTR_DECIMAL_LT;
-            if (!_constr_as_decimal(constraints->lt, &(state->py_decimal_max))) return -1;
-        }
-        else if (constraints->le != NULL) {
-            state->types |= MS_CONSTR_DECIMAL_LE;
-            if (!_constr_as_decimal(constraints->le, &(state->py_decimal_max))) return -1;
-        }
-        if (constraints->multiple_of != NULL) {
-            state->types |= MS_CONSTR_DECIMAL_MULTIPLE_OF;
-            if (!_constr_as_decimal(constraints->multiple_of, &(state->py_decimal_multiple_of))) return -1;
+        if (any) {
+            PyObject *tuple = PyTuple_New(5);
+            if (tuple == NULL) {
+                for (size_t i = 0; i < 5; i++) {
+                    Py_XDECREF(converted[i]);
+                }
+                return -1;
+            }
+            for (size_t i = 0; i < 5; i++) {
+                PyObject *val = converted[i];
+                if (val == NULL) {
+                    val = Py_None;
+                    Py_INCREF(val);
+                }
+                PyTuple_SET_ITEM(tuple, i, val);
+            }
+            state->types |= MS_CONSTR_DECIMAL;
+            state->py_decimal_constrs = tuple;
         }
     }
     else if (kind == CK_STR) {
@@ -4034,9 +4005,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_CONSTR_ARRAY_MAX_LENGTH |
             MS_CONSTR_MAP_MIN_LENGTH |
             MS_CONSTR_MAP_MAX_LENGTH |
-            MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE |
-            MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE |
-            MS_CONSTR_DECIMAL_MULTIPLE_OF
+            MS_CONSTR_DECIMAL
         )
     );
     if (state->types & MS_TYPE_FIXTUPLE) {
@@ -4232,17 +4201,9 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     if (state->types & MS_CONSTR_MAP_MAX_LENGTH) {
         out->details[e_ind++].py_ssize_t = state->c_map_max_length;
     }
-    if (state->types & (MS_CONSTR_DECIMAL_GT | MS_CONSTR_DECIMAL_GE)) {
-        Py_INCREF(state->py_decimal_min);
-        out->details[e_ind++].pointer = state->py_decimal_min;
-    }
-    if (state->types & (MS_CONSTR_DECIMAL_LT | MS_CONSTR_DECIMAL_LE)) {
-        Py_INCREF(state->py_decimal_max);
-        out->details[e_ind++].pointer = state->py_decimal_max;
-    }
-    if (state->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
-        Py_INCREF(state->py_decimal_multiple_of);
-        out->details[e_ind++].pointer = state->py_decimal_multiple_of;
+    if (state->types & MS_CONSTR_DECIMAL) {
+        Py_INCREF(state->py_decimal_constrs);
+        out->details[e_ind++].pointer = state->py_decimal_constrs;
     }
     return (TypeNode *)out;
 
@@ -4959,9 +4920,7 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->literal_str_values);
     Py_CLEAR(state->literal_str_lookup);
     Py_CLEAR(state->c_str_regex);
-    Py_CLEAR(state->py_decimal_min);
-    Py_CLEAR(state->py_decimal_max);
-    Py_CLEAR(state->py_decimal_multiple_of);
+    Py_CLEAR(state->py_decimal_constrs);
 }
 
 /* This decomposes an input type `obj`, stripping out any "wrapper" types
@@ -10554,54 +10513,62 @@ ms_check_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 
 static MS_NOINLINE bool
 ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (type->types & MS_CONSTR_DECIMAL_GT) {
-        PyObject *c = TypeNode_get_constr_decimal_min(type);
-        int ok = PyObject_RichCompareBool(obj, c, Py_GT);
+    PyObject *constrs = TypeNode_get_constr_decimal(type);
+    PyObject *gt = PyTuple_GET_ITEM(constrs, 0);
+    PyObject *ge = PyTuple_GET_ITEM(constrs, 1);
+    PyObject *lt = PyTuple_GET_ITEM(constrs, 2);
+    PyObject *le = PyTuple_GET_ITEM(constrs, 3);
+    PyObject *multiple_of = PyTuple_GET_ITEM(constrs, 4);
+
+    if (gt != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, gt, Py_GT);
         if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
-            ms_raise_validation_error(path, "Expected `Decimal` > %R", c);
+            ms_raise_validation_error(path, "Expected `Decimal` > %R", gt);
             return false;
         }
     }
-    else if (type->types & MS_CONSTR_DECIMAL_GE) {
-        PyObject *c = TypeNode_get_constr_decimal_min(type);
-        int ok = PyObject_RichCompareBool(obj, c, Py_GE);
+    else if (ge != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, ge, Py_GE);
         if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
-            ms_raise_validation_error(path, "Expected `Decimal` >= %R", c);
+            ms_raise_validation_error(path, "Expected `Decimal` >= %R", ge);
             return false;
         }
     }
-    if (type->types & MS_CONSTR_DECIMAL_LT) {
-        PyObject *c = TypeNode_get_constr_decimal_max(type);
-        int ok = PyObject_RichCompareBool(obj, c, Py_LT);
+    if (lt != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, lt, Py_LT);
         if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
-            ms_raise_validation_error(path, "Expected `Decimal` < %R", c);
+            ms_raise_validation_error(path, "Expected `Decimal` < %R", lt);
             return false;
         }
     }
-    else if (type->types & MS_CONSTR_DECIMAL_LE) {
-        PyObject *c = TypeNode_get_constr_decimal_max(type);
-        int ok = PyObject_RichCompareBool(obj, c, Py_LE);
+    else if (le != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, le, Py_LE);
         if (MS_UNLIKELY(ok < 0)) return false;
         if (MS_UNLIKELY(!ok)) {
-            ms_raise_validation_error(path, "Expected `Decimal` <= %R", c);
+            ms_raise_validation_error(path, "Expected `Decimal` <= %R", le);
             return false;
         }
     }
-    if (type->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
-        PyObject *c = TypeNode_get_constr_decimal_multiple_of(type);
-        PyObject *modulo = PyNumber_Remainder(obj, c);
+    if (multiple_of != Py_None) {
+        PyObject *modulo = PyNumber_Remainder(obj, multiple_of);
         if (modulo == NULL) return false;
-        /* A Decimal is falsy iff it is zero. Using truthiness avoids
-         * allocating a zero to compare against, and (unlike coercing to a
-         * C integer) stays correct for fractional remainders. */
-        int nonzero = PyObject_IsTrue(modulo);
+        /* Compare the remainder against zero explicitly rather than relying
+         * on `__bool__`, which Decimal subclasses may override. `zero` is a
+         * cached small int, creating it here is effectively free. */
+        PyObject *zero = PyLong_FromLong(0);
+        if (MS_UNLIKELY(zero == NULL)) {
+            Py_DECREF(modulo);
+            return false;
+        }
+        int equal = PyObject_RichCompareBool(modulo, zero, Py_EQ);
+        Py_DECREF(zero);
         Py_DECREF(modulo);
-        if (MS_UNLIKELY(nonzero < 0)) return false;
-        if (MS_UNLIKELY(nonzero)) {
-            ms_raise_validation_error(path, "Expected `Decimal` that's a multiple of %R", c);
+        if (MS_UNLIKELY(equal < 0)) return false;
+        if (MS_UNLIKELY(!equal)) {
+            ms_raise_validation_error(path, "Expected `Decimal` that's a multiple of %R", multiple_of);
             return false;
         }
     }
@@ -10610,7 +10577,7 @@ ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 
 static MS_NOINLINE PyObject *
 ms_check_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (MS_LIKELY(!(type->types & MS_DECIMAL_CONSTRS))) return obj;
+    if (MS_LIKELY(!(type->types & MS_CONSTR_DECIMAL))) return obj;
     if (ms_passes_decimal_constraints(obj, type, path)) return obj;
     Py_DECREF(obj);
     return NULL;
