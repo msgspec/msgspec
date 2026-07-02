@@ -2529,6 +2529,67 @@ class TestInspectFields:
         )
         assert msgspec.structs.fields(Example[str])
 
+    def test_fields_cached(self):
+        class Example(msgspec.Struct):
+            x: int
+            y: str = "hello"
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example)
+        assert result1 is result2
+
+    def test_fields_cached_instance(self):
+        class Example(msgspec.Struct):
+            x: int
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example(1))
+        assert result1 is result2
+
+    def test_fields_generic_not_cached_across_params(self):
+        T = TypeVar("T")
+
+        class Example(msgspec.Struct, Generic[T]):
+            x: T
+
+        result1 = msgspec.structs.fields(Example[str])
+        result2 = msgspec.structs.fields(Example[int])
+        assert result1 is not result2
+
+    def test_fields_cached_frozen_struct(self):
+        # The cache is a side table keyed on the class, so frozen structs
+        # (which block setattr on instances) are cached like any other.
+        class Example(msgspec.Struct, frozen=True):
+            x: int
+            y: str = "hello"
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example)
+        assert result1 is result2
+
+    def test_fields_cache_does_not_mutate_class(self):
+        class Example(msgspec.Struct):
+            x: int
+
+        msgspec.structs.fields(Example)
+        # The cache lives in a side table, not on the class, so inspecting
+        # the struct must not add any attributes to it.
+        assert "__struct_field_info__" not in Example.__dict__
+        assert not any("field_info" in name for name in vars(Example))
+
+    def test_fields_cache_not_inherited_by_subclass(self):
+        class Base(msgspec.Struct):
+            x: int
+
+        class Child(Base):
+            y: int
+
+        base_fields = msgspec.structs.fields(Base)
+        child_fields = msgspec.structs.fields(Child)
+        assert [f.name for f in base_fields] == ["x"]
+        assert [f.name for f in child_fields] == ["x", "y"]
+        assert base_fields is not child_fields
+
 
 class TestClassVar:
     def case1(self):
