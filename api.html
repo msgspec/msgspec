@@ -851,11 +851,13 @@ determine whether a field was left unset, or explicitly set to <code class="docu
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
-<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
-they’re encoded as strings, if ‘number’, they’re encoded as floats.
-Defaults to ‘string’, which is the recommended value since ‘number’
-may result in precision loss when decoding for some JSON library
-implementations.</p></li>
+<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em> or </em><em>callable</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
+they’re encoded as strings, if ‘number’, they’re encoded as floats. If
+a callable is provided, it will be called with the <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>
+object and must return a JSON-serializable value (but <strong>not</strong> another
+<a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> or a nested structure containing <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>).
+Defaults to ‘string’, which is the recommended value since ‘number’ may
+result in precision loss when decoding for some JSON library implementations.</p></li>
 <li><p><strong>uuid_format</strong> (<em>{'canonical'</em><em>, </em><em>'hex'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects. The ‘canonical’
 and ‘hex’ formats encode them as strings with and without hyphens
 respectively. Defaults to ‘canonical’.</p></li>
@@ -1106,10 +1108,13 @@ whitespace, minimizing the message size.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
-<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
-they’re encoded as strings, if ‘number’, they’re encoded as floats.
-Defaults to ‘string’, which is the recommended value since ‘number’
-may result in precision loss when decoding.</p></li>
+<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em> or </em><em>callable</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
+they’re encoded as strings, if ‘number’, they’re encoded as floats. If
+a callable is provided, it will be called with the <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>
+object and must return a JSON-serializable value (but <strong>not</strong> another
+<a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> or a nested structure containing <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>).
+Defaults to ‘string’, which is the recommended value since ‘number’ may
+result in precision loss when decoding.</p></li>
 <li><p><strong>uuid_format</strong> (<em>{'canonical'</em><em>, </em><em>'hex'</em><em>, </em><em>'bytes'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects. The ‘canonical’
 and ‘hex’ formats encode them as strings with and without hyphens
 respectively. The ‘bytes’ format encodes them as big-endian binary
