@@ -21,6 +21,7 @@
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
+#define PY315_PLUS (PY_VERSION_HEX >= 0x030f0000)
 
 /* In Python 3.14+, tuples cache their hash value in ob_hash. When a tuple is
  * allocated via tp_alloc (which zero-initializes memory), ob_hash is 0 — a
@@ -132,6 +133,18 @@ PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
     return -1;
 }
 #endif // PY_VERSION_HEX < 0x030D00A1
+
+#if PY315_PLUS
+static inline PyObject *
+_PyFrozenDict_NewSteal(PyObject *dict) {
+    if (dict == NULL) {
+        return NULL;
+    }
+    PyObject *op = PyFrozenDict_New(dict);
+    Py_DECREF(dict);
+    return op;
+}
+#endif
 
 #if PY_VERSION_HEX < 0x030D00B3
 #  define Py_BEGIN_CRITICAL_SECTION(op) {
@@ -2836,6 +2849,18 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
 #define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
 #define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
+// Despite the fact that `frozendict` was added in 3.15,
+// this type is always defined for order consistency:
+#define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+
+/* Aliases for commonly used types */
+#if PY315_PLUS
+#define MS_ANY_DICT                 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
+#else
+// `frozendict` was added in 3.15, before that we can ignore this type.
+#define MS_ANY_DICT                 MS_TYPE_DICT
+#endif
+
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2881,7 +2906,7 @@ AssocList_Sort(AssocList* list) {
  * O | TYPEDDICT | DATACLASS |
  * O | NAMEDTUPLE |
  * O | STR_REGEX |
- * T | DICT [key, value] |
+ * T | DICT [key, value] | FROZENDICT [key, value] |
  * T | LIST | SET | FROZENSET | VARTUPLE |
  * I | INT_MIN |
  * I | INT_MAX |
@@ -2910,7 +2935,7 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_03 (MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS)
 #define SLOT_04 MS_TYPE_NAMEDTUPLE
 #define SLOT_05 MS_CONSTR_STR_REGEX
-#define SLOT_06 MS_TYPE_DICT
+#define SLOT_06 MS_ANY_DICT
 #define SLOT_07 (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)
 #define SLOT_08 MS_CONSTR_INT_MIN
 #define SLOT_09 MS_CONSTR_INT_MAX
@@ -3402,7 +3427,7 @@ TypeNode_get_traverse_ranges(
         /* Number of typenode details */
         n_type = ms_popcount(
             type->types & (
-                MS_TYPE_DICT |
+                MS_ANY_DICT |
                 MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE
             )
         );
@@ -3505,7 +3530,8 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & (
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS | MS_TYPE_DICT
+            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
+            MS_ANY_DICT
         )
     ) {
         if (!strbuilder_extend_literal(&builder, "object")) return NULL;
@@ -3880,7 +3906,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
             MS_TYPE_NAMEDTUPLE |
             MS_CONSTR_STR_REGEX |
-            MS_TYPE_DICT |
+            MS_ANY_DICT |
             MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE |
             MS_CONSTR_INT_MIN |
             MS_CONSTR_INT_MAX |
@@ -4023,7 +4049,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         Py_INCREF(state->c_str_regex);
         out->details[e_ind++].pointer = state->c_str_regex;
     }
-    if (state->dict_key_obj != NULL) {
+    if (state->dict_key_obj != NULL && state->dict_val_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
         if (temp == NULL) goto error;
         out->details[e_ind++].pointer = temp;
@@ -4172,7 +4198,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS
         )
     );
-    if (state->types & MS_TYPE_DICT) {
+    if (state->types & MS_ANY_DICT) {
         ndictlike++;
     }
     if (ndictlike > 1) {
@@ -4299,11 +4325,11 @@ typenode_collect_enum(TypeNodeCollectState *state, PyObject *obj) {
 }
 
 static int
-typenode_collect_dict(TypeNodeCollectState *state, PyObject *key, PyObject *val) {
-    if (state->dict_key_obj != NULL) {
+typenode_collect_dict(TypeNodeCollectState *state, uint64_t type, PyObject *key, PyObject *val) {
+    if (state->dict_key_obj != NULL || state->dict_val_obj != NULL) {
         return typenode_collect_err_unique(state, "dict");
     }
-    state->types |= MS_TYPE_DICT;
+    state->types |= type;
     Py_INCREF(key);
     state->dict_key_obj = key;
     Py_INCREF(val);
@@ -5115,6 +5141,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
         out = typenode_collect_dict(
             state,
+            MS_TYPE_DICT,
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
         );
@@ -5128,6 +5155,18 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
         );
     }
+#if PY315_PLUS
+    else if (origin == (PyObject*)(&PyFrozenDict_Type)) {
+        kind = CK_MAP;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
+        out = typenode_collect_dict(
+            state,
+            MS_TYPE_FROZENDICT,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
+        );
+    }
+#endif
     else if (origin == (PyObject*)(&PySet_Type)) {
         kind = CK_ARRAY;
         if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
@@ -10256,7 +10295,7 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 #if PY314_PLUS
     /* obj is always a PyLong here, so PyLong_GetSign can't fail */
     int sign = 0;
-    PyLong_GetSign(obj, &sign);
+    (void)PyLong_GetSign(obj, &sign);
     bool neg = sign < 0;
 #else
     bool neg = _PyLong_Sign(obj) < 0;
@@ -13684,6 +13723,11 @@ mpack_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+#endif
     else {
         return mpack_encode_uncommon(self, type, obj);
     }
@@ -14807,6 +14851,11 @@ json_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return json_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return json_encode_dict(self, obj);
+    }
+#endif
     else {
         return json_encode_uncommon(self, type, obj);
     }
@@ -16217,6 +16266,17 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+mpack_decode_frozendict(
+    DecoderState *self, Py_ssize_t size, TypeNode *key_type,
+    TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = mpack_decode_dict(self, size, key_type, val_type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
+
 static PyObject *
 mpack_decode_typeddict(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
@@ -16441,7 +16501,7 @@ mpack_decode_map(
     else if (type->types & MS_TYPE_DATACLASS) {
         return mpack_decode_dataclass(self, size, type, path);
     }
-    else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+    else if (type->types & (MS_ANY_DICT | MS_TYPE_ANY)) {
         if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
             return NULL;
         }
@@ -16454,6 +16514,11 @@ mpack_decode_map(
         else {
             TypeNode_get_dict(type, &key, &val);
         }
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return mpack_decode_frozendict(self, size, key, val, path);
+        }
+#endif
         return mpack_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
@@ -16482,7 +16547,10 @@ mpack_decode_ext(
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         return ms_validation_error("ext", type, path);
@@ -16499,7 +16567,10 @@ mpack_decode_ext(
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else {
         pycode = PyLong_FromLong(code);
@@ -18694,6 +18765,16 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+json_decode_frozendict(
+    JSONDecoderState *self, TypeNode *type, TypeNode *key_type, TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = json_decode_dict(self, type, key_type, val_type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
+
 static PyObject *
 json_decode_typeddict(
     JSONDecoderState *self, TypeNode *type, PathNode *path
@@ -19091,9 +19172,14 @@ json_decode_object(
         TypeNode type_any = {MS_TYPE_ANY};
         return json_decode_dict(self, type, &type_any, &type_any, path);
     }
-    else if (type->types & MS_TYPE_DICT) {
+    else if (type->types & MS_ANY_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return json_decode_frozendict(self, type, key, val, path);
+        }
+#endif
         return json_decode_dict(self, type, key, val, path);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
@@ -19971,6 +20057,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 #define MS_BUILTIN_UUID       (1ull << 6)
 #define MS_BUILTIN_DECIMAL    (1ull << 7)
 #define MS_BUILTIN_TIMEDELTA  (1ull << 8)
+#define MS_BUILTIN_FROZENDICT (1ull << 9)
 
 typedef struct {
     MsgspecState *mod;
@@ -20484,6 +20571,12 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyDict_Check(obj)) {
         return to_builtins_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        if (self->builtin_types & MS_BUILTIN_FROZENDICT) goto builtin;
+        return to_builtins_dict(self, obj);
+    }
+#endif
     else if (ms_is_struct_type(type)) {
         return to_builtins_struct(self, obj, is_key);
     }
@@ -20574,6 +20667,11 @@ ms_process_builtin_types(
         else if (type == (PyObject *)(&PyMemoryView_Type)) {
             *mask |= MS_BUILTIN_MEMORYVIEW;
         }
+#if PY315_PLUS
+        else if (type == (PyObject *)(&PyFrozenDict_Type)) {
+            *mask |= MS_BUILTIN_FROZENDICT;
+        }
+#endif
         else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
             *mask |= MS_BUILTIN_DATETIME;
         }
@@ -20652,7 +20750,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "builtin_types: Iterable[type], optional\n"
 "    An iterable of types to treat as additional builtin types. These types will\n"
 "    be passed through ``to_builtins`` unchanged. Currently supports `bytes`,\n"
-"    `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
+"    `bytearray`, `memoryview`, `frozendict`, `datetime.datetime`, `datetime.time`,\n"
 "    `datetime.date`, `datetime.timedelta`, `uuid.UUID`, `decimal.Decimal`,\n"
 "    and custom types.\n"
 "str_keys: bool, optional\n"
@@ -21666,6 +21764,16 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+convert_dict_to_frozendict(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *dict = convert_dict_to_dict(self, obj, type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
+
 static PyObject *
 convert_mapping_to_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
@@ -21871,6 +21979,11 @@ convert_dict(
     if (type->types & MS_TYPE_DICT) {
         res = convert_dict_to_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (type->types & MS_TYPE_FROZENDICT) {
+        res = convert_dict_to_frozendict(self, obj, type, path);
+    }
+#endif
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
         res = convert_dict_to_struct(self, obj, info, path, false);
@@ -22187,8 +22300,16 @@ convert_other(
 
     /* Next try converting from a mapping or by attribute */
     bool is_mapping = PyMapping_Check(obj);
-    if (is_mapping && type->types & MS_TYPE_DICT) {
-        return convert_mapping_to_dict(self, obj, type, path);
+    if (is_mapping) {
+        if (type->types & MS_TYPE_DICT) {
+            return convert_mapping_to_dict(self, obj, type, path);
+        }
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            PyObject *dict = convert_mapping_to_dict(self, obj, type, path);
+            return _PyFrozenDict_NewSteal(dict);
+        }
+#endif
     }
 
     if (is_mapping || self->from_attributes) {
@@ -22257,6 +22378,11 @@ convert(
     else if (PyDict_Check(obj)) {
         return convert_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return convert_dict(self, obj, type, path);
+    }
+#endif
     else if (obj == Py_None) {
         return convert_none(self, obj, type, path);
     }

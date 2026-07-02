@@ -211,6 +211,8 @@ _CONCRETE_TYPES = {
     collections.abc.MutableMapping: dict,
     collections.abc.Mapping: dict,
 }
+if sys.version_info >= (3, 15):
+    _CONCRETE_TYPES.update({frozendict: frozendict})  # noqa: F821
 
 
 def get_typeddict_info(obj):

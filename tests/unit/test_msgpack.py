@@ -1339,6 +1339,16 @@ class TestExt:
         out = dec.decode(buf)
         assert out == ext
 
+    @pytest.mark.parametrize("type", [None, msgspec.msgpack.Ext])
+    def test_decode_ext_no_reference_leak(self, type):
+        """https://github.com/msgspec/msgspec/issues/1108"""
+        buf = msgspec.msgpack.encode(msgspec.msgpack.Ext(5, b"ext-leak-test-payload"))
+        kwargs = {} if type is None else {"type": type}
+        ext = msgspec.msgpack.decode(buf, **kwargs)
+        data = ext.data
+        del ext
+        assert sys.getrefcount(data) <= 2  # `data` + getrefcount argument
+
     def test_typed_decoder_skips_ext_hook(self):
         def ext_hook(code, data):
             assert False, "shouldn't ever get called"

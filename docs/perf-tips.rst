@@ -288,6 +288,53 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
     Example(my_first_field="some string", my_second_field=2)
 
 
+Think about type conversion
+---------------------------
+
+When converting raw data into Python types, the internal machinery
+will treat different datastructures differently.
+Some type conversions are faster than others.
+
+For example, this model:
+
+.. code-block:: python
+
+  class Example(msgspec.Struct):
+      items: frozendict[str, int]  # requires Python3.15+ to be used
+
+  msg = b'{"items": {"pen": 1, "book": 2}}'
+  msgspec.json.decode(msg, type=Example)
+  # Example(items=frozendict({"pen": 1, "book": 2}))
+
+As ``frozendict`` does not allow adding items one at a time,
+``msgspec`` will first parse ``items`` as a regular :class:`dict`,
+and will then convert it to ``frozendict``, which results in the
+total decoding operation having ``O(n*2)`` time complexity.
+Which might be slow on big dictionaries and consume more memory.
+Regular :class:`dict` would be more efficient to use.
+
+The same can be said for :class:`tuple` vs :class:`list`:
+
+.. code-block:: python
+
+    >>> class Example(msgspec.Struct):
+    ...     items: tuple[str, ...]
+
+    >>> msg = b'{"items": ["pen", "book"]}'
+
+    >>> msgspec.json.decode(msg, type=Example)
+    Example(items=("pen", "book"))
+
+We would first create a ``list`` object and then convert
+it to variable-sized ``tuple``,
+using double the memory and ``O(n*2)`` time to do that.
+This is true for all conversions, that require an intermediate representation.
+
+To achieve the best performance,
+use collection types that can be constructed natively:
+``list``, ``set``, ``frozenset``, fixed-sized ``tuple``, and ``dict``.
+
+
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _line-delimited JSON: https://en.wikipedia.org/wiki/JSON_streaming#Line-delimited_JSON
