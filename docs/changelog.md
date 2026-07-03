@@ -6,10 +6,10 @@
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
   `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
 - Support `Literal[True]` and `Literal[False]` types ({pr}`1004`).
-- Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
-  `types.GenericAlias` instances in type annotations ({pr}`962`).
 - Publish Linux `riscv64` wheels ({pr}`987`).
 - Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
+- Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
+  `types.GenericAlias` instances in type annotations ({pr}`962`).
 - Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
 - Fix an `AttributeError` when converting to a `Struct` type defined in a
   namespace without a `__name__` ({pr}`1072`).
