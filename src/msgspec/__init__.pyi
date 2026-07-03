@@ -90,6 +90,7 @@ def field(*, name: str | None = None) -> Any: ...
 class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
+    __struct_encode_fields__: ClassVar[tuple[str, ...]]
     __match_args__: ClassVar[tuple[str, ...]]
     # A default __init__ so that Structs with unknown field types (say
     # constructed by `defstruct`) won't error on every call to `__init__`
