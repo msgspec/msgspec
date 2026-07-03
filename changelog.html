@@ -309,6 +309,38 @@
         <article role="main" id="furo-main-content">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<section id="unreleased">
+<h2>Unreleased<a class="headerlink" href="#unreleased" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">frozendict</span></code> support on Python 3.15+ (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1052">PR #1052</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1105">PR #1105</a>).</p></li>
+<li><p>Support passing a callable as <code class="docutils literal notranslate"><span class="pre">decimal_format</span></code> to <code class="docutils literal notranslate"><span class="pre">msgspec.json.Encoder</span></code> and
+<code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.Encoder</span></code> for custom <code class="docutils literal notranslate"><span class="pre">Decimal</span></code> encoding (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/978">PR #978</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">Literal[True]</span></code> and <code class="docutils literal notranslate"><span class="pre">Literal[False]</span></code> types (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1004">PR #1004</a>).</p></li>
+<li><p>Publish Linux <code class="docutils literal notranslate"><span class="pre">riscv64</span></code> wheels (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/987">PR #987</a>).</p></li>
+<li><p>Support the PyEmscripten (Pyodide) platform (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1083">PR #1083</a>).</p></li>
+<li><p>Fix handling of PEP 695 type parameter syntax (<code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">Foo[T]</span></code>) and of
+<code class="docutils literal notranslate"><span class="pre">types.GenericAlias</span></code> instances in type annotations (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/962">PR #962</a>).</p></li>
+<li><p>Fix a crash on incorrect <code class="docutils literal notranslate"><span class="pre">typing.ClassVar</span></code> annotations (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1097">PR #1097</a>).</p></li>
+<li><p>Fix an <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code> when converting to a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type defined in a
+namespace without a <code class="docutils literal notranslate"><span class="pre">__name__</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1072">PR #1072</a>).</p></li>
+<li><p>Fix a reference leak when decoding msgpack <code class="docutils literal notranslate"><span class="pre">Ext</span></code> payloads (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1109">PR #1109</a>).</p></li>
+<li><p>Fix reference leaks in <code class="docutils literal notranslate"><span class="pre">typenode_collect_literal</span></code>, <code class="docutils literal notranslate"><span class="pre">Meta.__rich_repr__</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ms_decode_bigint</span></code>, and <code class="docutils literal notranslate"><span class="pre">Encoder.__init__</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1021">PR #1021</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1022">PR #1022</a>,
+<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1023">PR #1023</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1040">PR #1040</a>).</p></li>
+<li><p>Fix missing GC traversal and clearing of some module state members (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1060">PR #1060</a>).</p></li>
+<li><p>Ensure an exception is always set on allocation failures (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1044">PR #1044</a>).</p></li>
+<li><p>Fix compilation warnings on Python 3.15 (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1077">PR #1077</a>).</p></li>
+<li><p>Many type stub improvements and fixes (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1014">PR #1014</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1043">PR #1043</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1053">PR #1053</a>,
+<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1055">PR #1055</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1057">PR #1057</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1062">PR #1062</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1065">PR #1065</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1074">PR #1074</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1093">PR #1093</a>).</p></li>
+<li><p>Document the differences between <code class="docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code>/<code class="docutils literal notranslate"><span class="pre">astuple</span></code> and
+<code class="docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1025">PR #1025</a>).</p></li>
+<li><p>Document that <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> ignores fields with a custom
+<code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1076">PR #1076</a>).</p></li>
+<li><p>msgspec moved to the <a class="reference external" href="https://github.com/msgspec/msgspec">msgspec GitHub organization</a>;
+documentation now lives at <a class="reference external" href="https://msgspec.dev">msgspec.dev</a> (repository
+references updated in <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1045">PR #1045</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-21-1-2026-04-13">
 <h2>Version 0.21.1 (2026-04-13)<a class="headerlink" href="#version-0-21-1-2026-04-13" title="Link to this heading">¶</a></h2>
 <ul class="simple">
@@ -987,6 +1019,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#unreleased">Unreleased</a></li>
 <li><a class="reference internal" href="#version-0-21-1-2026-04-13">Version 0.21.1 (2026-04-13)</a></li>
 <li><a class="reference internal" href="#version-0-21-0-2026-04-08">Version 0.21.0 (2026-04-08)</a></li>
 <li><a class="reference internal" href="#version-0-20-0-2025-11-23">Version 0.20.0 (2025-11-23)</a></li>
