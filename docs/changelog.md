@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+- Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
+- Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
+  `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
+- Support `Literal[True]` and `Literal[False]` types ({pr}`1004`).
+- Fix handling of PEP 695 `type` alias syntax and `types.GenericAlias`
+  subclasses ({pr}`962`).
+- Publish Linux riscv64 wheels ({pr}`987`).
+- Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
+- Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
+- Fix a crash when a `Struct` type is defined in a namespace without a
+  `__name__` ({pr}`1072`).
+- Fix a reference leak when decoding msgpack `Ext` payloads ({pr}`1109`).
+- Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
+  `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
+  {pr}`1023`, {pr}`1040`).
+- Fix missing GC traversal of some module state members ({pr}`1060`).
+- Ensure an exception is always set on allocation failures ({pr}`1044`).
+- Fix compilation warnings on Python 3.15 ({pr}`1077`).
+- Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
+  {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1065`, {pr}`1074`, {pr}`1093`).
+- Document the differences between `msgspec.structs.asdict`/`astuple` and
+  `msgspec.to_builtins` ({pr}`1025`).
+- Document that `omit_defaults` ignores fields with a custom
+  `default_factory` ({pr}`1076`).
+- msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
+  documentation now lives at [msgspec.dev](https://msgspec.dev) ({pr}`1045`).
+
 ## Version 0.21.1 (2026-04-13)
 
 - Fix `ValidationError` and `DecodeError` raised in `dec_hook` being incorrectly wrapped in another `ValidationError` ({pr}`1013`).
