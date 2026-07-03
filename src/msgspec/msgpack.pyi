@@ -1,3 +1,4 @@
+import decimal
 from collections.abc import Callable
 from types import GenericAlias
 from typing import (
@@ -18,6 +19,9 @@ _T = TypeVar("_T")
 _EncHookSig: TypeAlias = Callable[[Any], Any] | None
 _ExtHookSig: TypeAlias = Callable[[int, memoryview], Any] | None
 _DecHookSig: TypeAlias = Callable[[type[Any], Any], Any] | None
+_DecimalFormatSig: TypeAlias = (
+    Callable[[decimal.Decimal], Any] | Literal["string", "number"]
+)
 
 @final
 class Ext:
@@ -55,14 +59,14 @@ class Decoder(Generic[_T]):
 @final
 class Encoder:
     enc_hook: _EncHookSig
-    decimal_format: Literal["string", "number"]
+    decimal_format: _DecimalFormatSig
     uuid_format: Literal["canonical", "hex", "bytes"]
     order: Literal["deterministic", "sorted"] | None
     def __init__(
         self,
         *,
         enc_hook: _EncHookSig = None,
-        decimal_format: Literal["string", "number"] = "string",
+        decimal_format: _DecimalFormatSig = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal["deterministic", "sorted"] | None = None,
     ) -> None: ...

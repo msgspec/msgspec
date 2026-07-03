@@ -25,6 +25,8 @@ import pytest
 
 import msgspec
 
+from .utils import emscripten_stack_limited
+
 UTC = datetime.timezone.utc
 
 
@@ -308,6 +310,7 @@ class TestEncoderMisc:
         return o
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    @emscripten_stack_limited
     def test_encode_infinite_recursive_object_errors(self, case):
         enc = msgspec.msgpack.Encoder()
         o = getattr(self, "rec_obj%d" % case)()
@@ -373,6 +376,7 @@ class TestEncoderMisc:
         res = msgspec.msgpack.decode(msg)
         assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
 
+    @emscripten_stack_limited
     def test_encode_enc_hook_recursion_error(self):
         enc = msgspec.msgpack.Encoder(enc_hook=lambda x: x)
 
@@ -1334,6 +1338,16 @@ class TestExt:
         buf = msgspec.msgpack.encode(ext)
         out = dec.decode(buf)
         assert out == ext
+
+    @pytest.mark.parametrize("type", [None, msgspec.msgpack.Ext])
+    def test_decode_ext_no_reference_leak(self, type):
+        """https://github.com/msgspec/msgspec/issues/1108"""
+        buf = msgspec.msgpack.encode(msgspec.msgpack.Ext(5, b"ext-leak-test-payload"))
+        kwargs = {} if type is None else {"type": type}
+        ext = msgspec.msgpack.decode(buf, **kwargs)
+        data = ext.data
+        del ext
+        assert sys.getrefcount(data) <= 2  # `data` + getrefcount argument
 
     def test_typed_decoder_skips_ext_hook(self):
         def ext_hook(code, data):

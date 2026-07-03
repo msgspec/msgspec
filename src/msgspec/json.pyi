@@ -1,3 +1,4 @@
+import decimal
 from collections.abc import Callable, Iterable
 from types import GenericAlias
 from typing import (
@@ -19,11 +20,14 @@ _EncHookSig: TypeAlias = Callable[[Any], Any] | None
 _DecHookSig: TypeAlias = Callable[[type, Any], Any] | None
 _FloatHookSig: TypeAlias = Callable[[str], Any] | None
 _SchemaHookSig: TypeAlias = Callable[[type], dict[str, Any]] | None
+_DecimalFormatSig: TypeAlias = (
+    Callable[[decimal.Decimal], Any] | Literal["string", "number"]
+)
 
 @final
 class Encoder:
     enc_hook: _EncHookSig
-    decimal_format: Literal["string", "number"]
+    decimal_format: _DecimalFormatSig
     uuid_format: Literal["canonical", "hex"]
     order: Literal["deterministic", "sorted"] | None
 
@@ -31,7 +35,7 @@ class Encoder:
         self,
         *,
         enc_hook: _EncHookSig = None,
-        decimal_format: Literal["string", "number"] = "string",
+        decimal_format: _DecimalFormatSig = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
         order: Literal["deterministic", "sorted"] | None = None,
     ): ...

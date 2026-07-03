@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
 from typing import (
     Annotated,
+    Any,
+    Callable,
     ClassVar,
     Deque,
     Final,
@@ -31,7 +33,12 @@ from typing import (
 
 import pytest
 
-from .utils import max_call_depth, temp_module
+from .utils import (
+    emscripten_stack_limited,
+    max_call_depth,
+    py315_or_later_only,
+    temp_module,
+)
 
 try:
     import attrs
@@ -40,6 +47,11 @@ except ImportError:
 
 import msgspec
 from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -1068,6 +1080,33 @@ class TestUnionTypeErrors:
             proto.Decoder(typ)
         assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
+
+    @py315_or_later_only
+    def test_err_union_frozendict_dict_like_types(self, proto):
+        for typ in [
+            frozendict | Person,
+            Person | frozendict,
+            PersonDict | frozendict,
+            Union[PersonDataclass, frozendict],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict-like type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
+
+    @py315_or_later_only
+    def test_err_union_frozendict_and_dict(self, proto):
+        for typ in [
+            frozendict | dict,
+            dict | frozendict,
+            dict[str, int] | frozendict,
+            frozendict[str, int] | dict,
+            frozendict[str, int] | dict[str, bool],
+        ]:
+            with pytest.raises(TypeError) as rec:
+                proto.Decoder(typ)
+            assert "more than one dict type" in str(rec.value)
+            assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
         "typ",
@@ -4706,6 +4745,7 @@ class TestTypeAlias:
             "type Temp[T] = tuple[T, Ex[T]]; type Ex[T] = tuple[Temp[T], T];",
         ],
     )
+    @emscripten_stack_limited
     def test_recursive_typealias_errors(self, src):
         """Eventually we should support this, but for now just test that it
         errors cleanly"""
@@ -4726,12 +4766,107 @@ class TestDecimal:
         assert proto.Encoder(decimal_format="string").decimal_format == "string"
         assert proto.Encoder(decimal_format="number").decimal_format == "number"
 
-    def test_encoder_invalid_decimal_format(self, proto):
-        with pytest.raises(ValueError, match="must be 'string' or 'number', got 'bad'"):
-            proto.Encoder(decimal_format="bad")
+        def fn(x):
+            return str(x)
 
-        with pytest.raises(ValueError, match="must be 'string' or 'number', got 1"):
-            proto.Encoder(decimal_format=1)
+        enc = proto.Encoder(decimal_format=fn)
+        assert enc.decimal_format is fn
+
+    @pytest.mark.parametrize("decimal_format", ["bad", 1, {}])
+    def test_encoder_invalid_decimal_format(self, proto, decimal_format):
+        with pytest.raises(
+            ValueError,
+            match=f"must be 'string', 'number', or a callable, got {decimal_format!r}",
+        ):
+            proto.Encoder(decimal_format=decimal_format)
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (decimal.Decimal("1.3449"), "1.345"),
+            ([decimal.Decimal("1.3449")], ["1.345"]),
+            (
+                [decimal.Decimal("1.3449"), [decimal.Decimal("1.3449")]],
+                ["1.345", ["1.345"]],
+            ),
+            (
+                (decimal.Decimal("1.3449"), decimal.Decimal("1.3449")),
+                ("1.345", "1.345"),
+            ),
+            (
+                {"key": decimal.Decimal("1.3449"), decimal.Decimal("1.3449"): "value"},
+                {"key": "1.345", "1.345": "value"},
+            ),
+            (
+                {
+                    "key": {
+                        "sub_key": [
+                            decimal.Decimal("1.3449"),
+                            decimal.Decimal("1.3449"),
+                        ]
+                    }
+                },
+                {"key": {"sub_key": ["1.345", "1.345"]}},
+            ),
+        ],
+    )
+    def test_encoder_decimal_callable_convert_value_to_string(
+        self, proto, value, expected
+    ):
+        enc = proto.Encoder(
+            decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.000")))
+        )
+        msg = enc.encode(value)
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        ("fn", "expected"),
+        [
+            (lambda x: [str(x), str(x)], ["1.21", "1.21"]),
+            (lambda x: {"key": str(x)}, {"key": "1.21"}),
+            (lambda x: {str(x): "value"}, {"1.21": "value"}),
+            (lambda x: {str(x)}, {"1.21"}),
+            (lambda x: (str(x),), ("1.21",)),
+            (lambda x: float(x.quantize(decimal.Decimal("0.0"))), 1.2),
+            (lambda x: int(x.quantize(decimal.Decimal("0.0")) * 100), 120),
+        ],
+    )
+    def test_encoder_decimal_callable_convert_value_into_different_types(
+        self, proto, fn, expected
+    ):
+        enc = proto.Encoder(decimal_format=lambda d: fn(d))
+        msg = enc.encode(decimal.Decimal("1.21"))
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        "fn",
+        [
+            lambda x: [x],
+            lambda x: {"key": x},
+            lambda x: {x: "value"},
+            lambda x: {x},
+            lambda x: (x,),
+            lambda x: x.quantize(decimal.Decimal("0.0")),
+        ],
+    )
+    def test_encoder_decimal_callable_returned_a_value_containing_a_decimal(
+        self,
+        proto,
+        fn: Callable[[decimal.Decimal], Any],
+    ):
+        enc = proto.Encoder(decimal_format=fn)
+        with pytest.raises(
+            TypeError, match="callable returned a value containing a Decimal"
+        ):
+            enc.encode(decimal.Decimal("1"))
+
+    def test_encoder_decimal_callable_raise_error(self, proto):
+        def bad_fn(x):
+            raise NotImplementedError
+
+        enc = proto.Encoder(decimal_format=bad_fn)
+        with pytest.raises(NotImplementedError):
+            enc.encode(decimal.Decimal("1.5"))
 
     def test_encoder_encode_decimal(self, proto):
         enc = proto.Encoder()
@@ -4852,6 +4987,29 @@ class TestAbstractTypes:
         assert proto.decode(msg, type=typ[str, int]) == sol
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
+
+    @py315_or_later_only
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            typing.MutableMapping,
+            typing.Mapping,
+            collections.abc.MutableMapping,
+            collections.abc.Mapping,
+        ],
+    )
+    def test_abstract_mapping_frozendict(self, proto, typ):
+        sol = frozendict({"x": 1, "y": 2})
+        msg = proto.encode(sol)
+        res = proto.decode(msg, type=typ)
+        assert res == sol
+        assert type(res) is dict  # does not roundtrip
+        with pytest.raises(ValidationError, match="Expected `object`, got `str`"):
+            proto.decode(proto.encode("a"), type=typ)
+
+        assert proto.decode(msg, type=typ[str, int]) == sol
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode(frozendict({"a": "b"})), type=typ[str, int])
 
 
 class TestUnset:
@@ -4974,6 +5132,36 @@ class TestOrder:
     def test_order_dict_unsortable(self, proto):
         with pytest.raises(TypeError):
             proto.encode({"x": 1, 1: 2}, order="deterministic")
+
+    @py315_or_later_only
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    @pytest.mark.parametrize("use_encoder", [False, True])
+    def test_order_frozendict(self, msg, order, use_encoder, proto):
+        if use_encoder:
+            res = proto.Encoder(order=order).encode(frozendict(msg))
+        else:
+            res = proto.encode(frozendict(msg), order=order)
+
+        # `frozendict` must be equal to the regular `dict`:
+        assert isinstance(msg, dict)
+        if order is not None:
+            sol = proto.encode(dict(sorted(msg.items())))
+        else:
+            sol = proto.encode(msg)
+
+        assert isinstance(res, bytes)
+        assert res == sol
+
+    @py315_or_later_only
+    def test_order_frozendict_non_str_errors(self, proto):
+        with pytest.raises(TypeError, match="Only dicts with str keys"):
+            proto.encode(frozendict({"b": 2, 1: "a"}), order="deterministic")
+
+    @py315_or_later_only
+    def test_order_frozendict_unsortable(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode(frozendict({"x": 1, 1: 2}), order="deterministic")
 
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
@@ -5418,3 +5606,24 @@ class TestLax:
         typ = int | float | bool | datetime.date | None
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
+
+
+@py315_or_later_only
+class TestFrozendict:
+    def test_decode_frozendict_not_object(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode([])
+        with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
+            dec.decode(msg)
+
+    def test_decode_frozendict_typed(self, proto):
+        dec = proto.Decoder(frozendict[str, int])
+        msg = proto.encode(frozendict({"abc": 1}))
+
+        res = dec.decode(msg)
+        assert res == {"abc": 1}
+        assert type(res) is frozendict
+
+        msg = proto.encode(frozendict({"abc": "xyz"}))
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            dec.decode(msg)

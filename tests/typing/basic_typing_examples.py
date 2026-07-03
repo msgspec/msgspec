@@ -1,6 +1,7 @@
 # fmt: off
 from __future__ import annotations
 import array
+from collections.abc import Callable
 import decimal
 import pickle
 from typing import Annotated, Any, Final, Literal
@@ -697,7 +698,9 @@ def check_msgpack_order() -> None:
 def check_msgpack_Encoder_decimal_format() -> None:
     enc = msgspec.msgpack.Encoder(decimal_format="string")
     msgspec.msgpack.Encoder(decimal_format="number")
-    assert_type(enc.decimal_format, Literal['string', 'number'])
+    msgspec.msgpack.Encoder(decimal_format=lambda x: str(x))
+    assert_type(enc.decimal_format, Literal['string', 'number'] | Callable[[decimal.Decimal], Any])
+
 
 
 def check_msgpack_Encoder_uuid_format() -> None:
@@ -885,7 +888,8 @@ def check_json_order() -> None:
 def check_json_Encoder_decimal_format() -> None:
     enc = msgspec.json.Encoder(decimal_format="string")
     msgspec.json.Encoder(decimal_format="number")
-    assert_type(enc.decimal_format, Literal['string', 'number'])
+    msgspec.json.Encoder(decimal_format=lambda x: str(x))
+    assert_type(enc.decimal_format, Literal['string', 'number'] | Callable[[decimal.Decimal], Any])
 
 
 def check_json_Encoder_uuid_format() -> None:

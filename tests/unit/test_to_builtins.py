@@ -13,6 +13,13 @@ import pytest
 
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
+from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
+
 PY311 = sys.version_info[:2] >= (3, 11)
 
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
@@ -73,6 +80,7 @@ class TestToBuiltins:
         assert to_builtins(1, enc_hook=None) == 1
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []
@@ -307,6 +315,127 @@ class TestToBuiltins:
         ):
             to_builtins(msg, str_keys=True)
 
+    def check_non_frozen(self, val, expected):
+        assert type(val) is dict
+        assert type(expected) is dict
+        assert val == expected
+
+    def check_frozen(self, val, expected):
+        assert type(val) is frozendict
+        assert type(expected) is frozendict
+        assert val == expected
+
+    @py315_or_later_only
+    @pytest.mark.parametrize("subclass", [False, True])
+    def test_frozendict(self, subclass):
+        if subclass:
+
+            class in_type(frozendict):
+                pass
+
+        else:
+            in_type = frozendict
+
+        raw = {FruitStr.BANANA: 1, "b": [FruitInt.APPLE], 3: "three"}
+        msg = in_type(raw)
+
+        res = to_builtins(msg)
+        self.check_non_frozen(res, {"banana": 1, "b": [-1], 3: "three"})
+        assert res is not msg
+
+        self.check_frozen(
+            to_builtins(msg, builtin_types=[frozendict]),
+            frozendict({"banana": 1, "b": [-1], 3: "three"}),
+        )
+        self.check_non_frozen(
+            to_builtins(raw, builtin_types=[frozendict]),
+            {"banana": 1, "b": [-1], 3: "three"},
+        )
+
+        self.check_non_frozen(to_builtins(in_type()), {})
+        self.check_frozen(
+            to_builtins(in_type(), builtin_types=[frozendict]),
+            frozendict(),
+        )
+
+    @py315_or_later_only
+    def test_frozendict_builtin_types(self):
+        msg = to_builtins(frozendict({"test": 1}), builtin_types=(frozendict,))
+        assert type(msg) is frozendict
+        assert msg == frozendict({"test": 1})
+
+        msg = to_builtins(
+            frozendict(
+                {
+                    "test": frozendict({1: "a"}),
+                    FruitStr.BANANA: 1,
+                    "b": [FruitInt.APPLE],
+                }
+            ),
+            builtin_types=(frozendict,),
+        )
+        assert type(msg) is frozendict
+        assert type(msg["test"]) is frozendict
+        assert type(list(msg.keys())[1]) is str
+        assert msg == frozendict(
+            {
+                "test": frozendict({1: "a"}),
+                "banana": 1,
+                "b": [-1],
+            }
+        )
+
+    @py315_or_later_only
+    def test_frozendict_str_subclass_key(self):
+        class mystr(str):
+            pass
+
+        msg = to_builtins(frozendict({mystr("test"): 1}))
+        self.check_non_frozen(msg, {"test": 1})
+        assert type(list(msg.keys())[0]) is str
+
+    @py315_or_later_only
+    def test_frozendict_unsupported_key(self):
+        msg = frozendict({Bad(): 1})
+        with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+            to_builtins(msg)
+
+    @py315_or_later_only
+    def test_frozendict_unsupported_value(self):
+        msg = frozendict({"x": Bad()})
+        with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+            to_builtins(msg)
+
+    @py315_or_later_only
+    def test_frozendict_str_keys(self):
+        self.check_non_frozen(
+            to_builtins(frozendict({FruitStr.BANANA: 1}), str_keys=True),
+            {"banana": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({"banana": 1}), str_keys=True),
+            {"banana": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({FruitInt.BANANA: 1}), str_keys=True),
+            {"2": 1},
+        )
+        self.check_non_frozen(
+            to_builtins(frozendict({2: 1}), str_keys=True),
+            {"2": 1},
+        )
+
+    @py315_or_later_only
+    def test_frozendict_sequence_keys(self):
+        msg = frozendict({frozenset([1, 2]): 1})
+        self.check_non_frozen(to_builtins(msg), {(1, 2): 1})
+
+        with pytest.raises(
+            TypeError,
+            match="Only dicts with str-like or number-like keys are supported",
+        ):
+            to_builtins(msg, str_keys=True)
+
     @pytest.mark.parametrize("tagged", [False, True])
     def test_struct_object(self, tagged):
         class Ex(Struct, tag=tagged):
@@ -528,9 +657,9 @@ class TestOrder:
             to_builtins(1, order="bad")
 
     @staticmethod
-    def assert_eq(left, right):
+    def assert_eq(left, right, typ=dict):
         assert left == right
-        if isinstance(left, dict):
+        if isinstance(left, typ):
             assert list(left) == list(right)
 
     @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
@@ -547,6 +676,16 @@ class TestOrder:
     def test_order_dict_unsortable(self):
         with pytest.raises(TypeError):
             to_builtins({"x": 1, 1: 2}, order="deterministic")
+
+    @py315_or_later_only
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    def test_frozendict_builtin_types_sorted(self, msg, order):
+        msg = frozendict(msg)
+        res = to_builtins(msg, builtin_types=[frozendict], order=order)
+        sol = frozendict(sorted(msg.items())) if order else msg
+        self.assert_eq(res, sol)
+        assert type(res) is frozendict
 
     @pytest.mark.parametrize("typ", [set, frozenset])
     @pytest.mark.parametrize("order", ["deterministic", "sorted"])
