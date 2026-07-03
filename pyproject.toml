@@ -1,29 +1,159 @@
-[tool.ruff]
-exclude = [
-    "*.pyi",
-    "__init__.py",
-    "_version.py",
-    "versioneer.py",
-    "basic_typing_examples.py",
-    "json.py",
-    "msgpack.py",
-    "test_JSONTestSuite.py",
-    "conf.py",
+[build-system]
+requires = [
+  "setuptools>=80",
+  "setuptools-scm>=8",
 ]
-line-length = 88
+build-backend = "setuptools.build_meta"
 
-[tool.ruff.lint]
-ignore = [
-    "E721", # Comparing types instead of isinstance
-    "E741", # Ambiguous variable names
-    "E501", # Conflicts with ruff format
-    "W191", # Conflicts with ruff format
+[project]
+name = "msgspec"
+dynamic = [
+  "version",
 ]
-select = [
-    "E", # PEP8 Errors
-    "F", # Pyflakes
-    "W", # PEP8 Warnings
+description = "A fast serialization and validation library, with builtin support for JSON, MessagePack, YAML, and TOML."
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = [
+  "LICENSE",
+]
+requires-python = ">=3.10"
+maintainers = [
+  { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
+  { name = "Ofek Lev", email = "oss@ofek.dev" },
+]
+keywords = [
+  "JSON",
+  "MessagePack",
+  "TOML",
+  "YAML",
+  "msgpack",
+  "schema",
+  "serialization",
+  "validation",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: WebAssembly :: Emscripten",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
 ]
 
-[tool.ruff.lint.isort]
-combine-as-imports = true
+[project.optional-dependencies]
+toml = [
+  "tomli ; python_version < '3.11'",
+  "tomli_w",
+]
+yaml = [
+  "pyyaml",
+]
+
+[project.urls]
+Homepage = "https://msgspec.dev"
+"Issue Tracker" = "https://github.com/msgspec/msgspec/issues"
+Source = "https://github.com/msgspec/msgspec"
+
+[dependency-groups]
+bench = [
+  "cattrs==25.3.0",
+  "mashumaro==3.17",
+  "msgpack==1.1.2",
+  "orjson==3.11.4",
+  "ormsgpack==1.11.0",
+  "pydantic==2.12.4",
+  "python-rapidjson==1.22",
+  "pysimdjson==7.0.2",
+  "requests",
+  "ujson==5.11.0",
+]
+dev = [
+  "rust-just",
+]
+doc = [
+  "furo",
+  "ipython",
+  "myst-parser",
+  "sphinx",
+  "sphinx-copybutton",
+  "sphinx-design",
+]
+hooks = [
+  "codespell==2.4.1",
+  "prek>=0.2.13",
+  "ruff==0.15.16",
+]
+test-base = [
+  "pytest>=9",
+  "pytest-randomly",
+]
+test-prof = [
+  { include-group = "test-base" },
+  "memray; sys_platform != 'win32'",
+  "pytest-codspeed",
+  "pytest-memray; sys_platform != 'win32'",
+]
+test-typing = [
+  { include-group = "test-base" },
+  "mypy",
+  "pyright",
+  "pyrefly",
+]
+test-unit = [
+  { include-group = "test-base" },
+  "attrs",
+  "coverage",
+  "msgpack",
+  "pyyaml",
+  "tomli; python_version < '3.11'",
+  "tomli-w",
+]
+
+[tool.setuptools]
+packages = ["msgspec"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.exclude-package-data]
+msgspec = [
+  "*.c",
+  "*.h",
+]
+
+[tool.setuptools_scm]
+version_file = "src/msgspec/_version.py"
+parentdir_prefix_version = "msgspec-"
+
+[tool.uv.config-settings]
+editable_mode = "compat"
+
+[tool.mypy]
+extra_checks = true
+strict = true
+strict_equality_for_none = true
+warn_unreachable = true
+
+[tool.pyright]
+include = ["tests/typing/"]
+# Strict mode:
+typeCheckingMode = "strict"
+reportImplicitStringConcatenation = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+# Don't use '# type: ignore' to suppress with pyright:
+enableTypeIgnoreComments = false
+# Don't report unused variables and classes:
+reportUnusedVariable = false
+reportUnusedClass = false
+reportPrivateUsage = false
+
+[tool.pyrefly]
+project-includes = ["tests/typing/"]
+# Strict mode:
+preset = 'strict'
+min-severity = 'warn'
+# Don't use '# type: ignore' to suppress with pyright:
+enabled-ignores = ["pyrefly"]

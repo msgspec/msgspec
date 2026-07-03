@@ -1,0 +1,89 @@
+name: Latest Supported Python
+description: Fetch the highest minor version of Python with a wheel in the latest release on PyPI
+inputs:
+  github-token:
+    description: The token to use for the GitHub API
+    required: true
+outputs:
+  version:
+    description: The highest minor version of Python with a wheel
+    value: ${{ steps.python-version.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+  - name: Fetch latest release on GitHub
+    id: latest-release
+    env:
+      GH_TOKEN: ${{ inputs.github-token }}
+      REPOSITORY: ${{ github.repository }}
+    shell: bash
+    run: |-
+      latest_release=$(
+        gh api "repos/${REPOSITORY}/releases/latest" \
+          --jq '.tag_name'
+      )
+      echo "Latest release: $latest_release"
+      echo "tag=$latest_release" >> "${GITHUB_OUTPUT}"
+
+  - name: Fetch latest release on PyPI
+    id: python-version
+    env:
+      LATEST_RELEASE: ${{ steps.latest-release.outputs.tag }}
+      RELEASE_EVENT: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+    shell: bash
+    run: |-
+      set -euo pipefail
+
+      if [[ "${RELEASE_EVENT}" == 'true' ]]; then
+        echo "Release workflow detected; selecting the latest stable version already available on PyPI."
+        version=$(
+          curl -fsS "https://pypi.org/pypi/msgspec/json" \
+            | jq -r '
+              .releases
+              | to_entries
+              | map(
+                  select(
+                    [ .value[]
+                        | select(.packagetype == "bdist_wheel")
+                    ] | length > 0
+                  )
+                )
+              | map(select(.key | test("(a|b|rc)"; "i") | not))
+              | map(.key)
+              | .[]
+            ' \
+            | sort -V \
+            | tail -n 1
+        )
+
+        if [[ -z "$version" ]]; then
+          echo "Failed to find a stable PyPI release with wheels" >&2
+          exit 1
+        fi
+
+        echo "Selected PyPI release: $version"
+      else
+        version="${LATEST_RELEASE}"
+        echo "Selected GitHub release: $version"
+      fi
+
+      pypi_url="https://pypi.org/pypi/msgspec/$version/json"
+
+      python_version=$(
+        curl -fsS "$pypi_url" \
+          | jq -r '
+            .urls
+            | [ .[]
+                | select(.packagetype == "bdist_wheel")
+                | .filename
+                | capture("cp(?<cp>[0-9]+)").cp
+                | tonumber
+              ]
+            | max
+            | "3.\(tostring | .[1:])"
+          '
+      )
+
+      echo "Python version: $python_version"
+      echo "version=$python_version" >> "${GITHUB_OUTPUT}"

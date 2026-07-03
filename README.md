@@ -1,59 +1,52 @@
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec" />
+  <a href="https://msgspec.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-light.svg">
+      <img src="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+    </picture>
   </a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
-    <img src="https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg">
-  </a>
-  <a href="https://jcristharif.com/msgspec/">
-    <img src="https://img.shields.io/badge/docs-latest-blue.svg">
-  </a>
-  <a href="https://github.com/jcrist/msgspec/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/jcrist/msgspec.svg">
-  </a>
-  <a href="https://pypi.org/project/msgspec/">
-    <img src="https://img.shields.io/pypi/v/msgspec.svg">
-  </a>
-  <a href="https://anaconda.org/conda-forge/msgspec">
-    <img src="https://img.shields.io/conda/vn/conda-forge/msgspec.svg">
-  </a>
-  <a href="https://codecov.io/gh/jcrist/msgspec">
-    <img src="https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg">
-  </a>
-</p>
+<div align="center">
 
+[![CI](https://github.com/msgspec/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/msgspec/msgspec/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://msgspec.dev)
+[![License](https://img.shields.io/github/license/msgspec/msgspec.svg)](https://github.com/msgspec/msgspec/blob/main/LICENSE)
+[![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
+[![Code Coverage](https://codecov.io/gh/msgspec/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/msgspec/msgspec)
+
+</div>
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
-[YAML](https://yaml.org), and [TOML](https://toml.io). It features:
+[YAML](https://yaml.org), and [TOML](https://toml.io/en/). It features:
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
   MessagePack implementations regularly
-  [benchmark](https://jcristharif.com/msgspec/benchmarks.html) as the fastest
+  [benchmark](https://msgspec.dev/benchmarks) as the fastest
   options for Python.
 
 - 🎉 **Support for a wide variety of Python types**. Additional types may be
   supported through
-  [extensions](https://jcristharif.com/msgspec/extending.html).
+  [extensions](https://msgspec.dev/extending).
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations. In
-  [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) `msgspec`
+  [benchmarks](https://msgspec.dev/benchmarks) `msgspec`
   decodes *and* validates JSON faster than
   [orjson](https://github.com/ijl/orjson) can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use [dataclasses](https://docs.python.org/3/library/dataclasses.html) or
-  [attrs](https://www.attrs.org),
-  [structs](https://jcristharif.com/msgspec/structs.html) should feel familiar.
+  [attrs](https://www.attrs.org/en/stable/),
+  [structs](https://msgspec.dev/structs) should feel familiar.
   However, they're
-  [5-60x faster](https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs>)
+  [5-60x faster](https://msgspec.dev/benchmarks#structs)
   for common operations.
 
 All of this is included in a
-[lightweight library](https://jcristharif.com/msgspec/benchmarks.html#benchmark-library-size)
+[lightweight library](https://msgspec.dev/benchmarks#library-size)
 with no required dependencies.
 
 ---
@@ -102,20 +95,20 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 
 `msgspec` is designed to be as performant as possible, while retaining some of
 the nicities of validation libraries like
-[pydantic](https://pydantic-docs.helpmanual.io/). For supported types,
+[pydantic](https://pydantic.dev/docs/validation/latest/get-started/). For supported types,
 encoding/decoding a message with `msgspec` can be
-[~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
+[~10-80x faster than alternative libraries](https://msgspec.dev/benchmarks).
 
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/benchmarks.html">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-validation.svg">
+  <a href="https://msgspec.dev/benchmarks">
+    <img src="https://raw.githubusercontent.com/msgspec/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
 
-See [the documentation](https://jcristharif.com/msgspec/) for more information.
+See [the documentation](https://msgspec.dev) for more information.
 
 
 ## LICENSE
 
 New BSD. See the
-[License File](https://github.com/jcrist/msgspec/blob/main/LICENSE).
+[License File](https://github.com/msgspec/msgspec/blob/main/LICENSE).

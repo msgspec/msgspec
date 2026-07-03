@@ -1,0 +1,28 @@
+name: docs pr
+
+on:
+  pull_request:
+    branches:
+    - main
+    types:
+    - opened
+    - reopened
+    - synchronize
+
+permissions: {}
+
+concurrency:
+  group: docs-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: Build and check docs
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      cache-namespace: "pr-${{ github.event.pull_request.number }}"
+      ref: "${{ format('refs/pull/{0}/merge', github.event.pull_request.number) }}"
+      sha: "${{ github.event.pull_request.head.sha }}"

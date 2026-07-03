@@ -2,149 +2,223 @@ name: Build and Test
 
 on:
   push:
-    branches: [main]
+    branches:
+    - main
   pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "benchmarks/**"
-      - "examples/**"
-      - ".github/**"
-      - "README.rst"
+    branches:
+    - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - labeled
+    - unlabeled
+    paths:
+    # Changes to the package itself
+    - src/msgspec/**
+    - pyproject.toml
+    - setup.py
+    - MANIFEST.in
+    # Changes to CI execution
+    - .github/workflows/*
+    - .cibuildwheel.toml
+    - .justfile
+    # Changes to testing
+    - tests/**
+    - .codecov.yml
+    - .codespellrc
+    - .coveragerc
+    - .pre-commit-config.yaml
+    - .pytest.toml
+    - .ruff.toml
   release:
-    types: [published]
+    types:
+    - published
+
+permissions: {}
+
+env:
+  UV_NO_EDITABLE: "true"
+  UV_NO_SYNC: "true"
 
 jobs:
-  lint:
-    name: Lint and ruff code
-    runs-on: ubuntu-latest
+  prepare:
+    name: Validate build
+    uses: ./.github/workflows/prepare-build.yml
+    permissions:
+      contents: read
+    with:
+      run-static-analysis: true
+      fetch-latest-python: true
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Build msgspec and install dependencies
-        run: |
-          pip install -e ".[dev]"
-
-      - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
-
-      - name: mypy
-        run: pytest tests/test_mypy.py
-
-      - name: pyright
-        run: pytest tests/test_pyright.py
-
-      - name: doctests
-        run: pytest --doctest-modules msgspec
-
-      - name: Rebuild with sanitizers & coverage
-        env:
-          MSGSPEC_SANITIZE: "true"
-          MSGSPEC_COVERAGE: "true"
-        run: |
-          python setup.py clean --all
-          # I know this is deprecated, but I can't find a way to keep the build
-          # directory around anymore on new versions of setuptools
-          python setup.py develop
-
-      - name: Run tests with sanitizers
-        env:
-          PYTHONMALLOC: "malloc"
-          ASAN_OPTIONS: "detect_leaks=0"
-        run: |
-          LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
-
-      - name: Generate coverage files
-        run: |
-          coverage xml
-          gcov -abcu `find build/ -name *.o`
-
-      - name: Upload Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
-
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs:
+    - prepare
+    runs-on: "${{ matrix.os }}"
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, windows-latest]
-
-    env:
-      CIBW_TEST_EXTRAS: "test"
-      CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
-      CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
-      CIBW_ARCHS_MACOS: "x86_64 arm64"
-      CIBW_ARCHS_LINUX: "x86_64 aarch64"
-      CIBW_TEST_SKIP: "*_arm64 *-musllinux_*"
-      CIBW_ENVIRONMENT: "CFLAGS=-g0"
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
-        with:
-          platforms: all
-
-      - name: Set up Environment
-        if: github.event_name != 'release'
-        run: |
-            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
-
-      - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.22.0
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: github.event_name == 'release' && github.event.action == 'published'
-        with:
-          name: artifact-wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
-
-  build_sdist:
-    name: Build Source Distribution
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+        os:
+        - ubuntu-latest
+        # - windows-latest
+        # - macos-latest
+        python-version:
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
+        - "3.15-dev"
 
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
 
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: "${{ matrix.python-version }}"
 
-      - name: Build source distribution
-        run: python setup.py sdist
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-sdist
-          path: dist/*.tar.gz
+    - name: Install command runner
+      run: uv tool install rust-just
 
-  upload_pypi:
-    needs: [build_wheels, build_sdist]
+    - name: Install testing dependencies
+      env:
+        MSGSPEC_SANITIZE: "true"
+        MSGSPEC_COVERAGE: "true"
+      run: just env-sync test
+
+    - name: Run tests with sanitizers
+      env:
+        PYTHONMALLOC: "malloc"
+        ASAN_OPTIONS: "detect_leaks=0"
+      run: >-
+        LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+        just env-run test coverage run -m pytest tests/unit -s
+
+    - name: Generate coverage files
+      run: |-
+        just env-run test coverage xml
+        find build/temp*/ -name '*.o' -exec gcov -abcu {} +
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+        path: |-
+          coverage.xml
+          _core.c.gcov
+          atof.h.gcov
+          ryu.h.gcov
+        if-no-files-found: error
+
+  upload-coverage:
+    name: Upload coverage files to Codecov
+    needs:
+    - test
     runs-on: ubuntu-latest
     permissions:
+      actions: read
+      contents: read
       id-token: write
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: dist
-          pattern: artifact-*
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Download coverage artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+      with:
+        pattern: coverage-*
+        path: coverage-files
+
+    - name: See the coverage files
+      run: tree -sh coverage-files
+
+    - name: Upload Codecov
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+      with:
+        use_oidc: true
+        directory: coverage-files
+
+  test-integration:
+    name: Run integration tests
+    needs:
+    - test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
+
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Install testing dependencies
+      run: just env-sync test
+
+    - name: Run doctests
+      run: just test-doc
+
+    - name: Run type checker compatibility tests
+      run: just test-typing
+
+  build-wheels:
+    name: Build wheels ${{ github.event_name == 'release' && 'for release' || '' }}
+    needs:
+    - test
+    - prepare
+    uses: ./.github/workflows/build-wheels.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
+      build-all: ${{ github.event_name == 'release' }}
+
+  upload-pypi:
+    name: Upload artifacts to PyPI
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs:
+    - prepare
+    - build-wheels
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      id-token: write
+
+    steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+      with:
+        pattern: artifact-*
+        merge-multiple: true
+        path: dist
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0

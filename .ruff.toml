@@ -1,0 +1,29 @@
+line-length = 88
+extend-exclude = [
+  "src/msgspec/_version.py",
+  "tests/typing/basic_typing_examples.py",
+  "tests/unit/test_JSONTestSuite.py",
+]
+
+[lint]
+select = [
+  "E", # PEP8 Errors
+  "F", # Pyflakes
+  "I", # Import sorting
+  "W", # PEP8 Warnings
+]
+ignore = [
+  "E721", # Comparing types instead of isinstance
+  "E741", # Ambiguous variable names
+  "E501", # Conflicts with ruff format
+  "W191", # Conflicts with ruff format
+]
+
+[lint.extend-per-file-ignores]
+"src/msgspec/__init__.py" = ["E402", "F401"]
+"src/msgspec/__init__.pyi" = ["F401"]
+"src/msgspec/json.py" = ["F401"]
+"src/msgspec/msgpack.py" = ["F401"]
+
+[lint.isort]
+combine-as-imports = true
