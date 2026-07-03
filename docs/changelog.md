@@ -6,18 +6,18 @@
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
   `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
 - Support `Literal[True]` and `Literal[False]` types ({pr}`1004`).
-- Fix handling of PEP 695 `type` alias syntax and `types.GenericAlias`
-  subclasses ({pr}`962`).
-- Publish Linux riscv64 wheels ({pr}`987`).
+- Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
+  `types.GenericAlias` instances in type annotations ({pr}`962`).
+- Publish Linux `riscv64` wheels ({pr}`987`).
 - Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
 - Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
-- Fix a crash when a `Struct` type is defined in a namespace without a
-  `__name__` ({pr}`1072`).
+- Fix an `AttributeError` when converting to a `Struct` type defined in a
+  namespace without a `__name__` ({pr}`1072`).
 - Fix a reference leak when decoding msgpack `Ext` payloads ({pr}`1109`).
 - Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
   `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
   {pr}`1023`, {pr}`1040`).
-- Fix missing GC traversal of some module state members ({pr}`1060`).
+- Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
 - Ensure an exception is always set on allocation failures ({pr}`1044`).
 - Fix compilation warnings on Python 3.15 ({pr}`1077`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
@@ -27,7 +27,8 @@
 - Document that `omit_defaults` ignores fields with a custom
   `default_factory` ({pr}`1076`).
 - msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
-  documentation now lives at [msgspec.dev](https://msgspec.dev) ({pr}`1045`).
+  documentation now lives at [msgspec.dev](https://msgspec.dev) (repository
+  references updated in {pr}`1045`).
 
 ## Version 0.21.1 (2026-04-13)
 
