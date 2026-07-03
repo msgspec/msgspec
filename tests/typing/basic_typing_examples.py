@@ -541,6 +541,48 @@ def check_meta_constructor() -> None:
         msgspec.Meta(extra_json_schema=val6)
         msgspec.Meta(extra=val6)
 
+    Meta = msgspec.Meta
+
+    # Numeric cases:
+    Meta(gt=1, lt=5)
+    Meta(gt=1, le=5)
+    Meta(ge=1, lt=5)
+    Meta(ge=1, le=5)
+
+    Meta(gt=1, lt=5, multiple_of=2)
+    Meta(gt=1, le=5, multiple_of=0.5)
+    Meta(ge=1.0, lt=5.0, multiple_of=0.5)
+    Meta(
+        ge=1,
+        le=5,
+        multiple_of=1,
+        title='title',
+        examples=[1, 2],
+        description='descr',
+        extra={},
+        extra_json_schema={},
+    )
+
+    # Other:
+    Meta(min_length=1, max_length=5)
+    Meta(
+        min_length=1,
+        max_length=5,
+        title='title',
+        examples=[1, 2],
+        description='descr',
+        extra={'extra': 'extra'},
+        extra_json_schema={'extra': 'extra'},
+    )
+
+    # Invalid cases:
+    Meta(gt=1, ge=5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(le=1, lt=5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+
+    Meta(le=1, min_length=1)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(gt=1.0, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(multiple_of=1, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+
 
 def check_meta_attributes() -> None:
     c = msgspec.Meta()
