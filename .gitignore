@@ -8,6 +8,11 @@
 *.iml
 .idea/
 
+# Dotenv files meant for local use or those containing secrets
+.env
+.env.local
+.env.*.local
+
 # Python cached sources
 __pycache__/
 *.pyc
@@ -16,17 +21,31 @@ __pycache__/
 .venv*/
 venv*/
 
+# Version file
+/src/msgspec/_version.py
+
+# uv dependency lock file
+uv.lock
+
 # Pytest and coverage
 .coverage
 .pytest/
 .pytest_cache/
 htmlcov/
 
+# Ruff Cache
+.ruff_cache/
+
 # Mypy Cache
 .mypy_cache/
 
 # Docs build
-docs/build/
+site/
+/.doctrees/
+/.wrangler/
+
+# Docs link check cache
+/.lycheecache
 
 # Benchmark outputs
 benchmarks/*.html

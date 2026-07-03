@@ -1,17 +1,40 @@
+local: &local
+  language: system
+  pass_filenames: false
+
+local-pre-commit: &local-pre-commit
+  <<: *local
+  require_serial: true
+  stages: [pre-commit]
+local-manual: &local-manual
+  <<: *local
+  stages: [manual]
+
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.2
-    hooks:
-      - id: ruff
-        language_version: python3
+- repo: local
+  hooks:
+  # These default hooks apply fixes.
+  - id: python-lint
+    name: Lint Python code
+    entry: ruff check --fix
+    <<: *local-pre-commit
+  - id: python-format
+    name: Format Python code
+    entry: ruff format
+    <<: *local-pre-commit
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.2
-    hooks:
-      - id: ruff-format
+  # These manual hooks suffixed with `-check` run their equivalently named default hooks without applying fixes.
+  - id: python-lint-check
+    name: Lint Python code (check-only)
+    entry: ruff check
+    <<: *local-manual
+  - id: python-format-check
+    name: Format Python code (check-only)
+    entry: ruff format --diff
+    <<: *local-manual
 
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.2
-    hooks:
-      - id: codespell
-        language_version: python3
+  # These hooks never apply fixes and run in all cases.
+  - id: spelling
+    name: Check for spelling errors
+    entry: codespell
+    <<: *local

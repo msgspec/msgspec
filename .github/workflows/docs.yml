@@ -1,34 +1,110 @@
-name: documentation
+name: docs
 
 on:
-  push:
-    branches: [main]
-  pull_request: null
+  workflow_call:
+    inputs:
+      ref:
+        description: Repository ref to build
+        required: true
+        type: string
+      cache-namespace:
+        description: Trusted namespace used to isolate link-check caches
+        required: true
+        type: string
+      sha:
+        description: Source commit used to key caches
+        required: true
+        type: string
+
+env:
+  UV_NO_EDITABLE: "true"
+  UV_NO_SYNC: "true"
 
 jobs:
-  build-docs:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+        ref: "${{ inputs.ref }}"
 
-      - name: Install Python
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.8
+    - name: Fetch release history
+      uses: ./.github/actions/fetch-release-history
+      with:
+        github-token: "${{ github.token }}"
+        ref: "${{ inputs.ref }}"
 
-      - name: Install msgspec and dependencies
-        run: |
-          pip install -e ".[doc]"
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version-file: pyproject.toml
 
-      - name: Build Docs
-        run: |
-          pushd docs
-          make html
-          popd
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build/html
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Install dependencies
+      run: just env-sync doc
+
+    - name: Build docs
+      run: just doc-build
+
+    - name: Upload docs
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: docs-site
+        path: site
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 1
+
+  check:
+    name: Check links
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+        ref: "${{ inputs.ref }}"
+
+    - name: Download docs
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+      with:
+        name: docs-site
+        path: site
+
+    - name: Restore link check cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: .lycheecache
+        # Caches are immutable. Restore the newest cache in this trusted
+        # namespace, then save updated responses under the current commit.
+        key: cache-lychee-${{ inputs.cache-namespace }}-${{ inputs.sha }}
+        restore-keys: cache-lychee-${{ inputs.cache-namespace }}-
+
+    - name: Check links
+      uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2.8.0
+      with:
+        lycheeVersion: v0.21.0
+        fail: true
+        failIfEmpty: true
+        token: "${{ github.token }}"
+        args: >-
+          --cache
+          --verbose
+          --no-progress
+          README.md
+          site

@@ -1,0 +1,219 @@
+msgspec
+=======
+
+``msgspec`` is a *fast* serialization and validation library, with builtin
+support for JSON_, MessagePack_, YAML_, and TOML_. It features:
+
+- 🚀 **High performance encoders/decoders** for common protocols. The JSON and
+  MessagePack implementations regularly :doc:`benchmark <benchmarks>` as the
+  fastest options for Python.
+
+- 🎉 **Support for a wide variety of Python types**. Additional types may
+  be supported through :doc:`extensions <extending>`.
+
+- 🔍 **Zero-cost schema validation** using familiar Python type annotations.
+  In :doc:`benchmarks <benchmarks>` ``msgspec`` decodes *and* validates JSON
+  faster than orjson_ can decode it alone.
+
+- ✨ **A speedy Struct type** for representing structured data. If you already
+  use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
+  they're :ref:`5-60x <struct-benchmark>` faster for common operations.
+
+All of this is included in a :ref:`lightweight library
+<benchmark-library-size>` with no required dependencies.
+
+-----
+
+``msgspec`` may be used for serialization alone, as a faster JSON or
+MessagePack library. For the greatest benefit though, we recommend using
+``msgspec`` to handle the full serialization & validation workflow:
+
+**Define** your message schemas using standard Python type annotations.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct):
+    ...     """A new type describing a User"""
+    ...     name: str
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
+
+**Encode** messages as JSON, or one of the many other supported protocols.
+
+.. code-block:: python
+
+    >>> alice = User("alice", groups={"admin", "engineering"})
+
+    >>> alice
+    User(name='alice', groups={"admin", "engineering"}, email=None)
+
+    >>> msg = msgspec.json.encode(alice)
+
+    >>> msg
+    b'{"name":"alice","groups":["admin","engineering"],"email":null}'
+
+**Decode** messages back into Python objects, with optional schema validation.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(msg, type=User)
+    User(name='alice', groups={"admin", "engineering"}, email=None)
+
+    >>> msgspec.json.decode(b'{"name":"bob","groups":[123]}', type=User)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
+
+``msgspec`` is designed to be as performant as possible, while retaining some
+of the nicities of validation libraries like pydantic_. For supported types,
+encoding/decoding a message with ``msgspec`` can be :doc:`~10-80x faster than
+alternative libraries <benchmarks>`.
+
+Highlights
+----------
+
+- ``msgspec`` is **fast**. It :doc:`benchmarks <benchmarks>` as the fastest
+  serialization library for Python, outperforming all other JSON/MessagePack
+  libraries compared.
+
+- ``msgspec`` is **friendly**. Through use of Python's type annotations,
+  messages are :ref:`validated <typed-decoding>` during deserialization in a
+  declarative way. ``msgspec`` also works well with other type-checking tooling
+  like mypy_ and pyright_, providing excellent editor integration.
+
+- ``msgspec`` is **flexible**. It natively supports a :doc:`wide range of
+  Python builtin types <supported-types>`. Support for additional types can
+  also be added through :doc:`extensions <extending>`.
+
+- ``msgspec`` is **lightweight**. It has no required dependencies, and the
+  binary size is :ref:`a fraction of that of comparable libraries
+  <benchmark-library-size>`.
+
+- ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
+  compliant with their respective specifications, providing stronger guarantees
+  of compatibility with other systems.
+
+Used By
+-------
+
+``msgspec`` is used by many organizations and `open source projects
+<https://github.com/msgspec/msgspec/network/dependents>`__, here we highlight a
+few:
+
+.. grid:: 2 2 4 4
+
+    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io>`_
+
+        .. image:: _static/nautilus-trader.png
+            :target: https://nautilustrader.io/
+
+    .. grid-item-card:: `Litestar <https://docs.litestar.dev/latest/reference/dto/msgspec_dto.html>`_
+
+        .. image:: _static/litestar.png
+            :target: https://litestar.dev/
+
+    .. grid-item-card:: `Sanic <https://github.com/sanic-org/sanic-ext/pull/197>`_
+
+        .. image:: _static/sanic.png
+            :target: https://sanic.dev/en/
+
+    .. grid-item-card:: `Mosec <https://mosecorg.github.io/mosec/examples/validate.html>`_
+
+        .. image:: _static/mosec.png
+            :target: https://mosecorg.github.io/mosec/
+
+    .. grid-item-card:: `Pioreactor <https://github.com/Pioreactor/pioreactor/blob/5e13e709cc76b88661a650882fb02b7e1d30c62e/requirements/requirements.txt#L5>`_
+
+        .. image:: _static/pioreactor.png
+            :target: https://pioreactor.com/
+
+    .. grid-item-card:: `Zero <https://github.com/Ananto30/zero/blob/f2a1f10d8c65c1df7358a16fb70dac7d47e28dc4/README.md#default-serializer>`_
+
+        .. image:: _static/zero.png
+            :target: https://github.com/Ananto30/zero
+
+    .. grid-item-card:: `anywidget <https://anywidget.dev/en/experimental/#mimebundle-descriptor>`_
+
+        .. image:: _static/anywidget.png
+            :target: https://anywidget.dev/
+
+    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#msgspec-encoder>`_
+
+        .. image:: _static/ravyn.png
+            :target: https://www.ravyn.dev/
+
+    .. grid-item-card:: `Faststream <https://faststream.ag2.ai/latest/getting-started/subscription/msgspec/>`_
+
+        .. image:: _static/faststream.png
+            :target: https://faststream.ag2.ai/
+
+    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/>`_
+
+        .. image:: _static/django-modern-rest.png
+            :target: https://django-modern-rest.readthedocs.io/en/latest/
+
+    .. grid-item-card:: `Meltano <https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader>`_
+
+        .. image:: _static/meltano.svg
+            :target: https://meltano.com/
+
+.. _type annotations: https://docs.python.org/3/library/typing.html
+.. _JSON: https://json.org
+.. _MessagePack: https://msgpack.org
+.. _YAML: https://yaml.org
+.. _TOML: https://toml.io/en/
+.. _attrs: https://www.attrs.org/en/stable/
+.. _dataclasses: https://docs.python.org/3/library/dataclasses.html
+.. _orjson: https://github.com/ijl/orjson
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
+.. _mypy: https://mypy.readthedocs.io/en/stable/
+.. _pyright: https://github.com/microsoft/pyright
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Overview
+
+    why.rst
+    install.rst
+    benchmarks.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: User Guide
+
+    usage.rst
+    supported-types.rst
+    structs.rst
+    constraints.rst
+    converters.rst
+    jsonschema.rst
+    schema-evolution.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Advanced
+
+    extending.rst
+    inspect.rst
+    perf-tips.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Porting
+
+    porting/index.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Reference
+
+    api.rst
+    examples/index.rst
+    changelog.md
