@@ -1,0 +1,46 @@
+# Allowlist for `python -m mypy.stubtest msgspec`.
+#
+# Each entry is a regex matched against the fully-qualified name of a stubtest
+# finding. Entries here are known false positives or intentional gaps; real
+# stub/runtime drift should be fixed rather than added here.
+
+# msgspec.Struct subclasses get a per-class __init__ synthesized in C. stubtest
+# can't see through it, so every Struct subtype reports an __init__ mismatch
+# against the generic stub. Same story for the C types with a custom __new__.
+msgspec\.Struct\.__init__
+msgspec\.Meta\.__init__
+msgspec\.Meta\.__new__
+msgspec\.structs\.FieldInfo\.__init__
+msgspec\.inspect\..*\.__init__
+msgspec\.msgpack\.Ext\.__init__
+msgspec\.msgpack\.Ext\.__new__
+msgspec\.UnsetType\.__new__
+
+# Struct.__init_subclass__ is stubbed with the config kwargs (via
+# dataclass_transform) so type checkers accept `class Foo(Struct, frozen=True)`.
+# At runtime those kwargs are handled by the metaclass, so __init_subclass__
+# itself takes none. Surfaces on Python 3.14+.
+msgspec\.Struct\.__init_subclass__
+
+# StructMeta is a disjoint base at runtime. Marking it @disjoint_base in the
+# stub is deferred (see #1056) pending a typing_extensions compat decision.
+msgspec\.StructMeta
+
+# Private, intentionally unstubbed helper module.
+msgspec\._utils\..*
+
+# encode/decode take their first argument positional-only in C, but the
+# generated __text_signature__ omits the "/", so stubtest reads them as
+# positional-or-keyword. The runtime rejects keyword calls, so the stubs (which
+# mark "/") are correct. json.format is the one callable that really accepts a
+# keyword, and its stub is fixed instead of allowlisted.
+msgspec\.json\.encode
+msgspec\.json\.decode
+msgspec\.msgpack\.encode
+msgspec\.msgpack\.decode
+msgspec\.json\.Encoder\.encode
+msgspec\.json\.Encoder\.encode_lines
+msgspec\.json\.Decoder\.decode
+msgspec\.json\.Decoder\.decode_lines
+msgspec\.msgpack\.Encoder\.encode
+msgspec\.msgpack\.Decoder\.decode
