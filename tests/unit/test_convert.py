@@ -781,7 +781,7 @@ class TestEnum:
         assert convert(Ex.x, Ex) is Ex.x
         assert convert("A", Ex) is Ex.x
         assert convert("B", Ex) is Ex.y
-        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+        with pytest.raises(ValidationError, match="Invalid value 'C'"):
             convert("C", Ex)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(1, Ex)
@@ -802,10 +802,10 @@ class TestEnum:
         assert convert(2, Ex) is Ex.y
         assert convert(Ex2.a, Ex) is Ex.x
 
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert(3, Ex)
 
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert(Ex2.b, Ex)
 
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
@@ -828,10 +828,10 @@ class TestEnum:
         assert convert("B", Ex) is Ex.y
         assert convert(Ex2.a, Ex) is Ex.x
 
-        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+        with pytest.raises(ValidationError, match="Invalid value 'C'"):
             convert("C", Ex)
 
-        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+        with pytest.raises(ValidationError, match="Invalid value 'C'"):
             convert(Ex2.b, Ex)
 
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
@@ -869,9 +869,9 @@ class TestEnum:
         assert msgspec.convert("a", Ex) is Ex.A
         assert msgspec.convert("return-A", Ex) is Ex.A
         assert msgspec.convert("return-B", Ex) is Ex.B
-        with pytest.raises(ValidationError, match="Invalid enum value 'error'"):
+        with pytest.raises(ValidationError, match="Invalid value 'error'"):
             msgspec.convert("error", Ex)
-        with pytest.raises(ValidationError, match="Invalid enum value 'other'"):
+        with pytest.raises(ValidationError, match="Invalid value 'other'"):
             msgspec.convert("other", Ex)
 
     def test_intenum_missing(self):
@@ -893,9 +893,9 @@ class TestEnum:
         assert msgspec.convert(1, Ex) is Ex.A
         assert msgspec.convert(3, Ex) is Ex.A
         assert msgspec.convert(-4, Ex) is Ex.B
-        with pytest.raises(ValidationError, match="Invalid enum value 5"):
+        with pytest.raises(ValidationError, match="Invalid value 5"):
             msgspec.convert(5, Ex)
-        with pytest.raises(ValidationError, match="Invalid enum value 6"):
+        with pytest.raises(ValidationError, match="Invalid value 6"):
             msgspec.convert(6, Ex)
 
     @pytest.mark.parametrize(
@@ -912,7 +912,7 @@ class TestEnum:
         assert convert(Test.A, Test) is Test.A
         assert convert("apple", Test) is Test.A
         assert convert("banana", Test) is Test.B
-        with pytest.raises(ValidationError, match="Invalid enum value 'ceeee'"):
+        with pytest.raises(ValidationError, match="Invalid value 'ceeee'"):
             convert("ceeee", Test)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(1, Test)
@@ -923,7 +923,7 @@ class TestLiteral:
         typ = Literal["A", "B"]
         assert convert("A", typ) == "A"
         assert convert("B", typ) == "B"
-        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+        with pytest.raises(ValidationError, match="Invalid value 'C'"):
             convert("C", typ)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(1, typ)
@@ -932,9 +932,9 @@ class TestLiteral:
         typ = Literal[1, -2]
         assert convert(1, typ) == 1
         assert convert(-2, typ) == -2
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert(3, typ)
-        with pytest.raises(ValidationError, match="Invalid enum value -3"):
+        with pytest.raises(ValidationError, match="Invalid value -3"):
             convert(-3, typ)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", typ)
@@ -944,9 +944,9 @@ class TestLiteral:
         assert convert(False, Literal[False]) is False
         assert convert(True, Literal[True, False]) is True
         assert convert(False, Literal[True, False]) is False
-        with pytest.raises(ValidationError, match="Invalid enum value False"):
+        with pytest.raises(ValidationError, match="Invalid value False"):
             convert(False, Literal[True])
-        with pytest.raises(ValidationError, match="Invalid enum value True"):
+        with pytest.raises(ValidationError, match="Invalid value True"):
             convert(True, Literal[False])
         with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
             convert("yes", Literal[True])
@@ -2528,7 +2528,7 @@ class TestLax:
 
         assert convert("1", Ex, strict=False) is Ex.x
         assert convert("-2", Ex, strict=False) is Ex.y
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert("3", Ex, strict=False)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", Ex, strict=False)
@@ -2537,7 +2537,7 @@ class TestLax:
         typ = Literal[1, -2]
         assert convert("1", typ, strict=False) == 1
         assert convert("-2", typ, strict=False) == -2
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert("3", typ, strict=False)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", typ, strict=False)

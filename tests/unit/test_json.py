@@ -1211,7 +1211,7 @@ class TestLiteral:
     def test_int_literal_errors(self):
         dec = msgspec.json.Decoder(Literal[1, 2, 3])
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 4"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 4"):
             dec.decode(b"4")
 
         with pytest.raises(msgspec.ValidationError, match="Expected `int`, got `str`"):
@@ -1223,19 +1223,19 @@ class TestLiteral:
         with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
             dec.decode(b"4")
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'bad'"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 'bad'"):
             dec.decode(b'"bad"')
 
     def test_bool_literal_true_only(self):
         dec = msgspec.json.Decoder(Literal[True])
         assert dec.decode(b"true") is True
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value False"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value False"):
             dec.decode(b"false")
 
     def test_bool_literal_false_only(self):
         dec = msgspec.json.Decoder(Literal[False])
         assert dec.decode(b"false") is False
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value True"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value True"):
             dec.decode(b"true")
 
     def test_bool_literal_errors(self):
@@ -1963,7 +1963,7 @@ class TestDict:
         dec = msgspec.json.Decoder(dict[Literal["a", "b"], int])
         assert dec.decode(b'{"a": 1, "b": 2}') == {"a": 1, "b": 2}
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'c'"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 'c'"):
             dec.decode(b'{"a": 1, "c": 2}')
 
     def test_decode_dict_enum_key(self):
@@ -1973,9 +1973,7 @@ class TestDict:
             FruitStr.BANANA: 2,
         }
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'carrot'"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 'carrot'"):
             dec.decode(b'{"apple": 1, "carrot": 2}')
 
     def test_decode_dict_str_key_constraints(self):
@@ -2044,7 +2042,7 @@ class TestDict:
             FruitInt.BANANA: 20,
         }
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 3"):
             dec.decode(b'{"-1": 1, "3": 2}')
 
     @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
@@ -2088,7 +2086,7 @@ class TestDict:
         dec = msgspec.json.Decoder(dict[Literal[-1, 2], int])
         assert dec.decode(b'{"-1": 10, "2": 20}') == {-1: 10, 2: 20}
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 3"):
             dec.decode(b'{"-1": 10, "3": 20}')
 
     def test_encode_dict_float_key(self):
