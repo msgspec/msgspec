@@ -331,6 +331,7 @@ class _SchemaGenerator:
             structs = {}
             other = []
             has_none = False
+            none_member = None
             tag_field = None
             for subtype in t.types:
                 real_type = subtype
@@ -341,6 +342,7 @@ class _SchemaGenerator:
                     structs[real_type.tag] = real_type
                 elif isinstance(real_type, mi.NoneType):
                     has_none = True
+                    none_member = subtype
                 else:
                     other.append(subtype)
 
@@ -358,21 +360,21 @@ class _SchemaGenerator:
                 if options:
                     options.append(struct_schema)
                     if has_none:
-                        options.append({"type": "null"})
+                        options.append(self.to_schema(none_member))
                     schema["anyOf"] = options
+                elif has_none:
+                    schema["anyOf"] = [struct_schema, self.to_schema(none_member)]
                 else:
                     schema.update(struct_schema)
-                    if has_none:
-                        schema["anyOf"] = schema["anyOf"] + [{"type": "null"}]
             elif len(structs) == 1:
                 _, subtype = structs.popitem()
                 options.append(self.to_schema(subtype))
                 if has_none:
-                    options.append({"type": "null"})
+                    options.append(self.to_schema(none_member))
                 schema["anyOf"] = options
             else:
                 if has_none:
-                    options.append({"type": "null"})
+                    options.append(self.to_schema(none_member))
                 schema["anyOf"] = options
         elif isinstance(t, mi.LiteralType):
             schema["enum"] = sorted(t.values)

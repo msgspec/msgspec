@@ -925,12 +925,17 @@ def test_struct_tagged_union_with_none():
         z: int
 
     schema = msgspec.json.schema(Union[Point, Point3D, None])
-    assert schema["anyOf"][-1] == {"type": "null"}
-    assert schema["anyOf"][:-1] == [
-        {"$ref": "#/$defs/Point"},
-        {"$ref": "#/$defs/Point3D"},
+    assert schema["anyOf"] == [
+        {
+            "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
+            "discriminator": {
+                "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
+                "propertyName": "type",
+            },
+        },
+        {"type": "null"},
     ]
-    assert "discriminator" in schema
+    assert "discriminator" not in schema
 
 
 def test_struct_tagged_union_mixed_types():
@@ -976,6 +981,40 @@ def test_struct_tagged_union_mixed_types():
                 "type": "object",
             },
         },
+    }
+
+
+def test_struct_tagged_union_with_none_and_other():
+    class Point(msgspec.Struct, tag=True):
+        x: int
+        y: int
+
+    class Point3D(Point):
+        z: int
+
+    schema = msgspec.json.schema(Union[Point, Point3D, int, None])
+    assert schema["anyOf"] == [
+        {"type": "integer"},
+        {
+            "anyOf": [{"$ref": "#/$defs/Point"}, {"$ref": "#/$defs/Point3D"}],
+            "discriminator": {
+                "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
+                "propertyName": "type",
+            },
+        },
+        {"type": "null"},
+    ]
+    assert "discriminator" not in schema
+
+
+def test_optional_union_null_member_metadata_preserved():
+    NullWithMeta = Annotated[None, msgspec.Meta(description="explicitly unset")]
+
+    assert msgspec.json.schema(Union[int, NullWithMeta]) == {
+        "anyOf": [
+            {"type": "integer"},
+            {"type": "null", "description": "explicitly unset"},
+        ],
     }
 
 
