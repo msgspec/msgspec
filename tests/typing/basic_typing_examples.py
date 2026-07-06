@@ -4,7 +4,7 @@ import array
 from collections.abc import Callable
 import decimal
 import pickle
-from typing import Annotated, Any, Final, Literal
+from typing import Annotated, Any, Final, Literal, final
 
 import msgspec
 from typing_extensions import assert_type, Buffer
@@ -1112,12 +1112,12 @@ def check_inspect_is_struct_type() -> None:
     class Point(msgspec.Struct):
         x: int
 
+    @final
     class Other: ...
 
     tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
-        # this is a bug in `pyrefly` https://github.com/facebook/pyrefly/issues/3821:
-        assert_type(tp, type[Point])  # pyrefly: ignore[assert-type]
+        assert_type(tp, type[Point])
     else:
         assert_type(tp, type[Other])
 
