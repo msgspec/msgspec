@@ -14153,9 +14153,20 @@ json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
 
-    int status = (
-        is_key ? json_encode_dict_key_noinline(self, value) : json_encode(self, value)
-    );
+    int status;
+    if (is_key) {
+        /* A str value must be written as a JSON object key directly.
+         * json_encode_dict_key_noinline only handles non-str keys (str keys
+         * are fast-pathed in json_encode_dict_key), so recursing into it with
+         * a str value would wrongly raise "unsupported key" - e.g. for a plain
+         * Enum whose members have str values when used as a dict key. */
+        status = PyUnicode_Check(value)
+            ? json_encode_str(self, value)
+            : json_encode_dict_key_noinline(self, value);
+    }
+    else {
+        status = json_encode(self, value);
+    }
 
     Py_DECREF(value);
     return status;
