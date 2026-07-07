@@ -17,7 +17,7 @@
 - Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
   `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
   {pr}`1023`, {pr}`1040`).
-- Fix `msgspec.inspect.type_info` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
+- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
 - Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
 - Ensure an exception is always set on allocation failures ({pr}`1044`).
 - Fix compilation warnings on Python 3.15 ({pr}`1077`).
