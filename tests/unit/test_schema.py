@@ -315,6 +315,13 @@ def test_str_literal():
     assert msgspec.json.schema(Literal["c", "a", "b"]) == {"enum": ["a", "b", "c"]}
 
 
+def test_mixed_literal():
+    # A Literal may mix value types; building its schema must not crash trying
+    # to sort values of incomparable types (gh#1018).
+    assert msgspec.json.schema(Literal[1, None]) == {"enum": [None, 1]}
+    assert msgspec.json.schema(Literal[True, "yes"]) == {"enum": [True, "yes"]}
+
+
 def test_struct_object():
     class Point(msgspec.Struct, forbid_unknown_fields=True):
         x: int

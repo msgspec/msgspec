@@ -364,7 +364,11 @@ class _SchemaGenerator:
             else:
                 schema["anyOf"] = options
         elif isinstance(t, mi.LiteralType):
-            schema["enum"] = sorted(t.values)
+            # `t.values` may mix types (e.g. `Literal[1, None]`), which a plain
+            # `sorted` can't order; reuse the same type-aware sort as
+            # `inspect.type_info` so the two entry points agree and neither
+            # crashes.
+            schema["enum"] = list(mi._sort_literal_args(t.values))
         elif isinstance(t, mi.EnumType):
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):
