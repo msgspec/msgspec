@@ -2117,6 +2117,102 @@ class TestRename:
             Test(one=1)
 
 
+class TestIntKeys:
+    def test_int_keys_basic(self):
+        class Test(Struct, int_keys={"a": 0, "b": 1}):
+            a: int
+            b: int
+
+        assert Test.__struct_fields__ == ("a", "b")
+        # int_keys does not affect the string encode fields
+        assert Test.__struct_encode_fields__ == ("a", "b")
+
+    def test_int_keys_value_out_of_range(self):
+        with pytest.raises(ValueError, match=r"\[-2\*\*63, 2\*\*63 - 1\]"):
+
+            class Test(Struct, int_keys={"a": 2**63}):
+                a: int
+
+    def test_int_keys_value_not_int(self):
+        with pytest.raises(TypeError, match="int_keys"):
+
+            class Test(Struct, int_keys={"a": "nope"}):
+                a: int
+
+    def test_int_keys_duplicate_value(self):
+        with pytest.raises(ValueError, match="unique"):
+
+            class Test(Struct, int_keys={"a": 0, "b": 0}):
+                a: int
+                b: int
+
+    def test_int_keys_unknown_field(self):
+        with pytest.raises(ValueError, match="does not exist"):
+
+            class Test(Struct, int_keys={"nope": 0}):
+                a: int
+
+    def test_int_keys_negative_ok(self):
+        class Test(Struct, int_keys={"a": -1}):
+            a: int
+
+        buf = msgspec.msgpack.encode(Test(5))
+        assert msgspec.msgpack.decode(buf) == {-1: 5}
+        assert msgspec.msgpack.decode(buf, type=Test) == Test(5)
+
+    def test_int_keys_inheritance(self):
+        class Base(Struct, int_keys={"a": 0}):
+            a: int
+
+        class Child(Base, int_keys={"b": 1}):
+            b: int
+
+        # Child merges base + own int_keys
+        buf = msgspec.msgpack.encode(Child(1, 2))
+        assert msgspec.msgpack.decode(buf) == {0: 1, 1: 2}
+        assert msgspec.msgpack.decode(buf, type=Child) == Child(1, 2)
+
+    def test_int_keys_inheritance_override(self):
+        class Base(Struct, int_keys={"a": 0}):
+            a: int
+
+        class Child(Base, int_keys={"a": 5}):
+            a: int
+
+        buf = msgspec.msgpack.encode(Child(9))
+        assert msgspec.msgpack.decode(buf) == {5: 9}
+
+    def test_int_keys_defstruct(self):
+        Test = defstruct("Test", ["a", "b"], int_keys={"a": 0, "b": 1})
+        buf = msgspec.msgpack.encode(Test(1, 2))
+        assert msgspec.msgpack.decode(buf) == {0: 1, 1: 2}
+        assert msgspec.msgpack.decode(buf, type=Test) == Test(1, 2)
+
+    def test_int_keys_introspection_via_fields(self):
+        import msgspec.structs
+
+        class Test(msgspec.Struct, int_keys={"a": 0, "b": 5}, rename={"c": "cee"}):
+            a: int
+            b: int
+            c: str = "z"
+
+        by_name = {f.name: f for f in msgspec.structs.fields(Test)}
+        assert by_name["a"].int_key == 0
+        assert by_name["b"].int_key == 5
+        assert by_name["c"].int_key is None          # str-renamed, not int-keyed
+        assert by_name["c"].encode_name == "cee"
+        assert Test.__struct_encode_int_keys__ == (0, 5, None)
+
+    def test_int_keys_introspection_absent(self):
+        import msgspec.structs
+
+        class Plain(msgspec.Struct):
+            x: int
+
+        assert Plain.__struct_encode_int_keys__ is None
+        assert msgspec.structs.fields(Plain)[0].int_key is None
+
+
 class TestDefStruct:
     def test_defstruct_simple(self):
         Point = defstruct("Point", ["x", "y"])

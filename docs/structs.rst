@@ -869,6 +869,62 @@ precedence.
     b'{"fieldX":1,"y":2}'
 
 
+Integer Field Keys
+------------------
+
+Descriptive field names make for readable code but bloat the encoded message,
+since the name of every field is repeated in full on the wire. For MessagePack
+you can avoid this by encoding fields with **integer keys** instead of their
+names, using the ``int_keys`` configuration option — a mapping from field name to
+integer. This is like renaming (above), but the wire keys are compact integers
+rather than strings.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Point(msgspec.Struct, int_keys={"x": 1, "y": 2}):
+    ...     x: int
+    ...     y: int
+
+    >>> # MessagePack encodes the fields with integer keys ({1: 1, 2: 2})
+    >>> buf = msgspec.msgpack.encode(Point(1, 2))
+    >>> msgspec.msgpack.decode(buf)
+    {1: 1, 2: 2}
+
+    >>> # Decoding maps the integer keys back to fields
+    >>> msgspec.msgpack.decode(buf, type=Point)
+    Point(x=1, y=2)
+
+Integer keys only make sense for MessagePack — JSON object keys must be strings,
+so the **JSON encoder ignores** ``int_keys`` and continues to use the (possibly
+renamed) field names:
+
+.. code-block:: python
+
+    >>> msgspec.json.encode(Point(1, 2))
+    b'{"x":1,"y":2}'
+
+A few things to note:
+
+- Not every field needs a key; fields missing from ``int_keys`` keep their
+  string names on the wire (producing a message with mixed integer/string keys).
+- Integer keys are baked onto the type, so **nested** structs are handled
+  automatically — each struct encodes with its own ``int_keys``, with no extra
+  configuration needed at encode/decode time.
+- ``int_keys`` composes with ``rename`` (and ``field(name=...)``): the string
+  name is used for JSON, the integer for MessagePack.
+- Integer keys must be unique within a struct and fit in a signed 64-bit integer.
+
+The assigned key for each field is available via introspection through the
+``int_key`` attribute of `msgspec.structs.FieldInfo`:
+
+.. code-block:: python
+
+    >>> [(f.name, f.int_key) for f in msgspec.structs.fields(Point)]
+    [('x', 1), ('y', 2)]
+
+
 Encoding/Decoding as Arrays
 ---------------------------
 
