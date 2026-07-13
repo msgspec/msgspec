@@ -22,25 +22,5 @@ msgspec\.UnsetType\.__new__
 # itself takes none. Surfaces on Python 3.14+.
 msgspec\.Struct\.__init_subclass__
 
-# StructMeta is a disjoint base at runtime. Marking it @disjoint_base in the
-# stub is deferred (see #1056) pending a typing_extensions compat decision.
-msgspec\.StructMeta
-
 # Private, intentionally unstubbed helper module.
 msgspec\._utils\..*
-
-# encode/decode take their first argument positional-only in C, but the
-# generated __text_signature__ omits the "/", so stubtest reads them as
-# positional-or-keyword. The runtime rejects keyword calls, so the stubs (which
-# mark "/") are correct. json.format is the one callable that really accepts a
-# keyword, and its stub is fixed instead of allowlisted.
-msgspec\.json\.encode
-msgspec\.json\.decode
-msgspec\.msgpack\.encode
-msgspec\.msgpack\.decode
-msgspec\.json\.Encoder\.encode
-msgspec\.json\.Encoder\.encode_lines
-msgspec\.json\.Decoder\.decode
-msgspec\.json\.Decoder\.decode_lines
-msgspec\.msgpack\.Encoder\.encode
-msgspec\.msgpack\.Decoder\.decode

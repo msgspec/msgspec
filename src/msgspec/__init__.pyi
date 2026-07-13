@@ -15,7 +15,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import Buffer, Self, dataclass_transform
+from typing_extensions import Buffer, Self, dataclass_transform, disjoint_base
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -26,6 +26,7 @@ from . import inspect, json, msgpack, structs, toml, yaml
 # https://github.com/python/typeshed/blob/17bde1bd5e556de001adde3c2f340ba1c3581bd2/stdlib/abc.pyi#L14-L19
 _SM = TypeVar("_SM", bound="StructMeta")
 
+@disjoint_base
 class StructMeta(type):
     __struct_fields__: ClassVar[tuple[str, ...]]
     __struct_defaults__: ClassVar[tuple[Any, ...]]
