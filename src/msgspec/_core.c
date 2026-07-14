@@ -906,7 +906,7 @@ _Lookup_OnMissing(Lookup *lookup, PyObject *val, PathNode *path) {
     }
     PyObject *suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(mod->ValidationError, "Invalid enum value %R%U", val, suffix);
+        PyErr_Format(mod->ValidationError, "Invalid value %R%U", val, suffix);
         Py_DECREF(suffix);
     }
 
@@ -15605,7 +15605,7 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
         return Py_False;
     }
     if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
-        ms_raise_validation_error(path, "Invalid enum value %R%U", val);
+        ms_raise_validation_error(path, "Invalid value %R%U", val);
         return NULL;
     }
     return ms_validation_error("bool", type, path);
@@ -17260,7 +17260,7 @@ json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return Py_True;
     }
     if (type->types & MS_TYPE_BOOLLITERAL_FALSE) {
-        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_True);
+        ms_raise_validation_error(path, "Invalid value %R%U", Py_True);
         return NULL;
     }
     return ms_validation_error("bool", type, path);
@@ -17285,7 +17285,7 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return Py_False;
     }
     if (type->types & MS_TYPE_BOOLLITERAL_TRUE) {
-        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_False);
+        ms_raise_validation_error(path, "Invalid value %R%U", Py_False);
         return NULL;
     }
     return ms_validation_error("bool", type, path);
@@ -20999,7 +20999,7 @@ convert_bool(
         return Py_False;
     }
     if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
-        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        ms_raise_validation_error(path, "Invalid value %R%U", obj);
         return NULL;
     }
     return ms_validation_error("bool", type, path);
