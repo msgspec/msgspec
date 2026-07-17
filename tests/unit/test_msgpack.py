@@ -1878,11 +1878,41 @@ class TestIntKeys:
         buf = msgspec.msgpack.encode({0: 1, "y": 2})
         assert msgspec.msgpack.decode(buf, type=IKInner) == IKInner(1, 2)
 
-    def test_json_uses_string_names(self):
+    def test_json_int_keys_string_coercion(self):
         obj = IKInner(1, 2)
         buf = msgspec.json.encode(obj)
-        assert buf == b'{"x":1,"y":2}'
+        # JSON object keys must be strings, so int_keys are coerced to their
+        # decimal string form ("0", "1"), mirroring integer dict keys.
+        assert buf == b'{"0":1,"1":2}'
         assert msgspec.json.decode(buf, type=IKInner) == obj
+        # Decode also accepts the original field names (name fallback), so a
+        # name-keyed producer or the `order='sorted'` output still round-trips.
+        assert msgspec.json.decode(b'{"x":1,"y":2}', type=IKInner) == obj
+
+    def test_json_int_keys_partial(self):
+        # a->0, c->2 are int-keyed; b keeps its name.
+        obj = IKPartial(a=1, b=2, c=3)
+        buf = msgspec.json.encode(obj)
+        assert msgspec.json.decode(buf) == {"0": 1, "b": 2, "2": 3}
+        assert msgspec.json.decode(buf, type=IKPartial) == obj
+
+    def test_json_int_keys_tagged_union(self):
+        # Tag stays a string key; int fields coerce to string keys; union decodes.
+        obj = IKTagged(1, 2)
+        buf = msgspec.json.encode(obj)
+        assert msgspec.json.decode(buf) == {"type": 123, "0": 1, "1": 2}
+        assert msgspec.json.decode(buf, type=IKTagged) == obj
+
+    def test_json_int_keys_sorted_emits_int_strings(self):
+        # order='sorted' emits the same int-string keys as the default JSON path
+        # (strict consistency), not field names.
+        buf = msgspec.json.Encoder(order="sorted").encode(IKInner(1, 2))
+        assert msgspec.json.decode(buf) == {"0": 1, "1": 2}
+        assert msgspec.json.decode(buf, type=IKInner) == IKInner(1, 2)
+        # tagged: the tag stays a string key, sorted after the int keys
+        tbuf = msgspec.json.Encoder(order="sorted").encode(IKTagged(1, 2))
+        assert msgspec.json.decode(tbuf) == {"0": 1, "1": 2, "type": 123}
+        assert msgspec.json.decode(tbuf, type=IKTagged) == IKTagged(1, 2)
 
     def test_int_tag_with_int_keys(self):
         obj = IKTagged(1, 2)
@@ -1950,6 +1980,35 @@ class TestIntKeys:
         # int-keyed fields sort (as ints) before string-keyed fields
         assert list(raw.items()) == [(1, 1), ("b", 2)]
         assert msgspec.msgpack.decode(enc.encode(P(1, 2)), type=P) == P(1, 2)
+
+    def test_tagged_union_decode_order_independent(self):
+        # An int-keyed tagged struct must decode as a union member regardless of
+        # where the (string) tag key falls on the wire. The sorted encoder orders
+        # int keys ahead of the tag, which previously broke the union tag-scan.
+        class A(msgspec.Struct, tag=True, int_keys={"a": 1, "b": 2}):
+            a: int
+            b: int
+
+        class B(msgspec.Struct, tag=True, int_keys={"a": 1}):
+            a: int
+
+        U = A | B
+        for enc in (msgspec.msgpack.Encoder(),
+                    msgspec.msgpack.Encoder(order="sorted")):
+            assert msgspec.msgpack.decode(enc.encode(A(1, 2)), type=U) == A(1, 2)
+            assert msgspec.msgpack.decode(enc.encode(B(9)), type=U) == B(9)
+
+    def test_tagged_union_decode_tag_last(self):
+        # Foreign-producer style: the tag is the LAST key, after the int keys.
+        class A(msgspec.Struct, tag=True, int_keys={"a": 1, "b": 2}):
+            a: int
+            b: int
+
+        class B(msgspec.Struct, tag=True, int_keys={"x": 1}):
+            x: int
+
+        wire = msgspec.msgpack.encode({1: 10, 2: 20, "type": "A"})
+        assert msgspec.msgpack.decode(wire, type=A | B) == A(10, 20)
 
 
 class TestStructArray:

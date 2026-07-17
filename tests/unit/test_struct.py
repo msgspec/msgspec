@@ -2212,6 +2212,16 @@ class TestIntKeys:
         assert Plain.__struct_encode_int_keys__ is None
         assert msgspec.structs.fields(Plain)[0].int_key is None
 
+    def test_int_keys_array_like_rejected(self):
+        # array_like drops field keys entirely, so int_keys would be a silent
+        # no-op -- reject the combination at class creation instead.
+        with pytest.raises(ValueError, match="array_like"):
+            class P(msgspec.Struct, array_like=True, int_keys={"a": 1}):
+                a: int
+
+        with pytest.raises(ValueError, match="array_like"):
+            msgspec.defstruct("Q", [("a", int)], array_like=True, int_keys={"a": 1})
+
 
 class TestDefStruct:
     def test_defstruct_simple(self):

@@ -6393,6 +6393,15 @@ structmeta_construct_int_keys(StructMetaInfo *info)
         return 0;
     }
 
+    if (info->array_like == OPT_TRUE) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot use `int_keys` with `array_like=True` - array-encoded structs "
+            "have no field keys"
+        );
+        return -1;
+    }
+
     Py_ssize_t nfields = PyTuple_GET_SIZE(info->fields);
 
     /* Map field name -> index for validation/placement */
@@ -14936,11 +14945,125 @@ json_encode_struct_tag(EncoderState *self, PyObject *obj)
     }
 }
 
+/* Write a struct field's JSON object key. When the field has an `int_keys` entry
+ * the integer is written as a JSON string (e.g. `"1"`) -- JSON object keys must be
+ * strings, so the integer key is coerced to its decimal string, matching how
+ * integer dict keys are encoded. Otherwise the (string) field name is used. */
+static MS_INLINE int
+json_encode_struct_key(
+    EncoderState *self, StructMetaObject *struct_type, Py_ssize_t i, PyObject *key
+) {
+    if (MS_UNLIKELY(struct_type->struct_encode_int_keys != NULL)) {
+        PyObject *int_key = PyTuple_GET_ITEM(struct_type->struct_encode_int_keys, i);
+        if (int_key != Py_None) {
+            return json_encode_long_as_str(self, int_key);
+        }
+    }
+    return json_encode_str_noescape(self, key);
+}
+
+/* Encode an int-keyed struct as JSON with `order='sorted'`. The default assoclist
+ * sorted path is string-key only, so int-keyed structs get this dedicated path to
+ * keep the integer (string-coerced) keys consistent across all `order` settings.
+ * Only reached under `order == ORDER_SORTED` for structs with `int_keys`. Reuses
+ * the msgpack sort-item build/comparator; only the emission is JSON. */
+static int
+json_encode_struct_object_sorted_intkeys(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *int_keys = struct_type->struct_encode_int_keys;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
+    Py_ssize_t cap = nfields + (tag_value != NULL);
+    int status = -1;
+    MpStructSortItem *items = NULL;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    if (cap > 0) {
+        items = PyMem_Malloc(cap * sizeof(MpStructSortItem));
+        if (items == NULL) { PyErr_NoMemory(); goto cleanup; }
+    }
+    Py_ssize_t n = 0;
+    if (tag_value != NULL) {
+        MpStructSortItem *it = &items[n++];
+        it->is_int = 0;
+        it->skey = unicode_str_and_size_nocheck(tag_field, &it->skey_size);
+        it->keyobj = tag_field;
+        it->val = tag_value;
+    }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) continue;
+        if (omit_defaults && i >= npos
+                && is_default(val, PyTuple_GET_ITEM(defaults, i - npos))) {
+            continue;
+        }
+        MpStructSortItem *it = &items[n++];
+        PyObject *ik = PyTuple_GET_ITEM(int_keys, i);
+        if (ik != Py_None) {
+            it->is_int = 1;
+            it->ikey = PyLong_AsLongLong(ik);
+            it->keyobj = ik;
+        }
+        else {
+            it->is_int = 0;
+            it->skey = unicode_str_and_size_nocheck(PyTuple_GET_ITEM(fields, i), &it->skey_size);
+            it->keyobj = PyTuple_GET_ITEM(fields, i);
+        }
+        it->val = val;
+    }
+
+    /* insertion sort -- struct field counts are small */
+    for (Py_ssize_t i = 1; i < n; i++) {
+        MpStructSortItem tmp = items[i];
+        Py_ssize_t j = i;
+        while (j > 0 && _mp_struct_sortitem_lt(&tmp, &items[j - 1])) {
+            items[j] = items[j - 1];
+            j--;
+        }
+        items[j] = tmp;
+    }
+
+    if (ms_write(self, "{", 1) < 0) goto cleanup;
+    if (n == 0) {
+        status = ms_write(self, "}", 1);
+        goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < n; i++) {
+        if (items[i].is_int) {
+            if (json_encode_long_as_str(self, items[i].keyobj) < 0) goto cleanup;
+        }
+        else {
+            if (json_encode_str(self, items[i].keyobj) < 0) goto cleanup;
+        }
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, items[i].val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    if (items != NULL) PyMem_Free(items);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 json_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        if (struct_type->struct_encode_int_keys != NULL) {
+            return json_encode_struct_object_sorted_intkeys(self, struct_type, obj);
+        }
         return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
     }
     PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
@@ -14971,7 +15094,7 @@ json_encode_struct_object(
         val = Struct_get_index(obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
-        if (json_encode_str_noescape(self, key) < 0) goto cleanup;
+        if (json_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -14983,7 +15106,7 @@ json_encode_struct_object(
         if (MS_UNLIKELY(val == UNSET)) continue;
         PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
         if (!is_default(val, default_val)) {
-            if (json_encode_str_noescape(self, key) < 0) goto cleanup;
+            if (json_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
             if (json_encode(self, val) < 0) goto cleanup;
             if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -16807,6 +16930,23 @@ mpack_decode_struct_union(
     for (Py_ssize_t i = 0; i < size; i++) {
         Py_ssize_t key_size;
         char *key = NULL;
+
+        /* Only a string key can be the (string) tag field. Peek the key's type
+         * and skip any non-string key -- e.g. an integer key from a struct with
+         * `int_keys` -- so the tag is found regardless of its position, matching
+         * the order-independence of plain string-keyed unions. */
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+            ms_err_truncated();
+            return NULL;
+        }
+        char op = *self->input_pos;
+        bool is_str = ('\xa0' <= op && op <= '\xbf')
+            || op == MP_STR8 || op == MP_STR16 || op == MP_STR32;
+        if (!is_str) {
+            if (mpack_skip(self) < 0) return NULL;   /* skip the non-string key */
+            if (mpack_skip(self) < 0) return NULL;   /* skip its value */
+            continue;
+        }
 
         key_size = mpack_decode_cstr(self, &key, &key_path);
         if (key_size < 0) return NULL;
@@ -19320,6 +19460,33 @@ error:
     return NULL;
 }
 
+/* Resolve a JSON string object key that encodes an `int_keys` integer id (e.g.
+ * "1") to a field index via the struct's int-key lookup. Returns -1 if the key is
+ * not a plain decimal integer or isn't a mapped int key -- the caller then falls
+ * back to matching it as a field name (so an `order='sorted'` message, which uses
+ * field names, and foreign name-keyed JSON both still decode). */
+static Py_ssize_t
+json_struct_int_key_index(StructMetaObject *st_type, const char *key, Py_ssize_t key_size) {
+    if (key_size == 0 || key_size > 19) return -1;
+    Py_ssize_t i = 0;
+    bool neg = false;
+    if (key[0] == '-') {
+        if (key_size == 1) return -1;
+        neg = true;
+        i = 1;
+    }
+    int64_t val = 0;
+    for (; i < key_size; i++) {
+        char c = key[i];
+        if (c < '0' || c > '9') return -1;
+        val = val * 10 + (c - '0');
+    }
+    if (neg) val = -val;
+    PyObject *idx = IntLookup_GetInt64((IntLookup *)st_type->struct_int_key_lookup, val);
+    if (idx == NULL) return -1;
+    return PyLong_AsSsize_t(idx);
+}
+
 static PyObject *
 json_decode_struct_map_inner(
     JSONDecoderState *self, StructInfo *info, PathNode *path,
@@ -19384,7 +19551,13 @@ json_decode_struct_map_inner(
         self->input_pos++;
 
         /* Parse value */
-        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        field_index = -1;
+        if (MS_UNLIKELY(st_type->struct_int_key_lookup != NULL)) {
+            field_index = json_struct_int_key_index(st_type, key, key_size);
+        }
+        if (field_index < 0) {
+            field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        }
         if (MS_LIKELY(field_index >= 0)) {
             field_path.index = field_index;
             TypeNode *type = info->types[field_index];
