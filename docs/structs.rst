@@ -896,25 +896,41 @@ rather than strings.
     >>> msgspec.msgpack.decode(buf, type=Point)
     Point(x=1, y=2)
 
-Integer keys only make sense for MessagePack — JSON object keys must be strings,
-so the **JSON encoder ignores** ``int_keys`` and continues to use the (possibly
-renamed) field names:
+JSON object keys must be strings, so in JSON the integer keys are encoded as their
+decimal strings (``"1"``, ``"2"``) — the same coercion msgspec uses for integer
+dict keys:
 
 .. code-block:: python
 
     >>> msgspec.json.encode(Point(1, 2))
-    b'{"x":1,"y":2}'
+    b'{"1":1,"2":2}'
+
+    >>> msgspec.json.decode(b'{"1":1,"2":2}', type=Point)
+    Point(x=1, y=2)
+
+Decoding also accepts the original field names, so a message that uses names (for
+example one produced with a plain ``rename``, or by a non-msgspec producer) still
+round-trips:
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b'{"x":1,"y":2}', type=Point)
+    Point(x=1, y=2)
 
 A few things to note:
 
-- Not every field needs a key; fields missing from ``int_keys`` keep their
-  string names on the wire (producing a message with mixed integer/string keys).
+- Not every field needs a key; fields missing from ``int_keys`` keep their string
+  names on the wire (producing a message with mixed integer and string keys).
 - Integer keys are baked onto the type, so **nested** structs are handled
   automatically — each struct encodes with its own ``int_keys``, with no extra
-  configuration needed at encode/decode time.
-- ``int_keys`` composes with ``rename`` (and ``field(name=...)``): the string
-  name is used for JSON, the integer for MessagePack.
+  configuration needed at encode/decode time. This also holds under
+  ``order="sorted"``, which emits the same integer keys.
+- ``int_keys`` composes with ``rename`` (and ``field(name=...)``): ``int_keys``
+  sets the wire key for the fields it lists, while ``rename`` still controls the
+  string key of any unlisted fields (and the name that JSON decoding falls back to).
 - Integer keys must be unique within a struct and fit in a signed 64-bit integer.
+- ``int_keys`` cannot be combined with ``array_like=True`` (array-encoded structs
+  have no field keys); doing so raises a ``ValueError`` at class definition.
 
 The assigned key for each field is available via introspection through the
 ``int_key`` attribute of `msgspec.structs.FieldInfo`:
