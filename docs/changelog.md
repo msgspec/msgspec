@@ -27,6 +27,8 @@
   `msgspec.to_builtins` ({pr}`1025`).
 - Document that `omit_defaults` ignores fields with a custom
   `default_factory` ({pr}`1076`).
+- Fix the `msgspec.json.decode` docstring to say `dec_hook` should raise
+  `NotImplementedError` for unsupported types, not `TypeError` ({issue}`774`).
 - msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
   documentation now lives at [msgspec.dev](https://msgspec.dev) (repository
   references updated in {pr}`1045`).

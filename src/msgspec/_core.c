@@ -19945,7 +19945,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
