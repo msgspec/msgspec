@@ -8734,6 +8734,9 @@ TypedDictInfo_Convert(PyObject *obj) {
         Py_INCREF(key);
         info->fields[i].key = key;
         info->fields[i].type = type;
+        /* Prime the UTF8 cache so later unicode_str_and_length_nocheck can be
+        * safely used (it assumes the UTF8 is cached) */
+        if (PyUnicode_AsUTF8(key) == NULL) goto cleanup;
         int contains = PySet_Contains(required, key);
         if (contains == -1) goto cleanup;
         if (contains) { type->types |= MS_EXTRA_FLAG; }
@@ -8926,6 +8929,9 @@ DataclassInfo_Convert(PyObject *obj) {
         info->fields[i].type = type;
         info->fields[i].key = PyTuple_GET_ITEM(field, 0);
         Py_INCREF(info->fields[i].key);
+        /* Prime the UTF8 cache so later unicode_str_and_length_nocheck can be
+	* safely used (it assumes the UTF8 is cached) */
+        if (PyUnicode_AsUTF8(info->fields[i].key) == NULL) goto cleanup;
     }
 
     PyObject_GC_Track(info);
