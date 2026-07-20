@@ -1062,7 +1062,7 @@ Default is True.</p></li>
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic JSON types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into type
-<code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+<code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

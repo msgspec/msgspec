@@ -337,6 +337,8 @@ namespace without a <code class="docutils literal notranslate"><span class="pre"
 <code class="docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1025">PR #1025</a>).</p></li>
 <li><p>Document that <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> ignores fields with a custom
 <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1076">PR #1076</a>).</p></li>
+<li><p>Fix the <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code> docstring to say <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> should raise
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> for unsupported types, not <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/774">Issue #774</a>).</p></li>
 <li><p>msgspec moved to the <a class="reference external" href="https://github.com/msgspec/msgspec">msgspec GitHub organization</a>;
 documentation now lives at <a class="reference external" href="https://msgspec.dev">msgspec.dev</a> (repository
 references updated in <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1045">PR #1045</a>).</p></li>
