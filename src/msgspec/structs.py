@@ -47,6 +47,10 @@ class FieldInfo(Struct):
     default_factory: Any, optional
         A callable that creates a default value for the field. Will be
         `NODEFAULT` if no ``default_factory`` is set.
+    int_key: int or None, optional
+        The integer key used when encoding/decoding the field as msgpack, if the
+        field is configured via the struct's ``int_keys`` mapping. ``None`` if the
+        field uses its (string) ``encode_name`` instead.
     """
 
     name: str
@@ -54,6 +58,7 @@ class FieldInfo(Struct):
     type: Any
     default: Any = field(default_factory=lambda: NODEFAULT)
     default_factory: Any = field(default_factory=lambda: NODEFAULT)
+    int_key: "int | None" = None
 
     @property
     def required(self) -> bool:
@@ -90,12 +95,13 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
 
     hints = _get_class_annotations(annotated_cls)
     npos = len(cls.__struct_fields__) - len(cls.__struct_defaults__)
+    encode_int_keys = cls.__struct_encode_int_keys__  # tuple[int|None] or None
     fields = []
-    for name, encode_name, default_obj in zip(
+    for idx, (name, encode_name, default_obj) in enumerate(zip(
         cls.__struct_fields__,
         cls.__struct_encode_fields__,
         (NODEFAULT,) * npos + cls.__struct_defaults__,
-    ):
+    )):
         default = default_factory = NODEFAULT
         if isinstance(default_obj, _Factory):
             default_factory = default_obj.factory
@@ -108,6 +114,7 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
             type=hints[name],
             default=default,
             default_factory=default_factory,
+            int_key=None if encode_int_keys is None else encode_int_keys[idx],
         )
         fields.append(field)
 

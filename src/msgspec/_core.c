@@ -3036,6 +3036,10 @@ typedef struct {
     PyObject *struct_tag;        /* True, str, or NULL */
     PyObject *match_args;
     PyObject *rename;
+    /* int_keys: msgpack-only integer map keys. All NULL when unused. */
+    PyObject *struct_int_keys;         /* merged dict {field_name: PyLong} or NULL */
+    PyObject *struct_encode_int_keys;  /* tuple parallel to struct_encode_fields; PyLong or None per field, or NULL */
+    PyObject *struct_int_key_lookup;   /* IntLookup int64 -> PyLong(field_index) or NULL */
     PyObject *post_init;
     Py_ssize_t hash_offset;  /* 0 for no caching, otherwise offset */
     int8_t frozen;
@@ -5741,6 +5745,10 @@ typedef struct {
     PyObject *tag;
     PyObject *tag_field;
     PyObject *tag_value;
+    /* int_keys outputs. All owned references. */
+    PyObject *int_keys;            /* merged dict {field_name: PyLong} or NULL */
+    PyObject *encode_int_keys;     /* tuple or NULL */
+    PyObject *int_key_lookup;      /* IntLookup or NULL */
     Py_ssize_t *offsets;
     Py_ssize_t nkwonly;
     Py_ssize_t n_trailing_defaults;
@@ -5844,6 +5852,13 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
     }
     if (st_type->rename != NULL) {
         info->rename = st_type->rename;
+    }
+    if (st_type->struct_int_keys != NULL) {
+        if (info->int_keys == NULL) {
+            info->int_keys = PyDict_New();
+            if (info->int_keys == NULL) return -1;
+        }
+        if (PyDict_Update(info->int_keys, st_type->struct_int_keys) < 0) return -1;
     }
     info->frozen = STRUCT_MERGE_OPTIONS(info->frozen, st_type->frozen);
     info->eq = STRUCT_MERGE_OPTIONS(info->eq, st_type->eq);
@@ -6367,6 +6382,136 @@ structmeta_construct_encode_fields(StructMetaInfo *info)
     return 0;
 }
 
+/* Construct `encode_int_keys` (tuple parallel to encode_fields, PyLong or None)
+ * and `int_key_lookup` (IntLookup int64 -> PyLong(field_index)) from the merged
+ * `int_keys` mapping. No-op (leaves outputs NULL) when `int_keys` is unused. */
+static int
+structmeta_construct_int_keys(StructMetaInfo *info)
+{
+    if (info->int_keys == NULL || PyDict_GET_SIZE(info->int_keys) == 0) {
+        /* Nothing to do */
+        return 0;
+    }
+
+    if (info->array_like == OPT_TRUE) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot use `int_keys` with `array_like=True` - array-encoded structs "
+            "have no field keys"
+        );
+        return -1;
+    }
+
+    Py_ssize_t nfields = PyTuple_GET_SIZE(info->fields);
+
+    /* Map field name -> index for validation/placement */
+    PyObject *field_index_lk = PyDict_New();
+    if (field_index_lk == NULL) return -1;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *index = PyLong_FromSsize_t(i);
+        if (index == NULL) {
+            Py_DECREF(field_index_lk);
+            return -1;
+        }
+        int status = PyDict_SetItem(
+            field_index_lk, PyTuple_GET_ITEM(info->fields, i), index
+        );
+        Py_DECREF(index);
+        if (status < 0) {
+            Py_DECREF(field_index_lk);
+            return -1;
+        }
+    }
+
+    PyObject *encode_int_keys = NULL, *reverse = NULL, *seen = NULL;
+    int ok = -1;
+
+    /* encode tuple: default all None */
+    encode_int_keys = PyTuple_New(nfields);
+    if (encode_int_keys == NULL) goto done;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        Py_INCREF(Py_None);
+        PyTuple_SET_ITEM(encode_int_keys, i, Py_None);
+    }
+
+    /* reverse lookup dict: {int_key: PyLong(field_index)} */
+    reverse = PyDict_New();
+    if (reverse == NULL) goto done;
+    /* set of seen int keys for uniqueness */
+    seen = PySet_New(NULL);
+    if (seen == NULL) goto done;
+
+    PyObject *field_name, *key;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(info->int_keys, &pos, &field_name, &key)) {
+        /* field_name must name an existing field */
+        PyObject *index = PyDict_GetItem(field_index_lk, field_name);
+        if (index == NULL) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "`int_keys` field %R does not exist in the struct",
+                field_name
+            );
+            goto done;
+        }
+        /* key must be an int within [-2**63, 2**63 - 1] */
+        if (!PyLong_CheckExact(key)) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "`int_keys` values must be `int`, got value for field %R of type `%.200s`",
+                field_name, Py_TYPE(key)->tp_name
+            );
+            goto done;
+        }
+        int64_t ival = PyLong_AsLongLong(key);
+        if (ival == -1 && PyErr_Occurred()) {
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Integer `int_keys` values must be within [-2**63, 2**63 - 1]"
+            );
+            goto done;
+        }
+        /* uniqueness of int values */
+        int contains = PySet_Contains(seen, key);
+        if (contains < 0) goto done;
+        if (contains) {
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Multiple fields map to the same `int_keys` value, "
+                "integer keys must be unique"
+            );
+            goto done;
+        }
+        if (PySet_Add(seen, key) < 0) goto done;
+
+        /* place PyLong key in encode tuple at the field's index */
+        Py_ssize_t idx = PyLong_AsSsize_t(index);
+        Py_INCREF(key);
+        PyObject *old = PyTuple_GET_ITEM(encode_int_keys, idx);
+        PyTuple_SET_ITEM(encode_int_keys, idx, key);
+        Py_DECREF(old);
+
+        /* reverse[int_key] = PyLong(field_index) */
+        if (PyDict_SetItem(reverse, key, index) < 0) goto done;
+    }
+
+    /* Build the IntLookup from {int_key: PyLong(index)} */
+    PyObject *lookup = IntLookup_New(reverse, NULL, NULL, false);
+    if (lookup == NULL) goto done;
+
+    info->encode_int_keys = encode_int_keys;
+    encode_int_keys = NULL;  /* ownership transferred */
+    info->int_key_lookup = lookup;
+    ok = 0;
+
+done:
+    Py_XDECREF(field_index_lk);
+    Py_XDECREF(encode_int_keys);
+    Py_XDECREF(reverse);
+    Py_XDECREF(seen);
+    return ok;
+}
+
 /* Extracts the qualname for a class, and strips off any leading bits from a
  * function namespace. Examples:
  *
@@ -6517,6 +6662,7 @@ static PyObject *
 StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
     PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
+    PyObject *arg_int_keys,
     int arg_omit_defaults, int arg_forbid_unknown_fields,
     int arg_frozen, int arg_eq, int arg_order, bool arg_kw_only,
     int arg_repr_omit_defaults, int arg_array_like,
@@ -6542,6 +6688,9 @@ StructMeta_new_inner(
         .tag = NULL,
         .tag_field = NULL,
         .tag_value = NULL,
+        .int_keys = NULL,
+        .encode_int_keys = NULL,
+        .int_key_lookup = NULL,
         .offsets = NULL,
         .nkwonly = 0,
         .n_trailing_defaults = 0,
@@ -6595,6 +6744,14 @@ StructMeta_new_inner(
     if (arg_rename != NULL) {
         info.rename = arg_rename == Py_None ? NULL : arg_rename;
     }
+    if (arg_int_keys != NULL && arg_int_keys != Py_None) {
+        if (info.int_keys == NULL) {
+            info.int_keys = PyDict_New();
+            if (info.int_keys == NULL) goto cleanup;
+        }
+        /* PyDict_Update accepts any mapping with a keys() method */
+        if (PyDict_Update(info.int_keys, arg_int_keys) < 0) goto cleanup;
+    }
     info.frozen = STRUCT_MERGE_OPTIONS(info.frozen, arg_frozen);
     info.eq = STRUCT_MERGE_OPTIONS(info.eq, arg_eq);
     info.order = STRUCT_MERGE_OPTIONS(info.order, arg_order);
@@ -6636,6 +6793,9 @@ StructMeta_new_inner(
 
     /* Construct encode_fields */
     if (structmeta_construct_encode_fields(&info) < 0) goto cleanup;
+
+    /* Construct int_keys encode tuple & lookup */
+    if (structmeta_construct_int_keys(&info) < 0) goto cleanup;
 
     /* Construct type */
     PyObject *args = Py_BuildValue("(OOO)", name, bases, info.namespace);
@@ -6714,6 +6874,12 @@ StructMeta_new_inner(
     cls->struct_tag_value = info.tag_value;
     Py_XINCREF(info.rename);
     cls->rename = info.rename;
+    Py_XINCREF(info.int_keys);
+    cls->struct_int_keys = info.int_keys;
+    Py_XINCREF(info.encode_int_keys);
+    cls->struct_encode_int_keys = info.encode_int_keys;
+    Py_XINCREF(info.int_key_lookup);
+    cls->struct_int_key_lookup = info.int_key_lookup;
     cls->hash_offset = info.hash_offset;
     cls->frozen = info.frozen;
     cls->eq = info.eq;
@@ -6742,6 +6908,9 @@ cleanup:
     Py_XDECREF(info.tag);
     Py_XDECREF(info.tag_field);
     Py_XDECREF(info.tag_value);
+    Py_XDECREF(info.int_keys);
+    Py_XDECREF(info.encode_int_keys);
+    Py_XDECREF(info.int_key_lookup);
     if (!ok) {
         if (info.offsets != NULL) {
             PyMem_Free(info.offsets);
@@ -6757,6 +6926,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
+    PyObject *arg_int_keys = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_repr_omit_defaults = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1, arg_dict = -1;
@@ -6764,7 +6934,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 
     char *kwlist[] = {
         "name", "bases", "dict",
-        "tag_field", "tag", "rename",
+        "tag_field", "tag", "rename", "int_keys",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
         "repr_omit_defaults", "array_like",
@@ -6774,9 +6944,9 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOpppppppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOOpppppppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
-            &arg_tag_field, &arg_tag, &arg_rename,
+            &arg_tag_field, &arg_tag, &arg_rename, &arg_int_keys,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_repr_omit_defaults, &arg_array_like,
@@ -6787,7 +6957,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 
     return StructMeta_new_inner(
         type, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_rename,
+        arg_tag_field, arg_tag, arg_rename, arg_int_keys,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_repr_omit_defaults, arg_array_like,
@@ -6798,7 +6968,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=None, module=None, namespace=None, "
-"tag_field=None, tag=None, rename=None, omit_defaults=False, "
+"tag_field=None, tag=None, rename=None, int_keys=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
 "kw_only=False, repr_omit_defaults=False, array_like=False, gc=True, "
 "weakref=False, dict=False, cache_hash=False)\n"
@@ -6850,6 +7020,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
+    PyObject *arg_int_keys = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
@@ -6858,7 +7029,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
-        "tag_field", "tag", "rename",
+        "tag_field", "tag", "rename", "int_keys",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
         "repr_omit_defaults", "array_like",
@@ -6868,9 +7039,9 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$OOOOOOpppppppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$OOOOOOOpppppppppppp:defstruct", kwlist,
             &name, &fields, &bases, &module, &namespace,
-            &arg_tag_field, &arg_tag, &arg_rename,
+            &arg_tag_field, &arg_tag, &arg_rename, &arg_int_keys,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_repr_omit_defaults, &arg_array_like,
@@ -6958,7 +7129,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     out = StructMeta_new_inner(
         &StructMetaType, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_rename,
+        arg_tag_field, arg_tag, arg_rename, arg_int_keys,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_repr_omit_defaults, arg_array_like,
@@ -7150,6 +7321,9 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_VISIT(self->struct_encode_fields);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
+    Py_VISIT(self->struct_int_keys);
+    Py_VISIT(self->struct_encode_int_keys);
+    Py_VISIT(self->struct_int_key_lookup);
     Py_VISIT(self->post_init);
     Py_VISIT(self->struct_info);
     return PyType_Type.tp_traverse((PyObject *)self, visit, arg);
@@ -7168,6 +7342,9 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
     Py_CLEAR(self->rename);
+    Py_CLEAR(self->struct_int_keys);
+    Py_CLEAR(self->struct_encode_int_keys);
+    Py_CLEAR(self->struct_int_key_lookup);
     Py_CLEAR(self->post_init);
     Py_CLEAR(self->struct_info);
     Py_CLEAR(self->match_args);
@@ -7482,6 +7659,7 @@ static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
     {"__struct_encode_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_encode_fields), READONLY, "Struct encoded field names"},
+    {"__struct_encode_int_keys__", T_OBJECT, offsetof(StructMetaObject, struct_encode_int_keys), READONLY, "Per-field integer msgpack keys (tuple of int|None), or None if unused"},
     {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, match_args), READONLY, "Positional match args"},
     {NULL},
 };
@@ -8602,6 +8780,13 @@ PyDoc_STRVAR(Struct__doc__,
 "   renamed names (missing fields are not renamed). Alternatively, may be a\n"
 "   callable that takes the field name and returns a new name or ``None`` to\n"
 "   not rename that field. Default is ``None`` for no field renaming.\n"
+"int_keys: mapping, or None, default None\n"
+"   A mapping from field name to a unique integer key, used only when encoding\n"
+"   or decoding this struct as **msgpack**. Listed fields are encoded using\n"
+"   their integer key instead of the field name (unlisted fields keep their\n"
+"   string name); decoding accepts both integer and string keys. This has no\n"
+"   effect on JSON, which always uses string field names. Composes with\n"
+"   ``rename`` (which stays str-only). Default is ``None``.\n"
 "repr_omit_defaults: bool, default False\n"
 "   Whether fields should be omitted from the generated repr if the\n"
 "   corresponding value is the default for that field.\n"
@@ -13311,11 +13496,131 @@ cleanup:
     return status;
 }
 
+/* Write the msgpack map key for struct field `i`. Uses the integer key when
+ * `int_keys` is configured for this field, otherwise the string field name. */
+static MS_INLINE int
+mpack_encode_struct_key(
+    EncoderState *self, StructMetaObject *struct_type, Py_ssize_t i, PyObject *key
+) {
+    if (MS_UNLIKELY(struct_type->struct_encode_int_keys != NULL)) {
+        PyObject *int_key = PyTuple_GET_ITEM(struct_type->struct_encode_int_keys, i);
+        if (int_key != Py_None) {
+            return mpack_encode_long(self, int_key);
+        }
+    }
+    return mpack_encode_str(self, key);
+}
+
+/* An entry for sorting an int-keyed struct under `order='sorted'`. Integer keys
+ * sort ascending and before any string keys (a stable total order across the two
+ * key kinds; a fully int-keyed struct is simply sorted by id). */
+typedef struct {
+    int is_int;
+    long long ikey;
+    const char *skey;
+    Py_ssize_t skey_size;
+    PyObject *keyobj;
+    PyObject *val;
+} MpStructSortItem;
+
+static MS_INLINE int
+_mp_struct_sortitem_lt(const MpStructSortItem *a, const MpStructSortItem *b) {
+    if (a->is_int != b->is_int) return a->is_int;  /* ints before strings */
+    if (a->is_int) return a->ikey < b->ikey;
+    Py_ssize_t n = (a->skey_size < b->skey_size) ? a->skey_size : b->skey_size;
+    int cmp = memcmp(a->skey, b->skey, n);
+    return (cmp < 0) || ((cmp == 0) & (a->skey_size < b->skey_size));
+}
+
+/* Encode an int-keyed struct with `order='sorted'`. The default assoclist sorted
+ * path is string-key only, so int-keyed structs get this dedicated path to keep
+ * their integer keys consistent across all `order` settings. Only reached when
+ * `order == ORDER_SORTED` and the struct has `int_keys`; the default (unsorted)
+ * encode path is untouched. */
+static int
+mpack_encode_struct_object_sorted_intkeys(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *int_keys = struct_type->struct_encode_int_keys;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
+    Py_ssize_t cap = nfields + (tag_value != NULL);
+    int status = -1;
+    MpStructSortItem *items = NULL;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    if (cap > 0) {
+        items = PyMem_Malloc(cap * sizeof(MpStructSortItem));
+        if (items == NULL) { PyErr_NoMemory(); goto cleanup; }
+    }
+    Py_ssize_t n = 0;
+    if (tag_value != NULL) {
+        MpStructSortItem *it = &items[n++];
+        it->is_int = 0;
+        it->skey = unicode_str_and_size_nocheck(tag_field, &it->skey_size);
+        it->keyobj = tag_field;
+        it->val = tag_value;
+    }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) continue;
+        if (omit_defaults && i >= npos
+                && is_default(val, PyTuple_GET_ITEM(defaults, i - npos))) {
+            continue;
+        }
+        MpStructSortItem *it = &items[n++];
+        PyObject *ik = PyTuple_GET_ITEM(int_keys, i);
+        if (ik != Py_None) {
+            it->is_int = 1;
+            it->ikey = PyLong_AsLongLong(ik);  /* range-validated at class creation */
+            it->keyobj = ik;
+        }
+        else {
+            it->is_int = 0;
+            it->skey = unicode_str_and_size_nocheck(PyTuple_GET_ITEM(fields, i), &it->skey_size);
+            it->keyobj = PyTuple_GET_ITEM(fields, i);
+        }
+        it->val = val;
+    }
+
+    /* insertion sort -- struct field counts are small */
+    for (Py_ssize_t i = 1; i < n; i++) {
+        MpStructSortItem tmp = items[i];
+        Py_ssize_t j = i;
+        while (j > 0 && _mp_struct_sortitem_lt(&tmp, &items[j - 1])) {
+            items[j] = items[j - 1];
+            j--;
+        }
+        items[j] = tmp;
+    }
+
+    if (mpack_encode_map_header(self, n, "structs") < 0) goto cleanup;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        if (mpack_encode(self, items[i].keyobj) < 0) goto cleanup;
+        if (mpack_encode(self, items[i].val) < 0) goto cleanup;
+    }
+    status = 0;
+cleanup:
+    if (items != NULL) PyMem_Free(items);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 mpack_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        if (struct_type->struct_encode_int_keys != NULL) {
+            return mpack_encode_struct_object_sorted_intkeys(self, struct_type, obj);
+        }
         return mpack_encode_and_free_assoclist(self, AssocList_FromStruct(obj));
     }
 
@@ -13349,7 +13654,7 @@ mpack_encode_struct_object(
             actual_len--;
         }
         else {
-            if (mpack_encode_str(self, key) < 0) goto cleanup;
+            if (mpack_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
             if (mpack_encode(self, val) < 0) goto cleanup;
         }
     }
@@ -13364,7 +13669,7 @@ mpack_encode_struct_object(
             actual_len--;
         }
         else {
-            if (mpack_encode_str(self, key) < 0) goto cleanup;
+            if (mpack_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
             if (mpack_encode(self, val) < 0) goto cleanup;
         }
     }
@@ -14651,11 +14956,125 @@ json_encode_struct_tag(EncoderState *self, PyObject *obj)
     }
 }
 
+/* Write a struct field's JSON object key. When the field has an `int_keys` entry
+ * the integer is written as a JSON string (e.g. `"1"`) -- JSON object keys must be
+ * strings, so the integer key is coerced to its decimal string, matching how
+ * integer dict keys are encoded. Otherwise the (string) field name is used. */
+static MS_INLINE int
+json_encode_struct_key(
+    EncoderState *self, StructMetaObject *struct_type, Py_ssize_t i, PyObject *key
+) {
+    if (MS_UNLIKELY(struct_type->struct_encode_int_keys != NULL)) {
+        PyObject *int_key = PyTuple_GET_ITEM(struct_type->struct_encode_int_keys, i);
+        if (int_key != Py_None) {
+            return json_encode_long_as_str(self, int_key);
+        }
+    }
+    return json_encode_str_noescape(self, key);
+}
+
+/* Encode an int-keyed struct as JSON with `order='sorted'`. The default assoclist
+ * sorted path is string-key only, so int-keyed structs get this dedicated path to
+ * keep the integer (string-coerced) keys consistent across all `order` settings.
+ * Only reached under `order == ORDER_SORTED` for structs with `int_keys`. Reuses
+ * the msgpack sort-item build/comparator; only the emission is JSON. */
+static int
+json_encode_struct_object_sorted_intkeys(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *int_keys = struct_type->struct_encode_int_keys;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
+    Py_ssize_t cap = nfields + (tag_value != NULL);
+    int status = -1;
+    MpStructSortItem *items = NULL;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    if (cap > 0) {
+        items = PyMem_Malloc(cap * sizeof(MpStructSortItem));
+        if (items == NULL) { PyErr_NoMemory(); goto cleanup; }
+    }
+    Py_ssize_t n = 0;
+    if (tag_value != NULL) {
+        MpStructSortItem *it = &items[n++];
+        it->is_int = 0;
+        it->skey = unicode_str_and_size_nocheck(tag_field, &it->skey_size);
+        it->keyobj = tag_field;
+        it->val = tag_value;
+    }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) continue;
+        if (omit_defaults && i >= npos
+                && is_default(val, PyTuple_GET_ITEM(defaults, i - npos))) {
+            continue;
+        }
+        MpStructSortItem *it = &items[n++];
+        PyObject *ik = PyTuple_GET_ITEM(int_keys, i);
+        if (ik != Py_None) {
+            it->is_int = 1;
+            it->ikey = PyLong_AsLongLong(ik);
+            it->keyobj = ik;
+        }
+        else {
+            it->is_int = 0;
+            it->skey = unicode_str_and_size_nocheck(PyTuple_GET_ITEM(fields, i), &it->skey_size);
+            it->keyobj = PyTuple_GET_ITEM(fields, i);
+        }
+        it->val = val;
+    }
+
+    /* insertion sort -- struct field counts are small */
+    for (Py_ssize_t i = 1; i < n; i++) {
+        MpStructSortItem tmp = items[i];
+        Py_ssize_t j = i;
+        while (j > 0 && _mp_struct_sortitem_lt(&tmp, &items[j - 1])) {
+            items[j] = items[j - 1];
+            j--;
+        }
+        items[j] = tmp;
+    }
+
+    if (ms_write(self, "{", 1) < 0) goto cleanup;
+    if (n == 0) {
+        status = ms_write(self, "}", 1);
+        goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < n; i++) {
+        if (items[i].is_int) {
+            if (json_encode_long_as_str(self, items[i].keyobj) < 0) goto cleanup;
+        }
+        else {
+            if (json_encode_str(self, items[i].keyobj) < 0) goto cleanup;
+        }
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, items[i].val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    if (items != NULL) PyMem_Free(items);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 json_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        if (struct_type->struct_encode_int_keys != NULL) {
+            return json_encode_struct_object_sorted_intkeys(self, struct_type, obj);
+        }
         return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
     }
     PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
@@ -14686,7 +15105,7 @@ json_encode_struct_object(
         val = Struct_get_index(obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
-        if (json_encode_str_noescape(self, key) < 0) goto cleanup;
+        if (json_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -14698,7 +15117,7 @@ json_encode_struct_object(
         if (MS_UNLIKELY(val == UNSET)) continue;
         PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
         if (!is_default(val, default_val)) {
-            if (json_encode_str_noescape(self, key) < 0) goto cleanup;
+            if (json_encode_struct_key(self, struct_type, i, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
             if (json_encode(self, val) < 0) goto cleanup;
             if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -16409,6 +16828,60 @@ mpack_decode_struct_map(
 
     for (i = 0; i < size; i++) {
         PathNode key_path = {path, PATH_KEY, NULL};
+
+        /* int_keys: if configured, peek the next lead byte. If it's an integer
+         * key, decode it and resolve via the int_key_lookup. Otherwise fall
+         * through to the normal string-key path (handles str fields, tag field,
+         * and unknown string keys). */
+        if (
+            MS_UNLIKELY(st_type->struct_int_key_lookup != NULL)
+            && self->input_pos != self->input_end
+        ) {
+            unsigned char lead = (unsigned char)(*self->input_pos);
+            bool is_int_key = (
+                lead <= 0x7f            /* positive fixint */
+                || lead >= 0xe0         /* negative fixint */
+                || (lead >= 0xcc && lead <= 0xd3)  /* uint/int 8..64 */
+            );
+            if (is_int_key) {
+                int64_t ikey = 0;
+                uint64_t uikey = 0;
+                if (mpack_decode_cint(self, &ikey, &uikey, &key_path) < 0) goto error;
+                PyObject *index_obj = NULL;
+                if (uikey == 0) {
+                    index_obj = IntLookup_GetInt64(
+                        (IntLookup *)st_type->struct_int_key_lookup, ikey
+                    );
+                }
+                else {
+                    index_obj = IntLookup_GetUInt64(
+                        (IntLookup *)st_type->struct_int_key_lookup, uikey
+                    );
+                }
+                if (index_obj == NULL) {
+                    /* Unknown integer key */
+                    if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+                        if (uikey == 0) {
+                            ms_invalid_cint_value(ikey, path);
+                        }
+                        else {
+                            ms_invalid_cuint_value(uikey, path);
+                        }
+                        goto error;
+                    }
+                    if (mpack_skip(self) < 0) goto error;
+                    continue;
+                }
+                /* index_obj is a borrowed PyLong(field_index) */
+                field_index = PyLong_AsSsize_t(index_obj);
+                PathNode field_path = {path, field_index, (PyObject *)st_type};
+                val = mpack_decode(self, info->types[field_index], &field_path, is_key);
+                if (val == NULL) goto error;
+                Struct_set_index(res, field_index, val);
+                continue;
+            }
+        }
+
         key_size = mpack_decode_cstr(self, &key, &key_path);
         if (MS_UNLIKELY(key_size < 0)) goto error;
 
@@ -16468,6 +16941,23 @@ mpack_decode_struct_union(
     for (Py_ssize_t i = 0; i < size; i++) {
         Py_ssize_t key_size;
         char *key = NULL;
+
+        /* Only a string key can be the (string) tag field. Peek the key's type
+         * and skip any non-string key -- e.g. an integer key from a struct with
+         * `int_keys` -- so the tag is found regardless of its position, matching
+         * the order-independence of plain string-keyed unions. */
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+            ms_err_truncated();
+            return NULL;
+        }
+        char op = *self->input_pos;
+        bool is_str = ('\xa0' <= op && op <= '\xbf')
+            || op == MP_STR8 || op == MP_STR16 || op == MP_STR32;
+        if (!is_str) {
+            if (mpack_skip(self) < 0) return NULL;   /* skip the non-string key */
+            if (mpack_skip(self) < 0) return NULL;   /* skip its value */
+            continue;
+        }
 
         key_size = mpack_decode_cstr(self, &key, &key_path);
         if (key_size < 0) return NULL;
@@ -18981,6 +19471,33 @@ error:
     return NULL;
 }
 
+/* Resolve a JSON string object key that encodes an `int_keys` integer id (e.g.
+ * "1") to a field index via the struct's int-key lookup. Returns -1 if the key is
+ * not a plain decimal integer or isn't a mapped int key -- the caller then falls
+ * back to matching it as a field name (so an `order='sorted'` message, which uses
+ * field names, and foreign name-keyed JSON both still decode). */
+static Py_ssize_t
+json_struct_int_key_index(StructMetaObject *st_type, const char *key, Py_ssize_t key_size) {
+    if (key_size == 0 || key_size > 19) return -1;
+    Py_ssize_t i = 0;
+    bool neg = false;
+    if (key[0] == '-') {
+        if (key_size == 1) return -1;
+        neg = true;
+        i = 1;
+    }
+    int64_t val = 0;
+    for (; i < key_size; i++) {
+        char c = key[i];
+        if (c < '0' || c > '9') return -1;
+        val = val * 10 + (c - '0');
+    }
+    if (neg) val = -val;
+    PyObject *idx = IntLookup_GetInt64((IntLookup *)st_type->struct_int_key_lookup, val);
+    if (idx == NULL) return -1;
+    return PyLong_AsSsize_t(idx);
+}
+
 static PyObject *
 json_decode_struct_map_inner(
     JSONDecoderState *self, StructInfo *info, PathNode *path,
@@ -19045,7 +19562,13 @@ json_decode_struct_map_inner(
         self->input_pos++;
 
         /* Parse value */
-        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        field_index = -1;
+        if (MS_UNLIKELY(st_type->struct_int_key_lookup != NULL)) {
+            field_index = json_struct_int_key_index(st_type, key, key_size);
+        }
+        if (field_index < 0) {
+            field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        }
         if (MS_LIKELY(field_index >= 0)) {
             field_path.index = field_index;
             TypeNode *type = info->types[field_index];

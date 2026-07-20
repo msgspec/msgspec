@@ -50,6 +50,7 @@ class StructMeta(type):
             | Callable[[str], str | None]
             | Mapping[str, str]
         ) = None,
+        int_keys: Mapping[str, int] | None = None,
         omit_defaults: bool = False,
         forbid_unknown_fields: bool = False,
         frozen: bool = False,
@@ -105,6 +106,7 @@ class Struct(metaclass=StructMeta):
             | Callable[[str], str | None]
             | Mapping[str, str]
         ) = None,
+        int_keys: Mapping[str, int] | None = None,
         omit_defaults: bool = False,
         forbid_unknown_fields: bool = False,
         frozen: bool = False,
@@ -136,6 +138,7 @@ def defstruct(
         | Callable[[str], str | None]
         | Mapping[str, str]
     ) = None,
+    int_keys: Mapping[str, int] | None = None,
     omit_defaults: bool = False,
     forbid_unknown_fields: bool = False,
     frozen: bool = False,
