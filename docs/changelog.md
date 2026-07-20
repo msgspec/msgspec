@@ -4,7 +4,7 @@
 
 - Fix `msgspec.convert` raising `SystemError` when converting an out-of-range
   `int` to `float`; it now raises `ValidationError` like `json.decode`
-  ({issue}`1122`).
+  ({issue}`1122`, {pr}`1128`).
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
   `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
