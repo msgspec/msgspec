@@ -429,6 +429,17 @@ class TestFloat:
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
 
+    def test_float_from_out_of_range_int(self):
+        # Ints beyond the finite float range must raise ValidationError
+        # (matching json.decode), not leak SystemError from PyLong_AsDouble.
+        big = 10**400
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(big, float)
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert({"v": big}, dict[str, float])
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(-big, float)
+
     @pytest.mark.parametrize(
         "meta, good, bad",
         [

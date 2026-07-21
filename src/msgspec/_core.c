@@ -20937,7 +20937,16 @@ convert_int(
         return ms_decode_int_enum_or_literal_pyint(obj, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(PyLong_AsDouble(obj), type, path);
+        /* PyLong_AsDouble raises OverflowError for ints outside the finite
+         * double range. Surface that as ValidationError so callers matching
+         * json.decode's contract (``Number out of range``) catch it instead
+         * of a leaked SystemError from an unchecked C exception. */
+        double x = PyLong_AsDouble(obj);
+        if (x == -1.0 && PyErr_Occurred()) {
+            PyErr_Clear();
+            return ms_error_with_path("Number out of range%U", path);
+        }
+        return ms_decode_float(x, type, path);
     }
     else if (
         type->types & MS_TYPE_DECIMAL
