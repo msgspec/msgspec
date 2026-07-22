@@ -44,7 +44,7 @@ jobs:
         python-version-file: pyproject.toml
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
       with:
         enable-cache: false
 
@@ -96,7 +96,7 @@ jobs:
         restore-keys: cache-lychee-${{ inputs.cache-namespace }}-
 
     - name: Check links
-      uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2.8.0
+      uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
       with:
         lycheeVersion: v0.21.0
         fail: true

@@ -50,7 +50,7 @@ jobs:
         python-version-file: pyproject.toml
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
       with:
         enable-cache: false
 
@@ -58,7 +58,7 @@ jobs:
       run: uv sync --group test-prof
 
     - name: Run benchmarks
-      uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f  # v4.18.1
+      uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286  # v4.18.5
       with:
         mode: simulation
         run: uv run --no-sync pytest tests/prof/perf --codspeed --randomly-seed="$RANDOMLY_SEED" -k arm
@@ -82,7 +82,7 @@ jobs:
         python-version-file: pyproject.toml
 
     - name: Install uv
-      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
       with:
         enable-cache: false
 
@@ -90,7 +90,7 @@ jobs:
       run: uv sync --group test-prof
 
     - name: Run benchmarks
-      uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f  # v4.18.1
+      uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286  # v4.18.5
       with:
         mode: memory
         run: uv run --no-sync pytest tests/prof/perf --randomly-seed="$RANDOMLY_SEED" --codspeed -k amd -m memory
