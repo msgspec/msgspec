@@ -23,8 +23,6 @@ def get_type_hints(obj):
     return _get_type_hints(obj, include_extras=True)
 
 
-PY_312PLUS = sys.version_info >= (3, 12)
-
 # The `is_class` argument was new in 3.11, but was backported to 3.9 and 3.10.
 # It's _likely_ to be available for 3.9/3.10, but may not be. Easiest way to
 # check is to try it and see. This check can be removed when we drop support
@@ -42,14 +40,18 @@ else:
         return typing.ForwardRef(value, is_argument=False, is_class=True)
 
 
-# Python 3.13 adds a new mandatory type_params kwarg to _eval_type
-if sys.version_info >= (3, 13):
+# The type_params kwarg was added in 3.12 and made mandatory in 3.13. Threading
+# it lets module-bound ForwardRefs (built eagerly by TypedDict) resolve PEP 695
+# type params, whose evaluation would otherwise ignore the locals we stash them in.
+if sys.version_info >= (3, 12):
 
-    def _eval_type(t, globalns, localns):
-        return typing._eval_type(t, globalns, localns, ())
+    def _eval_type(t, globalns, localns, type_params=()):
+        return typing._eval_type(t, globalns, localns, type_params)
 
 else:
-    _eval_type = typing._eval_type
+
+    def _eval_type(t, globalns, localns, type_params=()):
+        return typing._eval_type(t, globalns, localns)
 
 
 if sys.version_info >= (3, 14):
@@ -156,9 +158,10 @@ def get_class_annotations(obj):
         mapping = typevar_mappings.get(cls)
         cls_locals = dict(vars(cls))
 
-        if PY_312PLUS:
-            # resolve type parameters (e.g. class Foo[T]: pass)
-            cls_locals.update({p.__name__: p for p in cls.__type_params__})
+        # resolve type parameters (e.g. class Foo[T]: pass)
+        type_params = getattr(cls, "__type_params__", ())
+        if type_params:
+            cls_locals.update({p.__name__: p for p in type_params})
 
         try:
             cls_module = cls.__module__
@@ -173,7 +176,7 @@ def get_class_annotations(obj):
                 continue
             if isinstance(value, str):
                 value = _forward_ref(value)
-            value = _eval_type(value, cls_locals, cls_globals)
+            value = _eval_type(value, cls_locals, cls_globals, type_params)
             if mapping is not None:
                 value = _apply_params(value, mapping)
             if value is None:

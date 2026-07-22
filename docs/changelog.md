@@ -10,6 +10,9 @@
 - Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
 - Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
   `types.GenericAlias` instances in type annotations ({pr}`962`).
+- Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
+  type parameter syntax (`class Foo[T](TypedDict)`) under
+  `from __future__ import annotations` on Python 3.12/3.13.
 - Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
 - Fix an `AttributeError` when converting to a `Struct` type defined in a
   namespace without a `__name__` ({pr}`1072`).
