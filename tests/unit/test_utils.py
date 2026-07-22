@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import Generic, TypeVar
 
 import pytest
@@ -11,6 +12,9 @@ from .utils import temp_module
 T = TypeVar("T")
 S = TypeVar("S")
 U = TypeVar("U")
+
+PY312 = sys.version_info[:2] >= (3, 12)
+py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
 
 class Base(Generic[T]):
@@ -208,3 +212,58 @@ class TestGetClassAnnotations:
             x: int | None = None
 
         assert get_class_annotations(Ex) == {"x": int | None}
+
+    @py312_plus
+    def test_pep695_generic_syntax(self):
+        source = """
+        from __future__ import annotations
+        class Ex[T]:
+            x: T
+            y: list[T]
+            z: int
+        """
+        with temp_module(source) as mod:
+            Ex = mod.Ex
+            (tvar,) = Ex.__type_params__
+            assert get_class_annotations(Ex) == {
+                "x": tvar,
+                "y": list[tvar],
+                "z": int,
+            }
+            assert get_class_annotations(Ex[int]) == {
+                "x": int,
+                "y": list[int],
+                "z": int,
+            }
+
+    @py312_plus
+    def test_pep695_generic_typeddict(self):
+        # `from __future__ import annotations` is load-bearing: it triggers the
+        # module-bound ForwardRefs that previously failed to resolve `T`.
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict
+        class Ex[T](TypedDict):
+            x: T
+            y: list[T]
+        """
+        with temp_module(source) as mod:
+            Ex = mod.Ex
+            (tvar,) = Ex.__type_params__
+            assert get_class_annotations(Ex) == {"x": tvar, "y": list[tvar]}
+            assert get_class_annotations(Ex[int]) == {"x": int, "y": list[int]}
+
+    @py312_plus
+    def test_pep695_generic_subclass(self):
+        source = """
+        from __future__ import annotations
+        class Base[T]:
+            x: T
+        class Sub[U](Base[U]):
+            y: list[U]
+        """
+        with temp_module(source) as mod:
+            Sub = mod.Sub
+            (uvar,) = Sub.__type_params__
+            assert get_class_annotations(Sub) == {"x": uvar, "y": list[uvar]}
+            assert get_class_annotations(Sub[int]) == {"x": int, "y": list[int]}
