@@ -2102,6 +2102,29 @@ class TestRename:
 
         assert Test4.__struct_encode_fields__ == ("my_field",)
 
+    def test_field_name_override_inherited(self):
+        class Base(Struct):
+            x: int = field(name="_x")
+
+        class Test1(Base):
+            x: int = field(name="x")
+
+        assert Test1.__struct_encode_fields__ == ("x",)
+
+        class Test2(Base):
+            x: int = 1
+
+        assert Test2.__struct_encode_fields__ == ("_x",)
+
+    def test_rename_override_inherited(self):
+        class Base(Struct, rename="upper"):
+            x: int
+
+        class Test(Base, rename="lower"):
+            x: int
+
+        assert Test.__struct_encode_fields__ == ("x",)
+
     def test_rename_fields_only_used_for_encode_and_decode(self):
         """Check that the renamed fields don't show up elsewhere"""
 
