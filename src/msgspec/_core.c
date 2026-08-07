@@ -9315,7 +9315,7 @@ Ext_dealloc(Ext *self)
 }
 
 static PyMemberDef Ext_members[] = {
-    {"code", T_INT, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"code", T_LONG, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
