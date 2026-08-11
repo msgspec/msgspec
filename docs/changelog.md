@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Version 0.22.0 (2026-08-11)
 
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
