@@ -98,9 +98,9 @@ test-prof = [
 ]
 test-typing = [
   { include-group = "test-base" },
-  "mypy",
-  "pyright",
-  "pyrefly",
+  "mypy==2.3.0",
+  "pyright==1.1.411",
+  "pyrefly==1.2.0",
 ]
 test-unit = [
   { include-group = "test-base" },
