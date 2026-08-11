@@ -17939,11 +17939,11 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
     char *view = NULL;
     Py_ssize_t size;
-    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 #ifndef Py_GIL_DISABLED
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
         return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
