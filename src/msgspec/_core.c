@@ -2852,6 +2852,7 @@ AssocList_Sort(AssocList* list) {
 // Despite the fact that `frozendict` was added in 3.15,
 // this type is always defined for order consistency:
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+#define MS_TYPE_RAW                 (1ull << 40)
 
 /* Aliases for commonly used types */
 #if PY315_PLUS
@@ -3489,7 +3490,7 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_RAW) || self->types == 0) {
         return PyUnicode_FromString("any");
     }
     if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
@@ -4168,6 +4169,20 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             PyExc_TypeError,
             "Type unions containing a custom type may not contain any "
             "additional types other than `None` - type `%R` is not supported",
+            state->context
+        );
+        return -1;
+    }
+
+    /* Raw may only share a union with `None` (Optional[Raw] / Raw | None) */
+    if (
+        (state->types & MS_TYPE_RAW) &&
+        (state->types & ~(MS_TYPE_RAW | MS_TYPE_NONE))
+    ) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions containing `Raw` may not contain any additional "
+            "types other than `None` - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -5117,7 +5132,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         state->types |= MS_TYPE_EXT;
     }
     else if (t == (PyObject *)(&Raw_Type)) {
-        /* Raw is marked with a typecode of 0, nothing to do */
+        state->types |= MS_TYPE_RAW;
     }
     else if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_typevar)) {
         out = typenode_collect_typevar(state, t);
@@ -16751,7 +16766,17 @@ static PyObject *
 mpack_decode(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
-    if (MS_UNLIKELY(type->types == 0)) {
+    if (MS_UNLIKELY(type->types == 0 || (type->types & MS_TYPE_RAW))) {
+        if (type->types & MS_TYPE_NONE) {
+            if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+                ms_err_truncated();
+                return NULL;
+            }
+            if (*self->input_pos == MP_NIL) {
+                self->input_pos++;
+                return mpack_decode_none(self, type, path);
+            }
+        }
         return mpack_decode_raw(self);
     }
     PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
@@ -19260,7 +19285,14 @@ static PyObject *
 json_decode(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
-    if (MS_UNLIKELY(type->types == 0)) {
+    if (MS_UNLIKELY(type->types == 0 || (type->types & MS_TYPE_RAW))) {
+        if (type->types & MS_TYPE_NONE) {
+            unsigned char c;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
+            if (c == 'n') {
+                return json_decode_none(self, type, path);
+            }
+        }
         return json_decode_raw(self);
     }
     PyObject *obj = json_decode_nocustom(self, type, path);
@@ -21289,7 +21321,7 @@ static PyObject *
 convert_raw(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types == 0) {
+    if (type->types == 0 || (type->types & MS_TYPE_RAW)) {
         Py_INCREF(obj);
         return obj;
     }

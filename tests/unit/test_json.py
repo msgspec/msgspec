@@ -3103,23 +3103,48 @@ class TestRaw:
         del r
         assert sys.getrefcount(msg) == c
 
-    def test_raw_in_union_works_but_doesnt_change_anything(self):
+    def test_raw_in_union_only_allows_none(self):
         class Test(msgspec.Struct):
             x: int | str | msgspec.Raw
 
-        r = msgspec.json.decode(b'{"x": 1}', type=Test)
-        assert r == Test(1)
+        with pytest.raises(TypeError, match="Type unions containing"):
+            msgspec.json.decode(b'{"x": 1}', type=Test)
 
-    def test_raw_can_be_mixed_with_custom_type(self):
+    def test_raw_cannot_be_mixed_with_custom_type(self):
         class Test(msgspec.Struct):
             x: Custom | msgspec.Raw
 
-        def dec_hook(typ, obj):
-            assert typ is Custom
-            return typ(*obj)
+        with pytest.raises(TypeError, match="Type unions containing"):
+            msgspec.json.decode(b'{"x": [1, 2]}', type=Test)
 
-        res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
-        assert res == Test(Custom(1, 2))
+    def test_decode_optional_raw_object(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        res = msgspec.json.decode(b'{"result": {"foo": "bar"}}', type=Test)
+        assert res.result is not None
+        assert bytes(res.result) == b'{"foo": "bar"}'
+
+    def test_decode_optional_raw_null(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        res = msgspec.json.decode(b'{"result": null}', type=Test)
+        assert res.result is None
+
+    def test_decode_optional_raw_scalar(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        res = msgspec.json.decode(b'{"result": 1}', type=Test)
+        assert bytes(res.result) == b"1"
+
+    def test_decode_optional_raw_missing_uses_default(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None = None
+
+        res = msgspec.json.decode(b"{}", type=Test)
+        assert res.result is None
 
 
 class TestFormat:
