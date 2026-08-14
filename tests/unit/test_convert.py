@@ -1,3 +1,4 @@
+import collections
 import datetime
 import decimal
 import enum
@@ -989,6 +990,17 @@ class TestSequences:
             ValidationError, match=r"Expected `int`, got `str` - at `\$\[0\]`"
         ):
             assert convert(in_type(["bad"]), out_annot)
+
+    @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
+    def test_list_subclass_with_external_storage(self, out_type):
+        class in_type(collections.UserList, list):
+            pass
+
+        res = convert(in_type([1, 2]), out_type)
+        assert res == out_type([1, 2])
+        assert type(res) is out_type
+
+        assert convert(in_type(), out_type) == out_type()
 
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_sequence_wrong_type(self, out_type):

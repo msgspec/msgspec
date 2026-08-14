@@ -3137,6 +3137,21 @@ ms_is_struct_inst(PyObject *o) {
     return ms_is_struct_meta(Py_TYPE((PyObject *)Py_TYPE(o)));
 }
 
+static MS_INLINE bool
+ms_list_is_plain(PyObject *obj) {
+    /* Checks whether a `list` instance stores its items in the internal list
+     * storage. Some subclasses of `list`, such as those combining it with
+     * `collections.UserList`, may store items elsewhere, only reachable
+     * through the sequence protocol. */
+    PyTypeObject *type = Py_TYPE(obj);
+    if (MS_LIKELY(type == &PyList_Type)) return true;
+    return (
+        type->tp_iter == PyList_Type.tp_iter
+        && type->tp_as_sequence->sq_length == PyList_Type.tp_as_sequence->sq_length
+        && type->tp_as_sequence->sq_item == PyList_Type.tp_as_sequence->sq_item
+    );
+}
+
 static MS_INLINE StructInfo *
 TypeNode_get_struct_info(TypeNode *type) {
     /* Struct types are always first */
@@ -12953,6 +12968,22 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
     Py_ssize_t i, len;
     int status = 0;
 
+    if (MS_UNLIKELY(!ms_list_is_plain(obj))) {
+        /* Items are stored outside of the internal list storage, copy them out
+         * through the sequence protocol first */
+        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        PyObject *temp = PySequence_List(obj);
+        if (temp != NULL) {
+            status = mpack_encode_list(self, temp);
+            Py_DECREF(temp);
+        }
+        else {
+            status = -1;
+        }
+        Py_LeaveRecursiveCall();
+        return status;
+    }
+
     len = PyList_GET_SIZE(obj);
     if (len == 0) return mpack_encode_empty_array(self);
 
@@ -14298,6 +14329,23 @@ static MS_NOINLINE int
 json_encode_list(EncoderState *self, PyObject *obj)
 {
     int ret;
+
+    if (MS_UNLIKELY(!ms_list_is_plain(obj))) {
+        /* Items are stored outside of the internal list storage, copy them out
+         * through the sequence protocol first */
+        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        PyObject *temp = PySequence_List(obj);
+        if (temp != NULL) {
+            ret = json_encode_list(self, temp);
+            Py_DECREF(temp);
+        }
+        else {
+            ret = -1;
+        }
+        Py_LeaveRecursiveCall();
+        return ret;
+    }
+
     Py_BEGIN_CRITICAL_SECTION(obj);
     ret = json_encode_sequence(
         self, PyList_GET_SIZE(obj), ((PyListObject *)obj)->ob_item
@@ -14936,7 +14984,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
     PyObject *input = args[0];
-    if (MS_LIKELY(PyList_Check(input))) {
+    if (MS_LIKELY(PyList_Check(input) && ms_list_is_plain(input))) {
         for (Py_ssize_t i = 0; i < PyList_GET_SIZE(input); i++) {
             if (json_encode(&state, PyList_GET_ITEM(input, i)) < 0) goto error;
             if (ms_write(&state, "\n", 1) < 0) goto error;
@@ -20153,6 +20201,19 @@ static PyObject *
 to_builtins_list(ToBuiltinsState *self, PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
 
+    if (MS_UNLIKELY(!ms_list_is_plain(obj))) {
+        /* Items are stored outside of the internal list storage, copy them out
+         * through the sequence protocol first */
+        PyObject *out = NULL;
+        PyObject *temp = PySequence_List(obj);
+        if (temp != NULL) {
+            out = to_builtins_list(self, temp);
+            Py_DECREF(temp);
+        }
+        Py_LeaveRecursiveCall();
+        return out;
+    }
+
     Py_ssize_t size = PyList_GET_SIZE(obj);
     PyObject *out = PyList_New(size);
     if (out == NULL) goto cleanup;
@@ -22390,6 +22451,19 @@ convert(
         return convert_float(self, obj, type, path);
     }
     else if (PyList_Check(obj)) {
+        if (MS_UNLIKELY(!ms_list_is_plain(obj))) {
+            /* Items are stored outside of the internal list storage, copy them
+             * out through the sequence protocol first */
+            PyObject *out = NULL;
+            PyObject *temp = PySequence_List(obj);
+            if (temp != NULL) {
+                out = convert_seq(
+                    self, LIST_ITEMS(temp), PyList_GET_SIZE(temp), type, path
+                );
+                Py_DECREF(temp);
+            }
+            return out;
+        }
         return convert_seq(self, LIST_ITEMS(obj), PyList_GET_SIZE(obj), type, path);
     }
     else if (pytype == &PyTuple_Type) {

@@ -168,6 +168,43 @@ class TestEncodeSubclasses:
         for msg in [[], [1, 2]]:
             assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
 
+    def test_encode_list_subclass_with_external_storage(self, proto):
+        """Types like `collections.UserList` store their items outside of the
+        internal list storage, and are only reachable through the sequence
+        protocol."""
+
+        class subclass(collections.UserList, list):
+            pass
+
+        for msg in [[], [1, 2]]:
+            assert proto.encode(subclass(msg)) == proto.encode(msg)
+
+    def test_encode_list_subclass_custom_iter(self, proto):
+        class subclass(list):
+            def __iter__(self):
+                return iter(["a", "b"])
+
+        assert proto.encode(subclass()) == proto.encode(["a", "b"])
+
+    def test_encode_list_subclass_getitem_errors(self, proto):
+        class subclass(collections.UserList, list):
+            def __getitem__(self, i):
+                raise ValueError("oh no")
+
+        with pytest.raises(ValueError, match="oh no"):
+            proto.encode(subclass([1, 2]))
+
+    @emscripten_stack_limited
+    def test_encode_list_subclass_recursive(self, proto):
+        class subclass(collections.UserList, list):
+            pass
+
+        o = subclass()
+        o.append(o)
+
+        with pytest.raises(RecursionError):
+            proto.encode(o)
+
 
 class TestDecoder:
     def test_decoder_runtime_type_parameters(self, proto):

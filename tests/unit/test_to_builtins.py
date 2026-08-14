@@ -1,4 +1,5 @@
 import base64
+import collections
 import datetime
 import decimal
 import enum
@@ -247,6 +248,17 @@ class TestToBuiltins:
 
         res = to_builtins(in_type())
         assert res == out_type()
+
+    def test_list_subclass_with_external_storage(self):
+        class subclass(collections.UserList, list):
+            pass
+
+        msg = subclass([1, FruitInt.APPLE])
+        res = to_builtins(msg)
+        assert res == [1, -1]
+        assert type(res) is list
+
+        assert to_builtins(subclass()) == []
 
     @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     def test_sequence_unsupported_item(self, in_type):

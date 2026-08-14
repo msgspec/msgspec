@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fix `list` subclasses that store their items outside of the internal list
+  storage (such as classes inheriting from both `list` and
+  `collections.UserList`) silently encoding as an empty array. They are now
+  encoded via the sequence protocol ({issue}`1156`).
+
 ## Version 0.22.0 (2026-08-11)
 
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
