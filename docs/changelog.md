@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Preserve JSON Schema metadata and string constraints in `propertyNames` for
+  annotated dictionary key types ({issue}`866`).
+
 ## Version 0.22.0 (2026-08-11)
 
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
