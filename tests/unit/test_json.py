@@ -261,7 +261,7 @@ class TestEncoderMisc:
             enc.encode_into(1, bytearray(), -2)
 
     @pytest.mark.parametrize("buf_size", [0, 1, 16, 55, 60])
-    def test_encode_into(self, buf_size):
+    def test_encode_into_bytearray(self, buf_size):
         enc = msgspec.json.Encoder()
 
         msg = {"key": "x" * 48}
@@ -269,10 +269,10 @@ class TestEncoderMisc:
 
         buf = bytearray(buf_size)
         out = enc.encode_into(msg, buf)
-        assert out is None
+        assert out == len(encoded)
         assert buf == encoded
 
-    def test_encode_into_offset(self):
+    def test_encode_into_bytearray_offset(self):
         enc = msgspec.json.Encoder()
         msg = {"key": "value"}
         encoded = enc.encode(msg)
@@ -297,6 +297,82 @@ class TestEncoderMisc:
         buf = bytearray(b"01234")
         enc.encode_into(msg, buf, -1)
         assert buf == b"01234" + encoded
+
+    @pytest.mark.parametrize("buf_size", [58, 59, 142])
+    def test_encode_into_memoryview(self, buf_size):
+        enc = msgspec.json.Encoder()
+
+        msg = {"key": "x" * 48}
+        encoded = msgspec.json.encode(msg)
+        encoded_len = len(encoded)
+
+        buf = bytearray(buf_size)
+        mem = memoryview(buf)
+        out = enc.encode_into(msg, mem)
+        assert out == encoded_len
+        assert buf[:encoded_len] == encoded
+        assert buf[encoded_len:] == b"\x00" * (buf_size - encoded_len)
+        assert mem[:encoded_len] == encoded
+        assert mem[encoded_len:] == b"\x00" * (buf_size - encoded_len)
+
+    def test_encode_into_memoryview_buffer_error(self):
+        enc = msgspec.json.Encoder()
+
+        msg = {"key": "x" * 48}
+
+        buf = bytearray(0)
+        mem = memoryview(buf)
+        with pytest.raises(ValueError, match="buffer is too small to hold the encoded message"):
+            enc.encode_into(msg, mem)
+
+        buf = bytearray(57)
+        mem = memoryview(buf)
+        with pytest.raises(ValueError, match="buffer is too small to hold the encoded message"):
+            enc.encode_into(msg, mem)
+
+        # Offset out of bounds
+        buf = bytearray(b"01234")
+        mem = memoryview(buf)
+        with pytest.raises(ValueError, match="offset 10 is beyond the end of a fixed-size buffer of length 5"):
+            enc.encode_into(msg, mem, 10)
+
+        # Offset out of bounds
+        buf = bytearray(58)
+        mem = memoryview(buf)
+        with pytest.raises(ValueError, match="buffer is too small to hold the encoded message"):
+            enc.encode_into(msg, mem, 1)
+
+        buf = bytearray(b"01234" * 8)
+        mem = memoryview(buf)
+        with pytest.raises(ValueError, match="offset < 0 is not supported for fixed-size buffers"):
+            enc.encode_into(msg, mem, -1)
+
+    def test_encode_into_memoryview_offset(self):
+        enc = msgspec.json.Encoder()
+        msg = {"key": "value"}
+        encoded = enc.encode(msg)
+        encoded_len = len(encoded)
+
+        # Offset 0 is default
+        buf = bytearray(256)
+        mem = memoryview(buf)
+        out = enc.encode_into(msg, mem, 0)
+        assert out == encoded_len
+        assert buf[:encoded_len] == encoded
+        assert buf[encoded_len:] == b"\00" * (256 - encoded_len)
+        assert mem[:encoded_len] == encoded
+        assert mem[encoded_len:] == b"\00" * (256 - encoded_len)
+
+        # Offset in bounds uses the provided offset
+        buf = bytearray(b"01234" * 8)
+        mem = memoryview(buf)
+        out = enc.encode_into(msg, mem, 2)
+        assert out == encoded_len
+
+        assert buf[:2 + encoded_len] == b"01" + encoded
+        assert buf[2 + encoded_len:] == (b"01234" * 8)[2 + encoded_len:]
+        assert mem[:2 + encoded_len] == b"01" + encoded
+        assert mem[2 + encoded_len:] == (b"01234" * 8)[2 + encoded_len:]
 
     def test_encode_into_handles_errors_properly(self):
         enc = msgspec.json.Encoder()
