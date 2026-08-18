@@ -9854,16 +9854,19 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "If `buffer` is a `bytearray`, it will be grown/shrunk as needed and\n"
 "truncated to the end of the serialized message (the underlying\n"
 "allocation won't be truncated, allowing for efficiently appending\n"
-"additional bytes later). In this case `None` is returned.\n"
+"additional bytes later).\n"
 "\n"
 "If `buffer` is some other writable contiguous buffer-protocol object\n"
 "(e.g. a `memoryview`, such as one backed by `multiprocessing.shared_"
 "memory.SharedMemory`), it is treated as fixed-size: it will never be\n"
 "resized, and a `ValueError` is raised if it isn't large enough to hold\n"
-"the encoded message. In this case the number of newly-written bytes\n"
-"(i.e. the length of the encoded message itself, not counting `offset`)\n"
-"is returned as an `int`, since the buffer itself can't be truncated to\n"
-"signal the message length.\n"
+"the encoded message. `offset=-1` is not supported for such buffers (it\n"
+"always raises `ValueError`), since they have no concept of\n"
+"already-written data to append after; pass an explicit offset instead.\n"
+"\n"
+"In both cases, the number of newly-written bytes (i.e. the length of the\n"
+"encoded message itself, not counting `offset`) is returned as an `int`,\n"
+"so `buffer[offset:offset + n]` always holds exactly the encoded message.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -9877,10 +9880,8 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "\n"
 "Returns\n"
 "-------\n"
-"None or int\n"
-"    None if `buffer` is a `bytearray`, otherwise the number of bytes\n"
-"    newly written by this call (`buffer[offset:offset + n]` holds the\n"
-"    encoded message)."
+"int\n"
+"    The number of bytes newly written by this call."
 );
 static PyObject*
 encoder_encode_into_common(
@@ -9937,7 +9938,7 @@ encoder_encode_into_common(
         }
 
         FAST_BYTEARRAY_SHRINK(buf, state.output_len);
-        Py_RETURN_NONE;
+        return PyLong_FromSsize_t(state.output_len - offset);
     }
     else {
         /* Fixed-size path: writing into any other writable, contiguous,
@@ -9960,16 +9961,17 @@ encoder_encode_into_common(
         Py_ssize_t offset = 0;
         if (nargs == 3) {
             offset = PyLong_AsSsize_t(args[2]);
-            if (offset == -1) {
+            if (offset < 0) {
                 if (PyErr_Occurred()) {
                     PyBuffer_Release(&view);
                     return NULL;
                 }
-                offset = buf_size;
-            }
-            if (offset < 0) {
                 PyBuffer_Release(&view);
-                PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "offset < 0 is not supported for fixed-size buffers"
+                    " - pass an explicit non-negative offset instead"
+                );
                 return NULL;
             }
         }
