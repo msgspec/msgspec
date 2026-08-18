@@ -9860,8 +9860,9 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "(e.g. a `memoryview`, such as one backed by `multiprocessing.shared_"
 "memory.SharedMemory`), it is treated as fixed-size: it will never be\n"
 "resized, and a `ValueError` is raised if it isn't large enough to hold\n"
-"the encoded message. In this case the number of bytes written is\n"
-"returned as an `int`, since the buffer itself can't be truncated to\n"
+"the encoded message. In this case the number of newly-written bytes\n"
+"(i.e. the length of the encoded message itself, not counting `offset`)\n"
+"is returned as an `int`, since the buffer itself can't be truncated to\n"
 "signal the message length.\n"
 "\n"
 "Parameters\n"
@@ -9878,7 +9879,8 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "-------\n"
 "None or int\n"
 "    None if `buffer` is a `bytearray`, otherwise the number of bytes\n"
-"    written."
+"    newly written by this call (`buffer[offset:offset + n]` holds the\n"
+"    encoded message)."
 );
 static PyObject*
 encoder_encode_into_common(
@@ -9919,6 +9921,8 @@ encoder_encode_into_common(
             .mod = self->mod,
             .enc_hook = self->enc_hook,
             .decimal_format = self->decimal_format,
+            .decimal_callable = self->decimal_callable,
+            .in_decimal_callable = false,
             .uuid_format = self->uuid_format,
             .order = self->order,
             .output_buffer = buf,
@@ -9985,6 +9989,8 @@ encoder_encode_into_common(
             .mod = self->mod,
             .enc_hook = self->enc_hook,
             .decimal_format = self->decimal_format,
+            .decimal_callable = self->decimal_callable,
+            .in_decimal_callable = false,
             .uuid_format = self->uuid_format,
             .order = self->order,
             .output_buffer = buf,
@@ -9995,7 +10001,7 @@ encoder_encode_into_common(
         };
 
         int status = encode(&state, obj);
-        Py_ssize_t written = state.output_len;
+        Py_ssize_t written = state.output_len - offset;
         PyBuffer_Release(&view);
         if (status < 0) {
             return NULL;
