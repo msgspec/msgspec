@@ -649,6 +649,7 @@ def check_msgpack_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_msgpack_encode() -> None:
@@ -816,6 +817,7 @@ def check_json_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_json_encode() -> None:
