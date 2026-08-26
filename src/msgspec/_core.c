@@ -6795,6 +6795,33 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     );
 }
 
+/* Determine the most derived metaclass among `metatype` and the metaclasses
+ * of `bases`. This mirrors the metaclass calculation CPython performs when
+ * creating a class through `type`, so that classes created by `defstruct`
+ * resolve the same metaclass as equivalent class definitions. Returns NULL
+ * with an exception set if the metaclasses conflict. */
+static PyTypeObject *
+structmeta_calculate_metaclass(PyTypeObject *metatype, PyObject *bases) {
+    PyTypeObject *winner = metatype;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(bases); i++) {
+        PyObject *base = PyTuple_GET_ITEM(bases, i);
+        if (!PyType_Check(base)) continue;
+        PyTypeObject *base_meta = Py_TYPE(base);
+        if (PyType_IsSubtype(winner, base_meta)) continue;
+        if (PyType_IsSubtype(base_meta, winner)) {
+            winner = base_meta;
+            continue;
+        }
+        PyErr_SetString(
+            PyExc_TypeError,
+            "metaclass conflict: the metaclass of a derived class must be a "
+            "(non-strict) subclass of the metaclasses of all its bases"
+        );
+        return NULL;
+    }
+    return winner;
+}
+
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=None, module=None, namespace=None, "
@@ -6956,8 +6983,15 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     }
     if (PyDict_SetItemString(namespace, "__annotations__", annotations) < 0) goto cleanup;
 
+    /* Create the class through the most derived metaclass among the bases.
+     * Otherwise type creation re-dispatches through that metaclass, running
+     * this logic a second time on a namespace we've already injected
+     * __slots__ into, which would fail the namespace check. */
+    PyTypeObject *metatype = structmeta_calculate_metaclass(&StructMetaType, bases);
+    if (metatype == NULL) goto cleanup;
+
     out = StructMeta_new_inner(
-        &StructMetaType, name, bases, namespace,
+        metatype, name, bases, namespace,
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,

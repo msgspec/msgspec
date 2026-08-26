@@ -2173,6 +2173,28 @@ class TestDefStruct:
         assert as_tuple(Point(1, 2, 0)) == (1, 2, 0)
         assert as_tuple(Point(1, 2, 3)) == (1, 2, 3)
 
+    def test_defstruct_custom_metaclass_base(self):
+        class CustomMeta(msgspec.StructMeta):
+            def __new__(mcls, name, bases, namespace, **kwargs):
+                return super().__new__(mcls, name, bases, namespace, **kwargs)
+
+        class Base(Struct, metaclass=CustomMeta):
+            z: int
+
+        Point = defstruct("Point", ["x", "y"], bases=(Base,))
+        assert isinstance(Point, CustomMeta)
+        assert issubclass(Point, Base)
+        assert issubclass(Point, Struct)
+        assert Point.__struct_fields__ == ("z", "x", "y")
+        assert as_tuple(Point(1, 2, 0)) == (1, 2, 0)
+        assert as_tuple(Point(1, 2, 3)) == (1, 2, 3)
+        p = Point(1, 2, 3)
+        assert msgspec.json.decode(msgspec.json.encode(p), type=Point) == p
+
+    def test_defstruct_default_metaclass(self):
+        Point = defstruct("Point", ["x", "y"])
+        assert type(Point) is msgspec.StructMeta
+
     def test_defstruct_bases_none(self):
         Point = defstruct("Point", ["x", "y"], bases=None)
         assert Point.mro() == [Point, *Struct.mro()]
