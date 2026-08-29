@@ -429,6 +429,25 @@ class TestFloat:
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
 
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_float_from_int_out_of_range(self, strict):
+        """An int too large for a C double used to leak a SystemError
+        instead of the same "Number out of range" ValidationError
+        json.decode already raises for the equivalent case (msgspec#1122)."""
+        too_big = 10**400
+
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(too_big, float, strict=strict)
+
+        # Also affects a nested target, not just a bare float
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert({"v": too_big}, dict[str, float], strict=strict)
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert([too_big], list[float], strict=strict)
+
+        # A normal in-range int is unaffected
+        assert convert(5, float, strict=strict) == 5.0
+
     @pytest.mark.parametrize(
         "meta, good, bad",
         [
