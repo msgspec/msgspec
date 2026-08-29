@@ -2191,6 +2191,30 @@ class TestDefStruct:
         p = Point(1, 2, 3)
         assert msgspec.json.decode(msgspec.json.encode(p), type=Point) == p
 
+    def test_defstruct_custom_metaclass_base_config(self):
+        """Metaclass hooks that modify struct config should be honored."""
+        called = []
+
+        class CustomMeta(msgspec.StructMeta):
+            def __new__(mcls, name, bases, namespace, **kwargs):
+                called.append(("new", name))
+                kwargs.setdefault("kw_only", True)
+                return super().__new__(mcls, name, bases, namespace, **kwargs)
+
+            def __init__(cls, name, bases, namespace, **kwargs):
+                called.append(("init", name))
+                super().__init__(name, bases, namespace, **kwargs)
+
+        class Base(Struct, metaclass=CustomMeta):
+            z: int
+
+        Child = defstruct("Child", ["a"], bases=(Base,))
+        assert called == [("new", "Child"), ("init", "Child")]
+        assert Child.__struct_fields__ == ("z", "a")
+        # kw_only was set by the metaclass hook, so positional args fail
+        with pytest.raises(TypeError):
+            Child(1)
+
     def test_defstruct_default_metaclass(self):
         Point = defstruct("Point", ["x", "y"])
         assert type(Point) is msgspec.StructMeta

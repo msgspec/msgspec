@@ -6641,8 +6641,15 @@ StructMeta_new_inner(
     PyObject *args = Py_BuildValue("(OOO)", name, bases, info.namespace);
     if (args == NULL) goto cleanup;
     cls = (StructMetaObject *) PyType_Type.tp_new(type, args, NULL);
-    Py_CLEAR(args);
     if (cls == NULL) goto cleanup;
+
+    /* Invoke the metaclass __init__ hook. `PyType_Type.tp_new` only runs
+     * `__new__`; calling `__init__` here keeps defstruct consistent with
+     * class syntax, where CPython runs both hooks exactly once. */
+    if (type->tp_init != NULL) {
+        if (type->tp_init((PyObject *)cls, args, NULL) < 0) goto cleanup;
+    }
+    Py_CLEAR(args);
 
     /* If the metaclass participates in abc.ABCMeta, initialise ABC
      * bookkeeping so issubclass/isinstance work correctly when the
