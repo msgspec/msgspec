@@ -6641,15 +6641,8 @@ StructMeta_new_inner(
     PyObject *args = Py_BuildValue("(OOO)", name, bases, info.namespace);
     if (args == NULL) goto cleanup;
     cls = (StructMetaObject *) PyType_Type.tp_new(type, args, NULL);
-    if (cls == NULL) goto cleanup;
-
-    /* Invoke the metaclass __init__ hook. `PyType_Type.tp_new` only runs
-     * `__new__`; calling `__init__` here keeps defstruct consistent with
-     * class syntax, where CPython runs both hooks exactly once. */
-    if (type->tp_init != NULL) {
-        if (type->tp_init((PyObject *)cls, args, NULL) < 0) goto cleanup;
-    }
     Py_CLEAR(args);
+    if (cls == NULL) goto cleanup;
 
     /* If the metaclass participates in abc.ABCMeta, initialise ABC
      * bookkeeping so issubclass/isinstance work correctly when the
@@ -6829,6 +6822,32 @@ structmeta_calculate_metaclass(PyTypeObject *metatype, PyObject *bases) {
     return winner;
 }
 
+/* Collect the Struct configuration options from `defstruct`'s keyword
+ * arguments, dropping the parameters that describe the class itself. These
+ * options have already been validated by `defstruct`'s own argument parsing;
+ * they're forwarded as given so the metaclass applies them exactly as it does
+ * for an equivalent class definition. Returns a new dict, or NULL with an
+ * exception set. */
+static PyObject *
+structmeta_config_kwargs(PyObject *kwargs) {
+    static const char *not_config[] = {
+        "name", "fields", "bases", "module", "namespace", NULL
+    };
+    PyObject *out = PyDict_New();
+    if (out == NULL || kwargs == NULL) return out;
+
+    if (PyDict_Update(out, kwargs) < 0) goto error;
+    for (const char **key = not_config; *key != NULL; key++) {
+        if (PyDict_GetItemString(out, *key) == NULL) continue;
+        if (PyDict_DelItemString(out, *key) < 0) goto error;
+    }
+    return out;
+
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=None, module=None, namespace=None, "
@@ -6885,6 +6904,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
+    PyObject *create_args = NULL, *create_kwargs = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
     int arg_repr_omit_defaults = -1, arg_array_like = -1;
@@ -6990,27 +7010,34 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     }
     if (PyDict_SetItemString(namespace, "__annotations__", annotations) < 0) goto cleanup;
 
-    /* Create the class through the most derived metaclass among the bases.
-     * Otherwise type creation re-dispatches through that metaclass, running
-     * this logic a second time on a namespace we've already injected
-     * __slots__ into, which would fail the namespace check. */
+    /* Create the class by calling the metaclass, exactly as evaluating a
+     * `class` statement would. This runs the metaclass's `__new__` and
+     * `__init__` hooks once each, at the same point they run for an equivalent
+     * class definition, so a metaclass that supplies or validates struct
+     * configuration behaves the same either way.
+     *
+     * The metaclass to call is the most derived among `StructMeta` and the
+     * metaclasses of `bases`. Calling `StructMeta` unconditionally would make
+     * type creation re-dispatch to that metaclass, running the struct
+     * machinery a second time on a namespace we've already injected
+     * `__slots__` into, which would fail the namespace check. */
     PyTypeObject *metatype = structmeta_calculate_metaclass(&StructMetaType, bases);
     if (metatype == NULL) goto cleanup;
 
-    out = StructMeta_new_inner(
-        metatype, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_rename,
-        arg_omit_defaults, arg_forbid_unknown_fields,
-        arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_repr_omit_defaults, arg_array_like,
-        arg_gc, arg_weakref, arg_dict, arg_cache_hash
-    );
+    create_args = Py_BuildValue("(OOO)", name, bases, namespace);
+    if (create_args == NULL) goto cleanup;
+    create_kwargs = structmeta_config_kwargs(kwargs);
+    if (create_kwargs == NULL) goto cleanup;
+
+    out = PyObject_Call((PyObject *)metatype, create_args, create_kwargs);
 
 cleanup:
     Py_XDECREF(namespace);
     Py_XDECREF(new_bases);
     Py_XDECREF(annotations);
     Py_XDECREF(fields_fast);
+    Py_XDECREF(create_args);
+    Py_XDECREF(create_kwargs);
     return out;
 }
 
