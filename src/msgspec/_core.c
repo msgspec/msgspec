@@ -20937,7 +20937,12 @@ convert_int(
         return ms_decode_int_enum_or_literal_pyint(obj, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(PyLong_AsDouble(obj), type, path);
+        double x = PyLong_AsDouble(obj);
+        if (PyErr_Occurred()) {
+            PyErr_Clear();
+            return ms_error_with_path("Number out of range%U", path);
+        }
+        return ms_decode_float(x, type, path);
     }
     else if (
         type->types & MS_TYPE_DECIMAL

@@ -429,6 +429,11 @@ class TestFloat:
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
 
+    @pytest.mark.parametrize("val", [10**400, -10**400])
+    def test_float_from_int_out_of_range(self, val):
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(val, float)
+
     @pytest.mark.parametrize(
         "meta, good, bad",
         [
