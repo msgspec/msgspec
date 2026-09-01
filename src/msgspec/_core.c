@@ -530,6 +530,7 @@ typedef struct {
     PyObject *concrete_types;
     PyObject *get_type_hints;
     PyObject *get_class_annotations;
+    PyObject *call_annotate_forwardref;
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *convert_generic_alias;
@@ -6120,21 +6121,12 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             Py_DECREF(annotate);
             return 0;
         }
-        /* Format.FORWARDREF (3) rather than Format.VALUE (1): unresolved
-         * names must not raise NameError while the class body is still
-         * executing. See PEP 649 / annotationlib metaclass guidance:
+        /* Use Format.FORWARDREF so unresolved names do not raise NameError
+         * while the class body is still executing. See PEP 649 / annotationlib:
          * https://docs.python.org/3/library/annotationlib.html#using-annotations-in-a-metaclass
          */
-        PyObject *format = PyLong_FromLong(3);  /* annotationlib.Format.FORWARDREF */
-        if (format == NULL) {
-            Py_DECREF(annotate);
-            return -1;
-        }
-        annotations = PyObject_CallOneArg(
-            annotate, format
-        );
+        annotations = PyObject_CallOneArg(mod->call_annotate_forwardref, annotate);
         Py_DECREF(annotate);
-        Py_DECREF(format);
         if (annotations == NULL) {
             return -1;
         }
@@ -22700,6 +22692,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_class_annotations);
+    Py_CLEAR(st->call_annotate_forwardref);
     Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
@@ -22774,6 +22767,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_class_annotations);
+    Py_VISIT(st->call_annotate_forwardref);
     Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
@@ -22976,6 +22970,7 @@ PyInit__core(void)
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
+    SET_REF(call_annotate_forwardref, "call_annotate_forwardref");
     SET_REF(get_typeddict_info, "get_typeddict_info");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
