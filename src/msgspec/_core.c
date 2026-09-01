@@ -6120,7 +6120,12 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             Py_DECREF(annotate);
             return 0;
         }
-        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
+        /* Format.FORWARDREF (3) rather than Format.VALUE (1): unresolved
+         * names must not raise NameError while the class body is still
+         * executing. See PEP 649 / annotationlib metaclass guidance:
+         * https://docs.python.org/3/library/annotationlib.html#using-annotations-in-a-metaclass
+         */
+        PyObject *format = PyLong_FromLong(3);  /* annotationlib.Format.FORWARDREF */
         if (format == NULL) {
             Py_DECREF(annotate);
             return -1;
