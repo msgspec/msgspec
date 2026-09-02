@@ -2769,3 +2769,10 @@ class TestRaw:
 
         sol = Ex(x=raw)
         assert convert({"x": raw}, type=Ex) == sol
+
+    def test_raw_from_parsed_object_error(self):
+        with pytest.raises(
+            ValidationError,
+            match="msgspec.Raw fields are only supported when decoding from json or msgpack",
+        ):
+            convert(1, msgspec.Raw)

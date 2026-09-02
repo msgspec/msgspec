@@ -1561,6 +1561,15 @@ field (``point``) depends on the value of another (``dimensions``).
     >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
     Point3D(x=1, y=2, z=3)
 
+.. note::
+
+   Delayed decoding with `msgspec.Raw` requires access to the original
+   serialized bytes. This is only supported by the native ``json`` and
+   ``msgpack`` decoders. The ``yaml`` and ``toml`` modules parse messages
+   fully into Python objects before validation, so ``msgspec.Raw`` fields
+   cannot be populated when using ``msgspec.yaml.decode`` or
+   ``msgspec.toml.decode``.
+
 
 ``Any``
 -------

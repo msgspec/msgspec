@@ -188,3 +188,15 @@ def test_decode_dec_hook():
 
     res = msgspec.yaml.decode("'1.5'", type=Decimal, dec_hook=dec_hook)
     assert res == Decimal("1.5")
+
+
+class TestRaw:
+    def test_decode_raw_field_unsupported(self):
+        class Repro(msgspec.Struct):
+            tools: dict[str, msgspec.Raw]
+
+        with pytest.raises(
+            msgspec.ValidationError,
+            match="msgspec.Raw fields are only supported when decoding from json or msgpack",
+        ):
+            msgspec.yaml.decode(b"tools:\n  x: 1\n", type=Repro)

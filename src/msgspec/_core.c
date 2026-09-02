@@ -22375,6 +22375,16 @@ convert(
         }
         return obj;
     }
+    if (MS_UNLIKELY(type->types == 0)) {
+        if (Py_TYPE(obj) == &Raw_Type) {
+            Py_INCREF(obj);
+            return obj;
+        }
+        return ms_error_with_path(
+            "msgspec.Raw fields are only supported when decoding from json or msgpack%U",
+            path
+        );
+    }
 
     PyTypeObject *pytype = Py_TYPE(obj);
     if (PyUnicode_Check(obj)) {
