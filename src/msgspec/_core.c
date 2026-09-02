@@ -3489,8 +3489,16 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
+    }
+    if (self->types == 0) {
+        /* `Raw` is marked with a typecode of 0. JSON/msgpack decoding never
+         * reaches this repr for a `Raw` field (the raw bytes are captured
+         * before type checking), but `convert()` has no such interception
+         * and falls through to here on a type mismatch -- report `raw`, not
+         * `any`, so the message doesn't contradict the error being raised. */
+        return PyUnicode_FromString("raw");
     }
     if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
         if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
