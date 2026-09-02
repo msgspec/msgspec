@@ -197,6 +197,6 @@ class TestRaw:
 
         with pytest.raises(
             msgspec.ValidationError,
-            match="msgspec.Raw fields are only supported when decoding from json or msgpack",
+            match=r"msgspec\.Raw fields are only supported when decoding from json or msgpack",
         ):
             msgspec.yaml.decode(b"tools:\n  x: 1\n", type=Repro)
