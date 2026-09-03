@@ -53,9 +53,11 @@ else:
 
 
 if sys.version_info >= (3, 14):
-    from annotationlib import Format as _AnnotationFormat
-    from annotationlib import call_annotate_function as _call_annotate_function
-    from annotationlib import get_annotations as _get_class_annotations
+    from annotationlib import (
+        Format as _AnnotationFormat,
+        call_annotate_function as _call_annotate_function,
+        get_annotations as _get_class_annotations,
+    )
 
     def call_annotate_forwardref(annotate):
         """Evaluate a class annotate function without requiring names to exist.
