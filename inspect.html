@@ -369,16 +369,16 @@ this function is more efficient than calling <a class="reference internal" href=
 <span class="go">    cls=User,</span>
 <span class="go">    fields=(</span>
 <span class="go">        Field(</span>
-<span class="go">            name=&#39;name&#39;,</span>
-<span class="go">            encode_name=&#39;name&#39;,</span>
+<span class="go">            name='name',</span>
+<span class="go">            encode_name='name',</span>
 <span class="go">            type=StrType(min_length=None, max_length=None, pattern=None),</span>
 <span class="go">            required=True,</span>
 <span class="go">            default=UNSET,</span>
 <span class="go">            default_factory=UNSET</span>
 <span class="go">        ),</span>
 <span class="go">        Field(</span>
-<span class="go">            name=&#39;groups&#39;,</span>
-<span class="go">            encode_name=&#39;groups&#39;,</span>
+<span class="go">            name='groups',</span>
+<span class="go">            encode_name='groups',</span>
 <span class="go">            type=ListType(</span>
 <span class="go">                item_type=StrType(min_length=None, max_length=None, pattern=None),</span>
 <span class="go">                min_length=None,</span>
@@ -389,8 +389,8 @@ this function is more efficient than calling <a class="reference internal" href=
 <span class="go">            default_factory=UNSET</span>
 <span class="go">        ),</span>
 <span class="go">        Field(</span>
-<span class="go">            name=&#39;email&#39;,</span>
-<span class="go">            encode_name=&#39;email&#39;,</span>
+<span class="go">            name='email',</span>
+<span class="go">            encode_name='email',</span>
 <span class="go">            type=UnionType(</span>
 <span class="go">                types=(</span>
 <span class="go">                    StrType(min_length=None, max_length=None, pattern=None),</span>
@@ -417,8 +417,8 @@ specific fields are merged into a single <code class="docutils literal notransla
 <span class="gp">... </span>    <span class="n">Meta</span><span class="p">(</span>
 <span class="gp">... </span>        <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
 <span class="gp">... </span>        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
-<span class="gp">... </span>        <span class="n">pattern</span><span class="o">=</span><span class="s2">&quot;^[a-z_][a-z0-9_-]*$&quot;</span><span class="p">,</span>
-<span class="gp">... </span>        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;A valid UNIX username&quot;</span>
+<span class="gp">... </span>        <span class="n">pattern</span><span class="o">=</span><span class="s2">"^[a-z_][a-z0-9_-]*$"</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="n">description</span><span class="o">=</span><span class="s2">"A valid UNIX username"</span>
 <span class="gp">... </span>    <span class="p">)</span>
 <span class="gp">... </span><span class="p">]</span>
 
@@ -427,9 +427,9 @@ specific fields are merged into a single <code class="docutils literal notransla
 <span class="go">    type=StrType(</span>
 <span class="go">        min_length=1,</span>
 <span class="go">        max_length=32,</span>
-<span class="go">        pattern=&#39;^[a-z_][a-z0-9_-]*$&#39;</span>
+<span class="go">        pattern='^[a-z_][a-z0-9_-]*$'</span>
 <span class="go">    ),</span>
-<span class="go">    extra_json_schema={&#39;description&#39;: &#39;A valid UNIX username&#39;}</span>
+<span class="go">    extra_json_schema={'description': 'A valid UNIX username'}</span>
 <span class="go">)</span>
 </pre></div>
 </div>

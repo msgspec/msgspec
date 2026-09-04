@@ -335,7 +335,7 @@ relevant docs for more information.</p>
 
 
 <span class="c1"># Define the 7 standard Geometry types.</span>
-<span class="c1"># All types set `tag=True`, meaning that they&#39;ll make use of a `type` field to</span>
+<span class="c1"># All types set `tag=True`, meaning that they'll make use of a `type` field to</span>
 <span class="c1"># disambiguate between types when decoding.</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">coordinates</span><span class="p">:</span> <span class="n">Position</span>
@@ -399,7 +399,7 @@ relevant docs for more information.</p>
 <p>Here we use the <code class="docutils literal notranslate"><span class="pre">loads</span></code> method defined above to read some <a class="reference external" href="https://github.com/msgspec/msgspec/blob/main/examples/geojson/canada.json">example GeoJSON</a>.</p>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec_geojson</span>
 
-<span class="gp">In [2]: </span><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;canada.json&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="gp">In [2]: </span><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"canada.json"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 <span class="gp">   ...: </span>    <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
 
 <span class="gp">In [3]: </span><span class="n">canada</span> <span class="o">=</span> <span class="n">msgspec_geojson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
@@ -408,7 +408,7 @@ relevant docs for more information.</p>
 <span class="gh">Out[4]: </span><span class="go">msgspec_geojson.FeatureCollection</span>
 
 <span class="gp">In [5]: </span><span class="n">canada</span><span class="o">.</span><span class="n">features</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">properties</span>
-<span class="gh">Out[5]: </span><span class="go">{&#39;name&#39;: &#39;Canada&#39;}</span>
+<span class="gh">Out[5]: </span><span class="go">{'name': 'Canada'}</span>
 </pre></div>
 </div>
 <p>Comparing performance to:</p>

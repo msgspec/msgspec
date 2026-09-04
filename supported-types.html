@@ -390,16 +390,16 @@ protocols.</p>
 lacks a <code class="docutils literal notranslate"><span class="pre">null</span></code> value, attempting to encode a message containing <code class="docutils literal notranslate"><span class="pre">None</span></code> to
 <code class="docutils literal notranslate"><span class="pre">TOML</span></code> will result in an error.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-<span class="go">b&#39;null&#39;</span>
+<span class="go">b'null'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;null&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'null'</span><span class="p">)</span>
 <span class="go">None</span>
 </pre></div>
 </div>
 <p>If <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, a string value of <code class="docutils literal notranslate"><span class="pre">&quot;null&quot;</span></code> (case
 insensitive) may also be coerced to <code class="docutils literal notranslate"><span class="pre">None</span></code>. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more
 information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;null&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"null"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">None</span>
 </pre></div>
 </div>
@@ -409,22 +409,22 @@ information.</p>
 <p>Booleans map to their corresponding <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> values in both all
 supported protocols.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
-<span class="go">b&#39;true&#39;</span>
+<span class="go">b'true'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;true&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'true'</span><span class="p">)</span>
 <span class="go">True</span>
 </pre></div>
 </div>
 <p>If <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, values of <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;1&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">1</span></code> or
 <code class="docutils literal notranslate"><span class="pre">&quot;false&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;0&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">0</span></code> (case insensitive for strings) may also be coerced to
 <code class="docutils literal notranslate"><span class="pre">True</span></code> / <code class="docutils literal notranslate"><span class="pre">False</span></code> respectively. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;false&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"false"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">False</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;TRUE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"TRUE"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">True</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">True</span>
 </pre></div>
 </div>
@@ -439,9 +439,9 @@ supported protocols.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">yaml</span></code>, and <code class="docutils literal notranslate"><span class="pre">toml</span></code> have no restrictions on encode or decode.</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>
-<span class="go">b&quot;123&quot;</span>
+<span class="go">b"123"</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
 <span class="go">123</span>
 </pre></div>
 </div>
@@ -449,10 +449,10 @@ supported protocols.</p>
 integers, following the same restrictions as above. Likewise floats that have
 an exact integer representation (i.e. no decimal component) may also be coerced
 as integers. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;123&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"123"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">123</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;123.0&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'123.0'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">123</span>
 </pre></div>
 </div>
@@ -467,17 +467,17 @@ accurately roundtrip any IEEE754 64 bit floating point value.</p>
 <p>For all protocols, if a <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> type is specified and an <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> value is
 provided, the <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> will be automatically converted.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mf">123.0</span><span class="p">)</span>
-<span class="go">b&quot;123.0&quot;</span>
+<span class="go">b"123.0"</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># JSON doesn&#39;t support nonfinite values, these serialize as null</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">))</span>
-<span class="go">b&quot;null&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># JSON doesn't support nonfinite values, these serialize as null</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="s2">"nan"</span><span class="p">))</span>
+<span class="go">b"null"</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.0&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123.0"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <span class="go">123.0</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Ints are automatically converted to floats</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <span class="go">123.0</span>
 </pre></div>
 </div>
@@ -485,10 +485,10 @@ provided, the <a class="reference external" href="https://docs.python.org/3/libr
 Note that in this case the strings <code class="docutils literal notranslate"><span class="pre">&quot;nan&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;inf&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;infinity&quot;</span></code>,
 <code class="docutils literal notranslate"><span class="pre">&quot;-inf&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;-infinity&quot;</span></code> (case insensitive) will coerce to
 <code class="docutils literal notranslate"><span class="pre">nan</span></code> / <code class="docutils literal notranslate"><span class="pre">inf</span></code> / <code class="docutils literal notranslate"><span class="pre">-inf</span></code>. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;123.45&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"123.45"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">123.45</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;-inf&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"-inf"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">-inf</span>
 </pre></div>
 </div>
@@ -499,14 +499,14 @@ Note that in this case the strings <code class="docutils literal notranslate"><s
 <p>Note that for JSON, only the characters required by <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a> are escaped to
 ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;𝄞&quot;</span></code>) are <em>not</em> escaped and are serialized
 directly as UTF-8 bytes.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;Hello, world!&quot;</span><span class="p">)</span>
-<span class="go">b&#39;&quot;Hello, world!&quot;&#39;</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"Hello, world!"</span><span class="p">)</span>
+<span class="go">b'"Hello, world!"'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;𝄞 is not escaped&quot;</span><span class="p">)</span>
-<span class="go">b&#39;&quot;\xf0\x9d\x84\x9e is not escaped&quot;&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"𝄞 is not escaped"</span><span class="p">)</span>
+<span class="go">b'"\xf0\x9d\x84\x9e is not escaped"'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;Hello, world!&quot;&#39;</span><span class="p">)</span>
-<span class="go">&quot;Hello, world!&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"Hello, world!"'</span><span class="p">)</span>
+<span class="go">"Hello, world!"</span>
 </pre></div>
 </div>
 </section>
@@ -514,16 +514,16 @@ directly as UTF-8 bytes.</p>
 <h2><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code><a class="headerlink" href="#bytes-bytearray-memoryview" title="Link to this heading">¶</a></h2>
 <p>Bytes-like objects map to base64-encoded strings in JSON, YAML, and TOML. The
 <code class="docutils literal notranslate"><span class="pre">bin</span></code> type is used for MessagePack.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xf0\x9d\x84\x9e</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\xf0\x9d\x84\x9e</span><span class="s2">"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;85+Eng==&quot;&#39;</span>
+<span class="go">b'"85+Eng=="'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytes</span><span class="p">)</span>
-<span class="go">b&#39;\xf0\x9d\x84\x9e&#39;</span>
+<span class="go">b'\xf0\x9d\x84\x9e'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytearray</span><span class="p">)</span>
-<span class="go">bytearray(b&#39;\xf0\x9d\x84\x9e&#39;)</span>
+<span class="go">bytearray(b'\xf0\x9d\x84\x9e')</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -572,7 +572,7 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">tz_aware</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;2021-04-02T18:18:10.000123+06:00&quot;&#39;</span>
+<span class="go">b'"2021-04-02T18:18:10.000123+06:00"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="go">datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=datetime.timezone(datetime.timedelta(seconds=21600)))</span>
@@ -582,14 +582,14 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">tz_naive</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;2021-04-02T18:18:10.000123&quot;&#39;</span>
+<span class="go">b'"2021-04-02T18:18:10.000123"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="go">datetime.datetime(2021, 4, 2, 18, 18, 10, 123)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded datetime</span>
 </pre></div>
 </div>
@@ -597,12 +597,12 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 floats, or strings containing ints/floats as timezone-aware datetimes,
 interpreting the value as seconds since the epoch in UTC (a <a class="reference external" href="https://en.wikipedia.org/wiki/Unix_time">Unix Timestamp</a>). See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for
 more information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1617405490.000123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1617405490.000123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `datetime`, got `float`</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1617405490.000123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1617405490.000123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=datetime.timezone.utc)</span>
 </pre></div>
 </div>
@@ -623,14 +623,14 @@ more information.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">date</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;2021-04-02&quot;&#39;</span>
+<span class="go">b'"2021-04-02"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">)</span>
 <span class="go">datetime.date(2021, 4, 2)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded date</span>
 </pre></div>
 </div>
@@ -659,7 +659,7 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">tz_aware</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;18:18:10.000123+06:00&quot;&#39;</span>
+<span class="go">b'"18:18:10.000123+06:00"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
 <span class="go">datetime.time(18, 18, 10, 123, tzinfo=datetime.timezone(datetime.timedelta(seconds=21600)))</span>
@@ -669,14 +669,14 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">tz_naive</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;18:18:10.000123&quot;&#39;</span>
+<span class="go">b'"18:18:10.000123"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
 <span class="go">datetime.time(18, 18, 10, 123)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded time</span>
 </pre></div>
 </div>
@@ -712,12 +712,12 @@ needed.</p></li>
 </li>
 </ul>
 <p>A few examples:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;P0D&quot;</span>                <span class="c1"># 0 days</span>
-<span class="s2">&quot;P1D&quot;</span>                <span class="c1"># 1 Day</span>
-<span class="s2">&quot;PT1H30S&quot;</span>            <span class="c1"># 1 Hour and 30 minutes</span>
-<span class="s2">&quot;PT1.5H&quot;</span>             <span class="c1"># 1 Hour and 30 minutes</span>
-<span class="s2">&quot;-PT1M30S&quot;</span>           <span class="c1"># -90 seconds</span>
-<span class="s2">&quot;PT1H30M25.5S&quot;</span>       <span class="c1"># 1 Hour, 30 minutes, and 25.5 seconds</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="s2">"P0D"</span>                <span class="c1"># 0 days</span>
+<span class="s2">"P1D"</span>                <span class="c1"># 1 Day</span>
+<span class="s2">"PT1H30S"</span>            <span class="c1"># 1 Hour and 30 minutes</span>
+<span class="s2">"PT1.5H"</span>             <span class="c1"># 1 Hour and 30 minutes</span>
+<span class="s2">"-PT1M30S"</span>           <span class="c1"># -90 seconds</span>
+<span class="s2">"PT1H30M25.5S"</span>       <span class="c1"># 1 Hour, 30 minutes, and 25.5 seconds</span>
 </pre></div>
 </div>
 <p>While msgspec will decode duration strings making use of the <code class="docutils literal notranslate"><span class="pre">H</span></code> (hour) or
@@ -734,32 +734,32 @@ libraries, as well as similar ones in other language ecosystems.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">123</span><span class="p">))</span>
-<span class="go">b&#39;&quot;PT123S&quot;&#39;</span>
+<span class="go">b'"PT123S"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">microseconds</span><span class="o">=</span><span class="mi">123</span><span class="p">))</span>
-<span class="go">b&#39;&quot;P1DT30.000123S&quot;&#39;</span>
+<span class="go">b'"P1DT30.000123S"'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;PT123S&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"PT123S"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
 <span class="go">datetime.timedelta(seconds=123)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;PT1.5M&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"PT1.5M"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
 <span class="go">datetime.timedelta(seconds=90)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid ISO8601 duration</span>
 </pre></div>
 </div>
 <p>Additionally, if <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, all protocols will decode ints,
 floats, or strings containing ints/floats as timedeltas, interpreting the value
 as total seconds. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.4&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123.4"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `duration`, got `float`</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.4&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123.4"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">datetime.timedelta(seconds=123, microseconds=400000)</span>
 </pre></div>
 </div>
@@ -771,17 +771,17 @@ protocols by default. Subclasses of <a class="reference external" href="https://
 only.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">(</span><span class="s2">&quot;c4524ac0-e81e-4aa8-a595-0aec605a659a&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">(</span><span class="s2">"c4524ac0-e81e-4aa8-a595-0aec605a659a"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
-<span class="go">b&#39;&quot;c4524ac0-e81e-4aa8-a595-0aec605a659a&quot;&#39;</span>
+<span class="go">b'"c4524ac0-e81e-4aa8-a595-0aec605a659a"'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;c4524ac0-e81e-4aa8-a595-0aec605a659a&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
-<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"c4524ac0-e81e-4aa8-a595-0aec605a659a"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
+<span class="go">UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-<span class="w">    </span><span class="n">File</span> <span class="s2">&quot;&lt;stdin&gt;&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="n">File</span> <span class="s2">"&lt;stdin&gt;"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid UUID</span>
 </pre></div>
 </div>
@@ -797,22 +797,22 @@ The format may be selected by passing it to <code class="docutils literal notran
 by the MessagePack encoder.</p></li>
 </ul>
 <p>When decoding, any of the above formats are accepted.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">&quot;hex&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">"hex"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_hex</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_hex</span>
-<span class="go">b&#39;&quot;c4524ac0e81e4aa8a5950aec605a659a&quot;&#39;</span>
+<span class="go">b'"c4524ac0e81e4aa8a5950aec605a659a"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">uuid_hex</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
-<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
+<span class="go">UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">&quot;bytes&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">"bytes"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_bytes</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">uuid_bytes</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
-<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
+<span class="go">UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')</span>
 </pre></div>
 </div>
 </section>
@@ -823,28 +823,28 @@ protocols by default. This ensures no precision loss during serialization, as
 would happen with a float representation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">decimal</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">&quot;1.2345&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"1.2345"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;&quot;1.2345&quot;&#39;</span>
+<span class="go">b'"1.2345"'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
-<span class="go">Decimal(&#39;1.2345&#39;)</span>
+<span class="go">Decimal('1.2345')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-<span class="w">    </span><span class="n">File</span> <span class="s2">&quot;&lt;stdin&gt;&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="n">File</span> <span class="s2">"&lt;stdin&gt;"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid decimal string</span>
 </pre></div>
 </div>
 <p>For JSON and MessagePack you may instead encode decimal values the same as
 numbers by creating a <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> and specifying <code class="docutils literal notranslate"><span class="pre">decimal_format='number'</span></code>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">decimal_format</span><span class="o">=</span><span class="s2">&quot;number&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">decimal_format</span><span class="o">=</span><span class="s2">"number"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-<span class="go">b&#39;1.2345&#39;</span>
+<span class="go">b'1.2345'</span>
 </pre></div>
 </div>
 <p>For JSON and MessagePack you may also pass a callable to <code class="docutils literal notranslate"><span class="pre">decimal_format</span></code> to
@@ -860,10 +860,10 @@ decimal values before encoding.</p>
 <span class="gp">... </span>    <span class="n">currency</span><span class="p">:</span> <span class="nb">str</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">decimal_format</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">quantize</span><span class="p">(</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">&quot;0.01&quot;</span><span class="p">)))</span>
+<span class="gp">... </span>    <span class="n">decimal_format</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">quantize</span><span class="p">(</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"0.01"</span><span class="p">)))</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Price</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">&quot;10.123456&quot;</span><span class="p">),</span> <span class="n">currency</span><span class="o">=</span><span class="s2">&quot;USD&quot;</span><span class="p">))</span>
-<span class="go">b&#39;{&quot;amount&quot;:&quot;10.12&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Price</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"10.123456"</span><span class="p">),</span> <span class="n">currency</span><span class="o">=</span><span class="s2">"USD"</span><span class="p">))</span>
+<span class="go">b'{"amount":"10.12","currency":"USD"}'</span>
 </pre></div>
 </div>
 <div class="admonition warning">
@@ -880,14 +880,14 @@ important for you please <a class="reference external" href="https://github.com/
 <p>All protocols will also decode <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values from <code class="docutils literal notranslate"><span class="pre">int</span></code> or
 <code class="docutils literal notranslate"><span class="pre">float</span></code> inputs. For JSON the value is parsed directly from the serialized
 bytes, avoiding any precision loss:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1.3&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
-<span class="go">Decimal(&#39;1.3&#39;)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1.3"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+<span class="go">Decimal('1.3')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1.300&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
-<span class="go">Decimal(&#39;1.300&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1.300"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+<span class="go">Decimal('1.300')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;0.1234567891234567811&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
-<span class="go">Decimal(&#39;0.1234567891234567811&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"0.1234567891234567811"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+<span class="go">Decimal('0.1234567891234567811')</span>
 </pre></div>
 </div>
 <p>Other protocols will coerce float inputs to the shortest decimal value that
@@ -895,14 +895,14 @@ roundtrips back to the corresponding IEEE754 float representation (this is
 effectively equivalent to <code class="docutils literal notranslate"><span class="pre">decimal.Decimal(str(float_val))</span></code>). This may result
 in precision loss for some inputs! In general we recommend avoiding parsing
 <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values from anything but strings.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1.3&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
-<span class="go">Decimal(&#39;1.3&#39;)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1.3"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+<span class="go">Decimal('1.3')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1.300&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>  <span class="c1"># trailing 0s truncated!</span>
-<span class="go">Decimal(&#39;1.3&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"1.300"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>  <span class="c1"># trailing 0s truncated!</span>
+<span class="go">Decimal('1.3')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;0.1234567891234567811&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>  <span class="c1"># precision loss!</span>
-<span class="go">Decimal(&#39;0.12345678912345678&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">yaml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"0.1234567891234567811"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>  <span class="c1"># precision loss!</span>
+<span class="go">Decimal('0.12345678912345678')</span>
 </pre></div>
 </div>
 </section>
@@ -915,22 +915,22 @@ provided).</p>
 a <code class="docutils literal notranslate"><span class="pre">list</span></code> subclass you’ll need to implement a <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> (see
 <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
-<span class="go">b&#39;[1,2,3]&#39;</span>
+<span class="go">b'[1,2,3]'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">})</span>
-<span class="go">b&#39;[1,2,3]&#39;</span>
+<span class="go">b'[1,2,3]'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1,2,3]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1,2,3]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
 <span class="go">{1, 2, 3}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode as a set of ints</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, 3]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, 3]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="go">{1, 2, 3}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, all elements should be ints</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;oops&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, "oops"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
@@ -955,18 +955,18 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ben</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="s2">&quot;ben&quot;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ben</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="s2">"ben"</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ben</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
-<span class="go">Person(name=&#39;ben&#39;, age=25)</span>
+<span class="go">Person(name='ben', age=25)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;[&quot;chad&quot;, &quot;twenty&quot;]&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'["chad", "twenty"]'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[1]`</span>
 </pre></div>
 </div>
@@ -982,7 +982,7 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="go">os.stat_result(st_mode=33261, st_ino=5396073, st_dev=105, st_nlink=1, st_uid=0, st_gid=0, st_size=18440, st_atime=1760547094, st_mtime=1760547094, st_ctime=1760907672)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-<span class="go">b&#39;[33261,5396073,105,1,0,0,18440,1760547094,1760547094,1760907672]&#39;</span>
+<span class="go">b'[33261,5396073,105,1,0,0,18440,1760547094,1760547094,1760907672]'</span>
 </pre></div>
 </div>
 </section>
@@ -997,17 +997,17 @@ example <a class="reference external" href="https://docs.python.org/3/library/st
 …). MessagePack and YAML support any hashable for the key type.</p>
 <p>An error is raised during decoding if the keys or values don’t match their
 respective types (if specified).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">b'{"x":1,"y":2}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode as a Dict of str -&gt; int</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
-<span class="go">{&quot;x&quot;: 1, &quot;y&quot;: 2}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x":1,"y":2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="go">{"x": 1, "y": 2}</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, there&#39;s a mistyped value</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;:1,&quot;y&quot;:&quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, there's a mistyped value</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x":1,"y":"oops"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[...]`</span>
 </pre></div>
 </div>
@@ -1034,18 +1034,18 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ben</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;ben&quot;</span><span class="p">,</span> <span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ben</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"ben"</span><span class="p">,</span> <span class="s2">"age"</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ben</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
-<span class="go">{&#39;name&#39;: &#39;ben&#39;, &#39;age&#39;: 25}</span>
+<span class="go">{'name': 'ben', 'age': 25}</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;chad&quot;, &quot;age&quot;: &quot;twenty&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"name": "chad", "age": "twenty"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
 </pre></div>
 </div>
@@ -1068,18 +1068,18 @@ additional features.</p>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">carol</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;carol&quot;</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">carol</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"carol"</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">carol</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
-<span class="go">Person(name=&#39;carol&#39;, age=32)</span>
+<span class="go">Person(name='carol', age=32)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;doug&quot;, &quot;age&quot;: &quot;thirty&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"name": "doug", "age": "thirty"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
 </pre></div>
 </div>
@@ -1092,16 +1092,16 @@ additional features.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="nd">@dataclass</span>
 <span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">:</span>
 <span class="gp">... </span>    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
-<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;John Doe&#39;</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'John Doe'</span>
 <span class="gp">... </span>    <span class="n">signup_ts</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">&#39;42&#39;</span><span class="p">,</span> <span class="n">signup_ts</span><span class="o">=</span><span class="s1">&#39;2032-06-21T12:00&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">'42'</span><span class="p">,</span> <span class="n">signup_ts</span><span class="o">=</span><span class="s1">'2032-06-21T12:00'</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">user</span>
-<span class="go">User(id=42, name=&#39;John Doe&#39;, signup_ts=datetime.datetime(2032, 6, 21, 12, 0))</span>
+<span class="go">User(id=42, name='John Doe', signup_ts=datetime.datetime(2032, 6, 21, 12, 0))</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;id&quot;:42,&quot;name&quot;:&quot;John Doe&quot;,&quot;signup_ts&quot;:&quot;2032-06-21T12:00:00&quot;}&#39;</span>
+<span class="go">b'{"id":42,"name":"John Doe","signup_ts":"2032-06-21T12:00:00"}'</span>
 </pre></div>
 </div>
 </section>
@@ -1128,18 +1128,18 @@ additional features.</p>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">carol</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;carol&quot;</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">carol</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"carol"</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">carol</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
-<span class="go">Person(name=&#39;carol&#39;, age=32)</span>
+<span class="go">Person(name='carol', age=32)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;doug&quot;, &quot;age&quot;: &quot;thirty&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"name": "doug", "age": "thirty"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
 </pre></div>
 </div>
@@ -1162,32 +1162,32 @@ match or if any required fields are missing.</p>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;,&quot;groups&quot;:[&quot;admin&quot;,&quot;engineering&quot;],&quot;email&quot;:null}&#39;</span>
+<span class="go">b'{"name":"alice","groups":["admin","engineering"],"email":null}'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"""</span>
 <span class="gp">... </span><span class="s2">{</span>
-<span class="gp">... </span><span class="s2">    &quot;name&quot;: &quot;bob&quot;,</span>
-<span class="gp">... </span><span class="s2">    &quot;email&quot;: &quot;bob@company.com&quot;,</span>
-<span class="gp">... </span><span class="s2">    &quot;unknown_field&quot;: [1, 2, 3]</span>
+<span class="gp">... </span><span class="s2">    "name": "bob",</span>
+<span class="gp">... </span><span class="s2">    "email": "bob@company.com",</span>
+<span class="gp">... </span><span class="s2">    "unknown_field": [1, 2, 3]</span>
 <span class="gp">... </span><span class="s2">}</span>
-<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="s2">"""</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name=&#39;bob&#39;, groups=[], email=&quot;bob@company.com&quot;)</span>
+<span class="go">User(name='bob', groups=[], email="bob@company.com")</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"""</span>
 <span class="gp">... </span><span class="s2">{</span>
-<span class="gp">... </span><span class="s2">    &quot;name&quot;: &quot;bob&quot;,</span>
-<span class="gp">... </span><span class="s2">    &quot;groups&quot;: [&quot;engineering&quot;, 123]</span>
+<span class="gp">... </span><span class="s2">    "name": "bob",</span>
+<span class="gp">... </span><span class="s2">    "groups": ["engineering", 123]</span>
 <span class="gp">... </span><span class="s2">}</span>
-<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="s2">"""</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
 </pre></div>
 </div>
@@ -1203,20 +1203,20 @@ Type checking also still applies.</p>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b&#39;[&quot;alice&quot;,[&quot;admin&quot;,&quot;engineering&quot;],null]&#39;</span>
+<span class="go">b'["alice",["admin","engineering"],null]'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;bob&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name=&quot;bob&quot;, groups=[], email=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["bob"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="go">User(name="bob", groups=[], email=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;carol&quot;, [&quot;admin&quot;], null, [&quot;extra&quot;, &quot;field&quot;]]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name=&quot;carol&quot;, groups=[&quot;admin&quot;], email=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["carol", ["admin"], null, ["extra", "field"]]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="go">User(name="carol", groups=["admin"], email=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;david&quot;, [&quot;finance&quot;, 123]]&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["david", ["finance", 123]]'</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$[1][1]`</span>
 </pre></div>
 </div>
@@ -1236,28 +1236,28 @@ message where a field is missing and a message where the field is explicitly
 </div>
 <p>During encoding, any field containing <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> is omitted from the message.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>  <span class="c1"># y is UNSET</span>
-<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+<span class="go">b'{"x":1}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">UNSET</span><span class="p">))</span>  <span class="c1"># y is UNSET</span>
-<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+<span class="go">b'{"x":1}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>  <span class="c1"># y is None</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:null}&#39;</span>
+<span class="go">b'{"x":1,"y":null}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>  <span class="c1"># y is 2</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+<span class="go">b'{"x":1,"y":2}'</span>
 </pre></div>
 </div>
 <p>During decoding, if a field isn’t explicitly set in the message, the default
 value of <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> will be set instead. This lets downstream consumers
 determine whether a field was left unset, or explicitly set to <code class="docutils literal notranslate"><span class="pre">None</span></code></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y defaults to UNSET</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y defaults to UNSET</span>
 <span class="go">Example(x=1, y=UNSET)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: null}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is None</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": null}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is None</span>
 <span class="go">Example(x=1, y=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is 2</span>
 <span class="go">Example(x=1, y=2)</span>
 </pre></div>
 </div>
@@ -1281,19 +1281,19 @@ doesn’t match any valid member.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">&quot;apple&quot;</span>
-<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">&quot;banana&quot;</span>
+<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">"apple"</span>
+<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">"banana"</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Fruit</span><span class="o">.</span><span class="n">APPLE</span><span class="p">)</span>
-<span class="go">b&#39;&quot;apple&quot;&#39;</span>
+<span class="go">b'"apple"'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;apple&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="go">&lt;Fruit.APPLE: &#39;apple&#39;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"apple"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="go">&lt;Fruit.APPLE: 'apple'&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;grape&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"grape"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value &#39;grape&#39;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 'grape'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">JobState</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">CREATED</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1302,14 +1302,14 @@ doesn’t match any valid member.</p>
 <span class="gp">... </span>    <span class="n">FAILED</span> <span class="o">=</span> <span class="mi">3</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">JobState</span><span class="o">.</span><span class="n">RUNNING</span><span class="p">)</span>
-<span class="go">b&#39;1&#39;</span>
+<span class="go">b'1'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;2&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'2'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
 <span class="go">&lt;JobState.SUCCEEDED: 2&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'4'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
 </pre></div>
 </div>
@@ -1320,27 +1320,27 @@ this is supporting case-insensitive enums:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">&quot;apple&quot;</span>
-<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">&quot;banana&quot;</span>
+<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">"apple"</span>
+<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">"banana"</span>
 <span class="gp">...</span>
 <span class="gp">... </span>    <span class="nd">@classmethod</span>
 <span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="nf">_missing_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Called to handle missing enum values&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">        </span><span class="sd">"""Called to handle missing enum values"""</span>
 <span class="gp">... </span>        <span class="c1"># Normalize value to lowercase</span>
 <span class="gp">... </span>        <span class="n">value</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 <span class="gp">... </span>        <span class="c1"># Return valid enum value, or None if invalid</span>
 <span class="gp">... </span>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_value2member_map_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;apple&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="go">&lt;Fruit.APPLE: &quot;apple&quot;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"apple"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="go">&lt;Fruit.APPLE: "apple"&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;ApPlE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="go">&lt;Fruit.APPLE: &quot;apple&quot;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"ApPlE"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="go">&lt;Fruit.APPLE: "apple"&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;grape&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"grape"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value &#39;grape&#39;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 'grape'</span>
 </pre></div>
 </div>
 </section>
@@ -1362,26 +1362,26 @@ purpose, but with a <a class="reference external" href="https://docs.python.org/
 values, or doesn’t match any of their component types.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="go">1</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;one&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;one&quot;</span><span class="p">,</span> <span class="s2">&quot;two&quot;</span><span class="p">,</span> <span class="s2">&quot;three&quot;</span><span class="p">])</span>
-<span class="go">&#39;one&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"one"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="s2">"one"</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">,</span> <span class="s2">"three"</span><span class="p">])</span>
+<span class="go">'one'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'4'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;bad&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"bad"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str`</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="kc">True</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'true'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="kc">True</span><span class="p">])</span>
 <span class="go">True</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;false&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'false'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">])</span>
 <span class="go">False</span>
 </pre></div>
 </div>
@@ -1392,17 +1392,17 @@ values, or doesn’t match any of their component types.</p>
 support here is purely to aid static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewType</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">UserId</span> <span class="o">=</span> <span class="n">NewType</span><span class="p">(</span><span class="s2">&quot;UserId&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">UserId</span> <span class="o">=</span> <span class="n">NewType</span><span class="p">(</span><span class="s2">"UserId"</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">UserId</span><span class="p">(</span><span class="mi">1234</span><span class="p">))</span>
-<span class="go">b&#39;1234&#39;</span>
+<span class="go">b'1234'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1234&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1234'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
 <span class="go">1234</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str`</span>
 </pre></div>
 </div>
@@ -1424,7 +1424,7 @@ is used in an annotation.</p>
 <span class="c1"># Using variable assignment, annotated as a `TypeAlias`</span>
 <span class="n">Point</span><span class="p">:</span> <span class="n">TypeAlias</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
 
-<span class="c1"># Using Python 3.12&#39;s new `type` statement. This only works on Python 3.12+</span>
+<span class="c1"># Using Python 3.12's new `type` statement. This only works on Python 3.12+</span>
 <span class="nb">type</span> <span class="n">Point</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
 </pre></div>
 </div>
@@ -1456,10 +1456,10 @@ extra pagination information in an API response.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generic</span><span class="p">,</span> <span class="n">TypeVar</span>
 
 <span class="c1"># A type variable for the item type</span>
-<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;T&quot;</span><span class="p">)</span>
+<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">"T"</span><span class="p">)</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Paginated</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">Generic</span><span class="p">[</span><span class="n">T</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A generic paginated API wrapper, parametrized by the item type.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""A generic paginated API wrapper, parametrized by the item type."""</span>
     <span class="n">page</span><span class="p">:</span> <span class="nb">int</span>        <span class="c1"># The current page number</span>
     <span class="n">per_page</span><span class="p">:</span> <span class="nb">int</span>    <span class="c1"># Number of items per page</span>
     <span class="n">total</span><span class="p">:</span> <span class="nb">int</span>       <span class="c1"># The total number of items found</span>
@@ -1473,24 +1473,24 @@ generic type, the parametrized types are substituted for the type variables.</p>
 <p>Here we define a <code class="docutils literal notranslate"><span class="pre">User</span></code> type, then use it to decode a paginated API response
 containing a list of users:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A user model&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""A user model"""</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
-<span class="n">json_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="n">json_str</span> <span class="o">=</span> <span class="s2">"""</span>
 <span class="s2">{</span>
-<span class="s2">    &quot;page&quot;: 1,</span>
-<span class="s2">    &quot;per_page&quot;: 5,</span>
-<span class="s2">    &quot;total&quot;: 252,</span>
-<span class="s2">    &quot;items&quot;: [</span>
-<span class="s2">        {&quot;name&quot;: &quot;alice&quot;, &quot;groups&quot;: [&quot;admin&quot;]},</span>
-<span class="s2">        {&quot;name&quot;: &quot;ben&quot;},</span>
-<span class="s2">        {&quot;name&quot;: &quot;carol&quot;, &quot;groups&quot;: [&quot;engineering&quot;]},</span>
-<span class="s2">        {&quot;name&quot;: &quot;dan&quot;, &quot;groups&quot;: [&quot;hr&quot;]},</span>
-<span class="s2">        {&quot;name&quot;: &quot;ellen&quot;, &quot;groups&quot;: [&quot;engineering&quot;]}</span>
+<span class="s2">    "page": 1,</span>
+<span class="s2">    "per_page": 5,</span>
+<span class="s2">    "total": 252,</span>
+<span class="s2">    "items": [</span>
+<span class="s2">        {"name": "alice", "groups": ["admin"]},</span>
+<span class="s2">        {"name": "ben"},</span>
+<span class="s2">        {"name": "carol", "groups": ["engineering"]},</span>
+<span class="s2">        {"name": "dan", "groups": ["hr"]},</span>
+<span class="s2">        {"name": "ellen", "groups": ["engineering"]}</span>
 <span class="s2">    ]</span>
 <span class="s2">}</span>
-<span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">"""</span>
 
 <span class="c1"># Decode a paginated response containing a list of users</span>
 <span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">json_str</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Paginated</span><span class="p">[</span><span class="n">User</span><span class="p">])</span>
@@ -1498,11 +1498,11 @@ containing a list of users:</p>
 <span class="c1">#&gt; Paginated(</span>
 <span class="c1">#&gt;     page=1, per_page=5, total=252,</span>
 <span class="c1">#&gt;     items=[</span>
-<span class="c1">#&gt;         User(name=&#39;alice&#39;, groups=[&#39;admin&#39;]),</span>
-<span class="c1">#&gt;         User(name=&#39;ben&#39;, groups=[]),</span>
-<span class="c1">#&gt;         User(name=&#39;carol&#39;, groups=[&#39;engineering&#39;]),</span>
-<span class="c1">#&gt;         User(name=&#39;dan&#39;, groups=[&#39;hr&#39;]),</span>
-<span class="c1">#&gt;         User(name=&#39;ellen&#39;, groups=[&#39;engineering&#39;])</span>
+<span class="c1">#&gt;         User(name='alice', groups=['admin']),</span>
+<span class="c1">#&gt;         User(name='ben', groups=[]),</span>
+<span class="c1">#&gt;         User(name='carol', groups=['engineering']),</span>
+<span class="c1">#&gt;         User(name='dan', groups=['hr']),</span>
+<span class="c1">#&gt;         User(name='ellen', groups=['engineering'])</span>
 <span class="c1">#&gt;     ]</span>
 <span class="c1">#&gt; )</span>
 </pre></div>
@@ -1524,12 +1524,12 @@ type.</p>
 <p>However, if an unparametrized type variable has a <code class="docutils literal notranslate"><span class="pre">bound</span></code> (<a class="reference external" href="https://peps.python.org/pep-0484/#type-variables-with-an-upper-bound">docs</a>),
 then the bound type will be used instead.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
-<span class="n">S</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;S&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Sequence</span><span class="p">)</span>  <span class="c1"># Can be any sequence type</span>
+<span class="n">S</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">"S"</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Sequence</span><span class="p">)</span>  <span class="c1"># Can be any sequence type</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">Generic</span><span class="p">[</span><span class="n">S</span><span class="p">]):</span>
     <span class="n">value</span><span class="p">:</span> <span class="n">S</span>
 
-<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;value&quot;: [1, 2, 3]}&#39;</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"value": [1, 2, 3]}'</span>
 
 <span class="c1"># These are equivalent.</span>
 <span class="c1"># The unparametrized version substitutes in `Sequence` for `S`</span>
@@ -1561,12 +1561,12 @@ instances of their most common concrete type.</p>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">MutableMapping</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
-<span class="go">{&quot;x&quot;: 1}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="go">{"x": 1}</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: &quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": "oops"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[...]`</span>
 </pre></div>
 </div>
@@ -1598,18 +1598,18 @@ multiple struct types are only supported through <a class="reference internal" h
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># A decoder expecting either an int, a str, or a list of strings</span>
 <span class="gp">... </span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">)</span>
 <span class="go">1</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;two&quot;&#39;</span><span class="p">)</span>
-<span class="go">&quot;two&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"two"'</span><span class="p">)</span>
+<span class="go">"two"</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;three&quot;, &quot;four&quot;]&#39;</span><span class="p">)</span>
-<span class="go">[&quot;three&quot;, &quot;four&quot;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["three", "four"]'</span><span class="p">)</span>
+<span class="go">["three", "four"]</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;false&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'false'</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int | str | array`, got `bool`</span>
 </pre></div>
 </div>
@@ -1627,15 +1627,15 @@ message).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a new `Raw` object wrapping a pre-encoded message</span>
-<span class="gp">... </span><span class="n">fragment</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">fragment</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2}'</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Compose a larger message containing the pre-encoded fragment</span>
-<span class="gp">... </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="n">fragment</span><span class="p">}</span>
+<span class="gp">... </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="n">fragment</span><span class="p">}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># During encoding, the raw message is efficiently copied into</span>
 <span class="gp">... </span><span class="c1"># the output buffer, avoiding any extra encoding cost</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;a&quot;:1,&quot;b&quot;:{&quot;x&quot;: 1, &quot;y&quot;: 2}}&#39;</span>
+<span class="go">b'{"a":1,"b":{"x": 1, "y": 2}}'</span>
 </pre></div>
 </div>
 <p><strong>2. Delaying decoding of part of a message</strong></p>
@@ -1666,7 +1666,7 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="gp">... </span>    <span class="n">point</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span>  <span class="c1"># use msgspec.Raw to delay decoding the point field</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">decode_point</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Point1D</span> <span class="o">|</span> <span class="n">Point2D</span> <span class="o">|</span> <span class="n">Point3D</span><span class="p">:</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A function for efficiently decoding the `point` field&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""A function for efficiently decoding the `point` field"""</span>
 <span class="gp">... </span>    <span class="c1"># First decode the outer `Model` struct. Decoding of the `point`</span>
 <span class="gp">... </span>    <span class="c1"># field is delayed, with the composite bytes stored as a `Raw` object</span>
 <span class="gp">... </span>    <span class="c1"># on `point`.</span>
@@ -1681,17 +1681,17 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="gp">... </span>    <span class="k">elif</span> <span class="n">model</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
 <span class="gp">... </span>        <span class="n">point_type</span> <span class="o">=</span> <span class="n">Point3D</span>
 <span class="gp">... </span>    <span class="k">else</span><span class="p">:</span>
-<span class="gp">... </span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too many dimensions!&quot;</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Too many dimensions!"</span><span class="p">)</span>
 <span class="gp">...</span>
 <span class="gp">... </span>    <span class="c1"># Now that we know the type of `point`, we can finish decoding it.</span>
 <span class="gp">... </span>    <span class="c1"># Note that `Raw` objects are buffer-like, and can be passed</span>
 <span class="gp">... </span>    <span class="c1"># directly to the `decode` method.</span>
 <span class="gp">... </span>    <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">point</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">point_type</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;dimensions&quot;: 2, &quot;point&quot;: {&quot;x&quot;: 1, &quot;y&quot;: 2}}&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 2, "point": {"x": 1, "y": 2}}'</span><span class="p">)</span>
 <span class="go">Point2D(x=1, y=2)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;dimensions&quot;: 3, &quot;point&quot;: {&quot;x&quot;: 1, &quot;y&quot;: 2, &quot;z&quot;: 3}}&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}'</span><span class="p">)</span>
 <span class="go">Point3D(x=1, y=2, z=3)</span>
 </pre></div>
 </div>

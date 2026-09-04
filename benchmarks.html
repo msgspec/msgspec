@@ -340,12 +340,12 @@ into user-friendly python objects.</p></li>
 <span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Permissions</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-    <span class="n">READ</span> <span class="o">=</span> <span class="s2">&quot;READ&quot;</span>
-    <span class="n">WRITE</span> <span class="o">=</span> <span class="s2">&quot;WRITE&quot;</span>
-    <span class="n">READ_WRITE</span> <span class="o">=</span> <span class="s2">&quot;READ_WRITE&quot;</span>
+    <span class="n">READ</span> <span class="o">=</span> <span class="s2">"READ"</span>
+    <span class="n">WRITE</span> <span class="o">=</span> <span class="s2">"WRITE"</span>
+    <span class="n">READ_WRITE</span> <span class="o">=</span> <span class="s2">"READ_WRITE"</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">File</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">File</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">"file"</span><span class="p">):</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
@@ -355,7 +355,7 @@ into user-friendly python objects.</p></li>
     <span class="n">permissions</span><span class="p">:</span> <span class="n">Permissions</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Directory</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;directory&quot;</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Directory</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">"directory"</span><span class="p">):</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>

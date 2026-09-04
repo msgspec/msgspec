@@ -339,13 +339,13 @@ done:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Before (orjson)</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">orjson</span>
 
-<span class="n">data</span> <span class="o">=</span> <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
 <span class="n">obj</span> <span class="o">=</span> <span class="n">orjson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
 <span class="c1"># After (msgspec)</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="n">data</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
 <span class="n">obj</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -363,10 +363,10 @@ getting a plain <code class="docutils literal notranslate"><span class="pre">dic
     <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
     <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="n">data</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;Alice&quot;, &quot;age&quot;: 30}&#39;</span>
+<span class="n">data</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"name": "Alice", "age": 30}'</span>
 <span class="n">user</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 
-<span class="nb">print</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># &quot;Alice&quot;</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># "Alice"</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">age</span><span class="p">)</span>   <span class="c1"># 30</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">email</span><span class="p">)</span>  <span class="c1"># None</span>
 </pre></div>
@@ -399,10 +399,10 @@ is more efficient:</p>
 <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="n">orjson</span><span class="o">.</span><span class="n">OPT_SORT_KEYS</span><span class="p">)</span>
 
 <span class="c1"># msgspec</span>
-<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;sorted&quot;</span><span class="p">)</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">"sorted"</span><span class="p">)</span>
 
 <span class="c1"># Or with an Encoder</span>
-<span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;sorted&quot;</span><span class="p">)</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">"sorted"</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also supports <code class="docutils literal notranslate"><span class="pre">order=&quot;deterministic&quot;</span></code> which provides a
@@ -427,7 +427,7 @@ not just <code class="docutils literal notranslate"><span class="pre">msgspec</s
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># orjson</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">default</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;real&quot;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="s2">&quot;imag&quot;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"real"</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="s2">"imag"</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">}</span>
     <span class="k">raise</span> <span class="ne">TypeError</span>
 
 <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">default</span><span class="p">)</span>
@@ -435,7 +435,7 @@ not just <code class="docutils literal notranslate"><span class="pre">msgspec</s
 <span class="c1"># msgspec</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;real&quot;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="s2">&quot;imag&quot;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"real"</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="s2">"imag"</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">}</span>
     <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
 <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
@@ -451,7 +451,7 @@ unhandled types, while <code class="docutils literal notranslate"><span class="p
 <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="n">orjson</span><span class="o">.</span><span class="n">OPT_APPEND_NEWLINE</span><span class="p">)</span>
 
 <span class="c1"># msgspec -- no built-in flag, just append manually</span>
-<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span>
 </pre></div>
 </div>
 </section>
@@ -463,13 +463,13 @@ timezone info):</p>
 
 <span class="n">dt</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
-<span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>           <span class="c1"># b&#39;&quot;2024-01-01T12:00:00&quot;&#39;</span>
-<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>    <span class="c1"># b&#39;&quot;2024-01-01T12:00:00&quot;&#39;</span>
+<span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>           <span class="c1"># b'"2024-01-01T12:00:00"'</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>    <span class="c1"># b'"2024-01-01T12:00:00"'</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> has <code class="docutils literal notranslate"><span class="pre">OPT_NAIVE_UTC</span></code> to force treating naive datetimes as UTC:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="n">orjson</span><span class="o">.</span><span class="n">OPT_NAIVE_UTC</span><span class="p">)</span>
-<span class="c1"># b&#39;&quot;2024-01-01T12:00:00+00:00&quot;&#39;</span>
+<span class="c1"># b'"2024-01-01T12:00:00+00:00"'</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> has no equivalent flag. Convert before encoding instead:</p>
@@ -508,10 +508,10 @@ before passing to <code class="docutils literal notranslate"><span class="pre">e
 <section id="pre-serialized-json-fragments">
 <h3>Pre-serialized JSON fragments<a class="headerlink" href="#pre-serialized-json-fragments" title="Link to this heading">¶</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># orjson</span>
-<span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;key&quot;</span><span class="p">:</span> <span class="n">orjson</span><span class="o">.</span><span class="n">Fragment</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;already&quot;:&quot;json&quot;}&#39;</span><span class="p">)})</span>
+<span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"key"</span><span class="p">:</span> <span class="n">orjson</span><span class="o">.</span><span class="n">Fragment</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"already":"json"}'</span><span class="p">)})</span>
 
 <span class="c1"># msgspec</span>
-<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;key&quot;</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;already&quot;:&quot;json&quot;}&#39;</span><span class="p">)})</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"key"</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"already":"json"}'</span><span class="p">)})</span>
 </pre></div>
 </div>
 </section>
@@ -524,8 +524,8 @@ configurable output formats:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">uuid4</span>
 
 <span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span>
-    <span class="n">decimal_format</span><span class="o">=</span><span class="s2">&quot;number&quot;</span><span class="p">,</span>     <span class="c1"># or &quot;string&quot; (default)</span>
-    <span class="n">uuid_format</span><span class="o">=</span><span class="s2">&quot;hex&quot;</span><span class="p">,</span>           <span class="c1"># or &quot;canonical&quot; (default)</span>
+    <span class="n">decimal_format</span><span class="o">=</span><span class="s2">"number"</span><span class="p">,</span>     <span class="c1"># or "string" (default)</span>
+    <span class="n">uuid_format</span><span class="o">=</span><span class="s2">"hex"</span><span class="p">,</span>           <span class="c1"># or "canonical" (default)</span>
 <span class="p">)</span>
 </pre></div>
 </div>

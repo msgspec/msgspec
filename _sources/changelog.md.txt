@@ -18,11 +18,18 @@
   `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
   {pr}`1023`, {pr}`1040`).
 - Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
+- Place `null` last in the `anyOf` generated for optional unions in JSON
+  schemas ({pr}`1028`).
+- Fix `msgspec.json.encode` raising `TypeError` for a `dict` keyed by a plain
+  `enum.Enum` with `str` values ({pr}`1118`).
 - Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
 - Ensure an exception is always set on allocation failures ({pr}`1044`).
 - Fix compilation warnings on Python 3.15 ({pr}`1077`).
+- Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
+  with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
-  {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1065`, {pr}`1074`, {pr}`1093`).
+  {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1065`, {pr}`1074`, {pr}`1093`,
+  {pr}`1114`).
 - Document the differences between `msgspec.structs.asdict`/`astuple` and
   `msgspec.to_builtins` ({pr}`1025`).
 - Document that `omit_defaults` ignores fields with a custom

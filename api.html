@@ -392,8 +392,8 @@ two required and one optional.</p>
 <span class="gp">... </span>    <span class="n">breed</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">is_good_boy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="gp">...</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">Dog</span><span class="p">(</span><span class="s1">&#39;snickers&#39;</span><span class="p">,</span> <span class="n">breed</span><span class="o">=</span><span class="s1">&#39;corgi&#39;</span><span class="p">)</span>
-<span class="go">Dog(name=&#39;snickers&#39;, breed=&#39;corgi&#39;, is_good_boy=True)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Dog</span><span class="p">(</span><span class="s1">'snickers'</span><span class="p">,</span> <span class="n">breed</span><span class="o">=</span><span class="s1">'corgi'</span><span class="p">)</span>
+<span class="go">Dog(name='snickers', breed='corgi', is_good_boy=True)</span>
 </pre></div>
 </div>
 <p>Additional struct options can be set as part of the class definition. Here
@@ -422,7 +422,7 @@ it to create a new <a class="reference internal" href="#msgspec.Struct" title="m
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">):</span>
-<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;kw_only&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"kw_only"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 <span class="gp">... </span>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">)</span>
 <span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStruct</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">KwOnlyStructMeta</span><span class="p">):</span> <span class="o">...</span>
@@ -435,7 +435,7 @@ default.</p>
 <span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
-<span class="go">Example(a=&#39;&#39;, b=123)</span>
+<span class="go">Example(a='', b=123)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -483,15 +483,15 @@ information.</p></li>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">defstruct</span><span class="p">,</span> <span class="n">field</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">User</span> <span class="o">=</span> <span class="n">defstruct</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="s1">&#39;User&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s1">'User'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="p">[</span>
-<span class="gp">... </span>        <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span>
-<span class="gp">... </span>        <span class="p">(</span><span class="s1">&#39;email&#39;</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-<span class="gp">... </span>        <span class="p">(</span><span class="s1">&#39;groups&#39;</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">)),</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="s1">'name'</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="s1">'email'</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="s1">'groups'</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">)),</span>
 <span class="gp">... </span>    <span class="p">],</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">User</span><span class="p">(</span><span class="s1">&#39;alice&#39;</span><span class="p">)</span>
-<span class="go">User(name=&#39;alice&#39;, email=None, groups=set())</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">User</span><span class="p">(</span><span class="s1">'alice'</span><span class="p">)</span>
+<span class="go">User(name='alice', email=None, groups=set())</span>
 </pre></div>
 </div>
 <div class="admonition seealso">
@@ -558,7 +558,7 @@ output is intended for serialization.</p>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">obj</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">structs</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
-<span class="go">{&#39;x&#39;: 1, &#39;y&#39;: 2}</span>
+<span class="go">{'x': 1, 'y': 2}</span>
 </pre></div>
 </div>
 <div class="admonition seealso">
@@ -746,8 +746,8 @@ to a maximum length of 32 characters.</p>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Meta</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">)]</span>
 <span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="n">NonNegativeInt</span>
 <span class="gp">...</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;alice&quot;, &quot;age&quot;: 25}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name=&#39;alice&#39;, age=25)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"name": "alice", "age": 25}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="go">User(name='alice', age=25)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -810,19 +810,19 @@ for any <a class="reference internal" href="#msgspec.Struct" title="msgspec.Stru
 </div>
 <p>During encoding, any field containing <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> is omitted from the message.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
-<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+<span class="go">b'{"x":1}'</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+<span class="go">b'{"x":1,"y":2}'</span>
 </pre></div>
 </div>
 <p>During decoding, if a field isn’t explicitly set in the message, the default
 value of <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> will be set instead. This lets downstream consumers
 determine whether a field was left unset, or explicitly set to <code class="docutils literal notranslate"><span class="pre">None</span></code></p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># unset</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># unset</span>
 <span class="go">Example(x=1, y=UNSET)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: null}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit null</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": null}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit null</span>
 <span class="go">Example(x=1, y=None)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit value</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit value</span>
 <span class="go">Example(x=1, y=2)</span>
 </pre></div>
 </div>
@@ -927,10 +927,10 @@ to start writing at the end of the buffer.</p></li>
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">items</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;alice&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;ben&quot;</span><span class="p">}]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">items</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"alice"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"ben"</span><span class="p">}]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode_lines</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;}\n{&quot;name&quot;:&quot;ben&quot;}\n&#39;</span>
+<span class="go">b'{"name":"alice"}\n{"name":"ben"}\n'</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -994,13 +994,13 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<span class="gp">... </span><span class="s2">{&quot;x&quot;: 1, &quot;y&quot;: 2}</span>
-<span class="gp">... </span><span class="s2">{&quot;x&quot;: 3, &quot;y&quot;: 4}</span>
-<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="gp">... </span><span class="s2">{"x": 1, "y": 2}</span>
+<span class="gp">... </span><span class="s2">{"x": 3, "y": 4}</span>
+<span class="gp">... </span><span class="s2">"""</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode_lines</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-<span class="go">[{&#39;x&#39;: 1, &#39;y&#39;: 2}, {&#39;x&#39;: 3, &#39;y&#39;: 4}]</span>
+<span class="go">[{'x': 1, 'y': 2}, {'x': 3, 'y': 4}]</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1590,12 +1590,12 @@ Default is False.</p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">bytes</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="s1">&#39;AQI=&#39;</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'x'</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="s1">'y'</span><span class="p">:</span> <span class="s1">'AQI='</span><span class="p">}</span>
 </pre></div>
 </div>
 <p>Construct the message from a simpler set of builtin types.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">Example</span><span class="p">)</span>
-<span class="go">Example({1, 2, 3}, b&#39;\x01\x02&#39;)</span>
+<span class="go">Example({1, 2, 3}, b'\x01\x02')</span>
 </pre></div>
 </div>
 <div class="admonition seealso">
@@ -1664,19 +1664,19 @@ slower than <code class="xref py py-obj docutils literal notranslate"><span clas
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">bytes</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">Example</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">},</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x01\x02</span><span class="s1">&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">Example</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">},</span> <span class="sa">b</span><span class="s1">'</span><span class="se">\x01\x02</span><span class="s1">'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Convert the message to a simpler set of builtin types. Note that by default
 all bytes-like objects are base64-encoded and converted to strings.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">to_builtins</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-<span class="go">{&#39;x&#39;: [1, 2, 3], &#39;y&#39;: &#39;AQI=&#39;}</span>
+<span class="go">{'x': [1, 2, 3], 'y': 'AQI='}</span>
 </pre></div>
 </div>
 <p>If the downstream code supports binary objects natively, you can
 disable conversion by passing in the types to <code class="docutils literal notranslate"><span class="pre">builtin_types</span></code>.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">to_builtins</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">builtin_types</span><span class="o">=</span><span class="p">(</span><span class="nb">bytes</span><span class="p">,</span> <span class="nb">bytearray</span><span class="p">,</span> <span class="nb">memoryview</span><span class="p">))</span>
-<span class="go">{&#39;x&#39;: [1, 2, 3], &#39;y&#39;: b&#39;\x01\x02&#39;}</span>
+<span class="go">{'x': [1, 2, 3], 'y': b'\x01\x02'}</span>
 </pre></div>
 </div>
 <div class="admonition seealso">

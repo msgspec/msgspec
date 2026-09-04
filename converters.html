@@ -346,16 +346,16 @@ could add support by wrapping the standard library’s <a class="reference exter
 <span class="gp">In [6]: </span><span class="n">msg</span> <span class="o">=</span> <span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># Encoding a high-level type works</span>
 
 <span class="gp">In [7]: </span><span class="n">msg</span>
-<span class="go">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span>
+<span class="go">'{"x": 1, "y": 2}'</span>
 
 <span class="gp">In [8]: </span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>  <span class="c1"># Decoding a high-level type works</span>
 <span class="go">Point(x=1, y=2)</span>
 
-<span class="gp">In [9]: </span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;{&quot;x&quot;: &quot;oops&quot;, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>  <span class="c1"># Schema mismatches error</span>
+<span class="gp">In [9]: </span><span class="n">decode</span><span class="p">(</span><span class="s1">'{"x": "oops", "y": 2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>  <span class="c1"># Schema mismatches error</span>
 <span class="gt">---------------------------------------------------------------------------</span>
 <span class="ne">ValidationError</span><span class="g g-Whitespace">                           </span>Traceback (most recent call last)
 <span class="n">Cell</span> <span class="n">In</span><span class="p">[</span><span class="mi">9</span><span class="p">],</span> <span class="n">line</span> <span class="mi">1</span>
-<span class="ne">----&gt; </span><span class="mi">1</span> <span class="n">decode</span><span class="p">(</span><span class="s1">&#39;{&quot;x&quot;: &quot;oops&quot;, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>  <span class="c1"># Schema mismatches error</span>
+<span class="ne">----&gt; </span><span class="mi">1</span> <span class="n">decode</span><span class="p">(</span><span class="s1">'{"x": "oops", "y": 2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>  <span class="c1"># Schema mismatches error</span>
 
 <span class="nn">Cell In[3], line 2,</span> in <span class="ni">decode</span><span class="nt">(msg, type)</span>
 <span class="g g-Whitespace">     </span><span class="mi">1</span> <span class="k">def</span><span class="w"> </span><span class="nf">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Any</span><span class="p">):</span>

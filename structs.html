@@ -321,7 +321,7 @@ required field and two optional fields.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct describing a user&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""A struct describing a user"""</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -345,18 +345,18 @@ annotations:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">__match_args__</span></code> (for Python 3.10+’s <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#the-match-statement">pattern matching</a>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">__rich_repr__</span></code> (for pretty printing support with <a class="reference external" href="https://rich.readthedocs.io/en/stable/pretty.html">rich</a>)</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
-<span class="go">User(name=&#39;alice&#39;, email=None, groups={&#39;admin&#39;, &#39;engineering&#39;})</span>
+<span class="go">User(name='alice', email=None, groups={'admin', 'engineering'})</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">&quot;bob@company.com&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"bob@company.com"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span>
-<span class="go">User(name=&#39;bob&#39;, email=&#39;bob@company.com&#39;, groups=set())</span>
+<span class="go">User(name='bob', email='bob@company.com', groups=set())</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span><span class="o">.</span><span class="n">name</span>
-<span class="go">&quot;alice&quot;</span>
+<span class="go">"alice"</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span><span class="o">.</span><span class="n">groups</span>
 <span class="go">set()</span>
@@ -364,7 +364,7 @@ annotations:</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">==</span> <span class="n">bob</span>
 <span class="go">False</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">==</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">==</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
 <span class="go">True</span>
 </pre></div>
 </div>
@@ -375,7 +375,7 @@ to customize the generated <code class="docutils literal notranslate"><span clas
 tuple of the fields in argument order ) if you need them. Here we add a method
 for converting a struct to a dict.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A point in 2D space&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""A point in 2D space"""</span>
 <span class="gp">... </span>    <span class="n">x</span> <span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span> <span class="p">:</span> <span class="nb">float</span>
 <span class="gp">...</span>
@@ -386,7 +386,7 @@ for converting a struct to a dict.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<span class="go">{&quot;x&quot;: 1.0, &quot;y&quot;: 2.0}</span>
+<span class="go">{"x": 1.0, "y": 2.0}</span>
 </pre></div>
 </div>
 <section id="default-values">
@@ -405,10 +405,10 @@ type annotation.</p>
 <span class="gp">... </span>    <span class="n">c</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span>
-<span class="go">Example(a=1, b=UUID(&#39;f63219d5-e9ca-4ae8-afd0-cba30e84222d&#39;), c=[])</span>
+<span class="go">Example(a=1, b=UUID('f63219d5-e9ca-4ae8-afd0-cba30e84222d'), c=[])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="go">Example(a=2, b=UUID(&#39;319a6c0f-2841-4439-8bc8-2c1daf7d77a2&#39;), c=[])</span>
+<span class="go">Example(a=2, b=UUID('319a6c0f-2841-4439-8bc8-2c1daf7d77a2'), c=[])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span><span class="o">.</span><span class="n">c</span> <span class="ow">is</span> <span class="n">Example</span><span class="p">()</span><span class="o">.</span><span class="n">c</span>  <span class="c1"># new list instance used each time</span>
 <span class="go">False</span>
@@ -464,26 +464,26 @@ with additional context. All other exceptions will be raised directly.</p>
 <span class="gp">...</span>
 <span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="gp">... </span>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">low</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">high</span><span class="p">:</span>
-<span class="gp">... </span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`low` may not be greater than `high`&quot;</span><span class="p">)</span>
+<span class="gp">... </span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"`low` may not be greater than `high`"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Interval</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># valid interval</span>
 <span class="go">Interval(low=1, high=2)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Interval</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># invalid interval</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
 <span class="gr">ValueError</span>: <span class="n">`low` may not be greater than `high`</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;low&quot;: 2, &quot;high&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Interval</span><span class="p">)</span>  <span class="c1"># invalid interval from JSON</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"low": 2, "high": 1}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Interval</span><span class="p">)</span>  <span class="c1"># invalid interval from JSON</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
 <span class="gr">ValueError</span>: <span class="n">`low` may not be greater than `high`</span>
 
 <span class="gt">The above exception was the direct cause of the following exception:</span>
 
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">`low` may not be greater than `high`</span>
 </pre></div>
 </div>
@@ -506,11 +506,11 @@ readability since the generated <code class="docutils literal notranslate"><span
 fields with defaults, since the Python VM doesn’t allow keyword arguments
 before positional arguments. The following struct definition will error:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Invalid</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 <span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># oop, no default!</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">TypeError</span>: <span class="n">Required field &#39;b&#39; cannot follow optional fields. Either reorder</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">TypeError</span>: <span class="n">Required field 'b' cannot follow optional fields. Either reorder</span>
 <span class="x">the struct fields, or set `kw_only=True` in the struct definition.</span>
 </pre></div>
 </div>
@@ -524,11 +524,11 @@ defined on the struct <a class="reference external" href="https://docs.python.or
 <p>Keyword-only parameters have no such restriction; required and optional
 parameters can be mixed in any order.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 <span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># this is fine with kw_only=True</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="s2">&quot;example&quot;</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
-<span class="go">Example(a=&#39;example&#39;, b=123)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="s2">"example"</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+<span class="go">Example(a='example', b=123)</span>
 </pre></div>
 </div>
 <p>Note that the <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> setting only affects fields defined on that class,
@@ -537,16 +537,16 @@ keyword-only parameters on a base class then add positional parameters in a
 subclass. All keyword-only parameters are reordered to go after all positional
 fields.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Base</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 <span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Subclass</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">c</span><span class="p">:</span> <span class="nb">float</span>
-<span class="gp">... </span>    <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span>
 </pre></div>
 </div>
 <p>The generated <code class="docutils literal notranslate"><span class="pre">__init__()</span></code> for <code class="docutils literal notranslate"><span class="pre">Subclass</span></code> looks like:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>The field ordering rules for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types are identical to those for
@@ -592,14 +592,14 @@ only checked when <em>decoding</em> a serialized message when using a <code clas
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Improper types in *your* code aren&#39;t checked at runtime</span>
-<span class="gp">... </span><span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">&quot;oops&quot;</span><span class="p">)</span>
-<span class="go">Point(x=1, y=&#39;oops&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Improper types in *your* code aren't checked at runtime</span>
+<span class="gp">... </span><span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"oops"</span><span class="p">)</span>
+<span class="go">Point(x=1, y='oops')</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Improper types when decoding *are* checked at runtime</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1.0, &quot;y&quot;: &quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1.0, "y": "oops"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `float`, got `str` - at `$.y`</span>
 </pre></div>
 </div>
@@ -629,18 +629,18 @@ blocks. Replicating an example from <a class="reference external" href="https://
 <span class="o">&gt;&gt;&gt;</span> <span class="k">def</span><span class="w"> </span><span class="nf">where_is</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
 <span class="o">...</span>     <span class="n">match</span> <span class="n">point</span><span class="p">:</span>
 <span class="o">...</span>         <span class="n">case</span> <span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">):</span>
-<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Origin&quot;</span><span class="p">)</span>
+<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">"Origin"</span><span class="p">)</span>
 <span class="o">...</span>         <span class="n">case</span> <span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Y=</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Y=</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="o">...</span>         <span class="n">case</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">):</span>
-<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;X=</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"X=</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="o">...</span>         <span class="n">case</span> <span class="n">Point</span><span class="p">():</span>
-<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Somewhere else&quot;</span><span class="p">)</span>
+<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">"Somewhere else"</span><span class="p">)</span>
 <span class="o">...</span>         <span class="n">case</span> <span class="n">_</span><span class="p">:</span>
-<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Not a point&quot;</span><span class="p">)</span>
+<span class="o">...</span>             <span class="nb">print</span><span class="p">(</span><span class="s2">"Not a point"</span><span class="p">)</span>
 
 <span class="o">&gt;&gt;&gt;</span> <span class="n">where_is</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="s2">&quot;Y=6&quot;</span>
+<span class="s2">"Y=6"</span>
 </pre></div>
 </div>
 </section>
@@ -689,7 +689,7 @@ equal to is itself.</p>
 adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition. Note that for the
 <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> to work, all fields on the struct must also be hashable.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;This struct is immutable &amp; hashable&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""This struct is immutable &amp; hashable"""</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">...</span>
@@ -702,7 +702,7 @@ adds a <code class="docutils literal notranslate"><span class="pre">__hash__</sp
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">2.0</span>  <span class="c1"># frozen structs cannot be modified after creation</span>
 <span class="gt">Traceback (most recent call last):</span>
 <span class="w">    </span><span class="o">...</span>
-<span class="gr">AttributeError</span>: <span class="n">immutable type: &#39;Point&#39;</span>
+<span class="gr">AttributeError</span>: <span class="n">immutable type: 'Point'</span>
 </pre></div>
 </div>
 </section>
@@ -718,13 +718,13 @@ appropriately to the decoder.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Get</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">&quot;my key&quot;</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">"my key"</span><span class="p">))</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>  <span class="c1"># No type information present in the message</span>
-<span class="go">b&#39;{&quot;key&quot;:&quot;my key&quot;}&#39;</span>
+<span class="go">b'{"key":"my key"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Get</span><span class="p">)</span>
-<span class="go">Get(key=&#39;my key&#39;)</span>
+<span class="go">Get(key='my key')</span>
 </pre></div>
 </div>
 <p>In most cases this works well - schemas are often simple and each value may
@@ -754,24 +754,24 @@ every struct type in the union. In this case <code class="docutils literal notra
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">val</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">&quot;my key&quot;</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">"my key"</span><span class="p">))</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>  <span class="c1"># &quot;type&quot; is the tag field, &quot;Get&quot; is the tag</span>
-<span class="go">b&#39;{&quot;type&quot;:&quot;Get&quot;,&quot;key&quot;:&quot;my key&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>  <span class="c1"># "type" is the tag field, "Get" is the tag</span>
+<span class="go">b'{"type":"Get","key":"my key"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
 <span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
-<span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;type&quot;: &quot;Put&quot;, &quot;key&quot;: &quot;my key&quot;, &quot;val&quot;: &quot;my val&quot;}&#39;</span><span class="p">)</span>
-<span class="go">Put(key=&#39;my key&#39;, val=&#39;my val&#39;)</span>
+<span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"type": "Put", "key": "my key", "val": "my val"}'</span><span class="p">)</span>
+<span class="go">Put(key='my key', val='my val')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;type&quot;: &quot;Get&quot;, &quot;key&quot;: &quot;my key&quot;}&#39;</span><span class="p">)</span>
-<span class="go">Get(key=&#39;my key&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"type": "Get", "key": "my key"}'</span><span class="p">)</span>
+<span class="go">Get(key='my key')</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># A tagged union can also contain non-struct types.</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;123&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'123'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">123</span>
@@ -811,9 +811,9 @@ for all struct types you wish to tag.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Union</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a base class for tagged structs, where:</span>
-<span class="gp">... </span><span class="c1"># - the tag field is &quot;op&quot;</span>
+<span class="gp">... </span><span class="c1"># - the tag field is "op"</span>
 <span class="gp">... </span><span class="c1"># - the tag is the class name lowercased</span>
-<span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">TaggedBase</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag_field</span><span class="o">=</span><span class="s2">&quot;op&quot;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="nb">str</span><span class="o">.</span><span class="n">lower</span><span class="p">):</span>
+<span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">TaggedBase</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag_field</span><span class="o">=</span><span class="s2">"op"</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="nb">str</span><span class="o">.</span><span class="n">lower</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="k">pass</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Use the base class to pass on the configuration</span>
@@ -824,20 +824,20 @@ for all struct types you wish to tag.</p>
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">val</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">&quot;my key&quot;</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">"my key"</span><span class="p">))</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>  <span class="c1"># &quot;op&quot; is the tag field, &quot;get&quot; is the tag</span>
-<span class="go">b&#39;{&quot;op&quot;:&quot;get&quot;,&quot;key&quot;:&quot;my key&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>  <span class="c1"># "op" is the tag field, "get" is the tag</span>
+<span class="go">b'{"op":"get","key":"my key"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
 <span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
-<span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;op&quot;: &quot;put&quot;, &quot;key&quot;: &quot;my key&quot;, &quot;val&quot;: &quot;my val&quot;}&#39;</span><span class="p">)</span>
-<span class="go">Put(key=&#39;my key&#39;, val=&#39;my val&#39;)</span>
+<span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"op": "put", "key": "my key", "val": "my val"}'</span><span class="p">)</span>
+<span class="go">Put(key='my key', val='my val')</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;op&quot;: &quot;get&quot;, &quot;key&quot;: &quot;my key&quot;}&#39;</span><span class="p">)</span>
-<span class="go">Get(key=&#39;my key&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"op": "get", "key": "my key"}'</span><span class="p">)</span>
+<span class="go">Get(key='my key')</span>
 </pre></div>
 </div>
 </section>
@@ -852,13 +852,13 @@ fields (those configured with a default value).</p>
 <span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>  <span class="c1"># email &amp; groups are using the default values</span>
-<span class="go">User(name=&#39;alice&#39;, email=None, groups=set())</span>
+<span class="go">User(name='alice', email=None, groups=set())</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>  <span class="c1"># default values are present in encoded message</span>
-<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;,&quot;email&quot;:null,&quot;groups&quot;:[]}&#39;</span>
+<span class="go">b'{"name":"alice","email":null,"groups":[]}'</span>
 </pre></div>
 </div>
 <p>If the default values are known on the decoding end (making serializing them
@@ -872,15 +872,15 @@ of the Struct definition:</p>
 <span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>  <span class="c1"># default values are omitted</span>
-<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;}&#39;</span>
+<span class="go">b'{"name":"alice"}'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">&quot;bob@company.com&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"bob@company.com"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bob</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;name&quot;:&quot;bob&quot;,&quot;email&quot;:&quot;bob@company.com&quot;}&#39;</span>
+<span class="go">b'{"name":"bob","email":"bob@company.com"}'</span>
 </pre></div>
 </div>
 <p>Omitting defaults reduces the size of the encoded message, and often also
@@ -893,7 +893,7 @@ which always include every field - see <a class="reference internal" href="usage
 situations a default value may still be encoded. For the curious, the current
 detection logic is as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">matches_default</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether a value matches the default for a field&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""Whether a value matches the default for a field"""</span>
 <span class="gp">... </span>    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="n">default</span><span class="p">:</span>
 <span class="gp">... </span>        <span class="k">return</span> <span class="kc">True</span>
 <span class="gp">... </span>    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">type</span><span class="p">(</span><span class="n">default</span><span class="p">):</span>
@@ -930,7 +930,7 @@ optional fields. For example:</p>
 <span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;field_one&quot;: 1, &quot;field_twoo&quot;: true}&#39;</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'{"field_one": 1, "field_twoo": true}'</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Example</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">Example(field_one=1, field_two=False)</span>
@@ -947,11 +947,11 @@ encountered will result in an error.</p>
 <span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;field_one&quot;: 1, &quot;field_twoo&quot;: true}&#39;</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'{"field_one": 1, "field_twoo": true}'</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Example</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Object contains unknown field `field_twoo`</span>
 </pre></div>
 </div>
@@ -974,17 +974,17 @@ option will use the new name for encoding/decoding.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
-<span class="gp">... </span>    <span class="n">z</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;field_z&quot;</span><span class="p">)</span>  <span class="c1"># renamed to &quot;field_z&quot;</span>
+<span class="gp">... </span>    <span class="n">z</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"field_z"</span><span class="p">)</span>  <span class="c1"># renamed to "field_z"</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Python code uses the original field names</span>
 <span class="gp">... </span><span class="n">ex</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encoded messages use the renamed field names</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2,&quot;field_z&quot;:3}&#39;</span>
+<span class="go">b'{"x":1,"y":2,"field_z":3}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decoding also uses the renamed field names</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2, &quot;field_z&quot;: 3}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2, "field_z": 3}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
 <span class="go">Example(x=1, y=2, z=3)</span>
 </pre></div>
 </div>
@@ -1009,26 +1009,26 @@ original field name should be used.</p></li>
 code will still refer to them using their original names.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="s2">&quot;camel&quot;</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct with fields renamed using camelCase&quot;&quot;&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="s2">"camel"</span><span class="p">):</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""A struct with fields renamed using camelCase"""</span>
 <span class="gp">... </span>    <span class="n">field_one</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">str</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Python code uses the original field names</span>
-<span class="gp">... </span><span class="n">ex</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">field_two</span><span class="o">=</span><span class="s2">&quot;two&quot;</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">ex</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">field_two</span><span class="o">=</span><span class="s2">"two"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encoded messages use the renamed field names</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;fieldOne&quot;:1,&quot;fieldTwo&quot;:&quot;two&quot;}&#39;</span>
+<span class="go">b'{"fieldOne":1,"fieldTwo":"two"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decoding uses the renamed field names</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;fieldOne&quot;: 3, &quot;fieldTwo&quot;: &quot;four&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
-<span class="go">Example(field_one=3, field_two=&#39;four&#39;)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"fieldOne": 3, "fieldTwo": "four"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="go">Example(field_one=3, field_two='four')</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decoding errors also use the renamed field names</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;fieldOne&quot;: 5}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"fieldOne": 5}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Object missing required field `fieldTwo`</span>
 </pre></div>
 </div>
@@ -1042,15 +1042,15 @@ generating <code class="xref py py-obj docutils literal notranslate"><span class
 <span class="c1"># An explicit mapping from python name -&gt; JSON field name</span>
 <span class="n">v1podspec_names</span> <span class="o">=</span> <span class="p">{</span>
     <span class="o">...</span>
-    <span class="s2">&quot;service_account_name&quot;</span><span class="p">:</span> <span class="s2">&quot;serviceAccountName&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;set_hostname_as_fqdn&quot;</span><span class="p">:</span> <span class="s2">&quot;setHostnameAsFQDN&quot;</span><span class="p">,</span>
+    <span class="s2">"service_account_name"</span><span class="p">:</span> <span class="s2">"serviceAccountName"</span><span class="p">,</span>
+    <span class="s2">"set_hostname_as_fqdn"</span><span class="p">:</span> <span class="s2">"setHostnameAsFQDN"</span><span class="p">,</span>
     <span class="o">...</span>
 <span class="p">}</span>
 
 <span class="c1"># Pass the mapping to `rename` to explicitly rename all fields</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">V1PodSpec</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="n">v1podspec_names</span><span class="p">):</span>
     <span class="o">...</span>
-    <span class="n">service_account_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">service_account_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">set_hostname_as_fqdn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="o">...</span>
 </pre></div>
@@ -1060,12 +1060,12 @@ generating <code class="xref py py-obj docutils literal notranslate"><span class
 precedence.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="s2">&quot;camel&quot;</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="s2">"camel"</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">field_x</span><span class="p">:</span> <span class="nb">int</span>
-<span class="gp">... </span>    <span class="n">field_y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>  <span class="c1"># set explicitly</span>
+<span class="gp">... </span>    <span class="n">field_y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"y"</span><span class="p">)</span>  <span class="c1"># set explicitly</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-<span class="go">b&#39;{&quot;fieldX&quot;:1,&quot;y&quot;:2}&#39;</span>
+<span class="go">b'{"fieldX":1,"y":2}'</span>
 </pre></div>
 </div>
 </section>
@@ -1080,7 +1080,7 @@ present in the message.</p>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+<span class="go">b'{"x":1,"y":2}'</span>
 </pre></div>
 </div>
 <p>If you need higher performance (at the cost of more inscrutable message
@@ -1093,9 +1093,9 @@ for decoding (and ~1.5x speedup for encoding).</p>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Point2</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-<span class="go">b&#39;[1,2]&#39;</span>
+<span class="go">b'[1,2]'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[3,4]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[3,4]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point2</span><span class="p">)</span>
 <span class="go">Point2(x=3, y=4)</span>
 </pre></div>
 </div>
@@ -1113,14 +1113,14 @@ array, and is used to determine which type in the union to use when decoding.</p
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">val</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">&quot;my key&quot;</span><span class="p">))</span>
-<span class="go">b&#39;[&quot;Get&quot;,&quot;my key&quot;]&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="s2">"my key"</span><span class="p">))</span>
+<span class="go">b'["Get","my key"]'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;[&quot;Put&quot;, &quot;my key&quot;, &quot;my val&quot;]&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'["Put", "my key", "my val"]'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Get</span> <span class="o">|</span> <span class="n">Put</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="go">Put(key=&#39;my key&#39;, val=&#39;my val&#39;)</span>
+<span class="go">Put(key='my key', val='my val')</span>
 </pre></div>
 </div>
 </section>
@@ -1132,7 +1132,7 @@ has a signature similar to <a class="reference external" href="https://docs.pyth
 <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a> for more information.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">Point</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">defstruct</span><span class="p">(</span><span class="s2">&quot;Point&quot;</span><span class="p">,</span> <span class="p">[(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="nb">float</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="nb">float</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Point</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">defstruct</span><span class="p">(</span><span class="s2">"Point"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"x"</span><span class="p">,</span> <span class="nb">float</span><span class="p">),</span> <span class="p">(</span><span class="s2">"y"</span><span class="p">,</span> <span class="nb">float</span><span class="p">)])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
 
@@ -1153,24 +1153,24 @@ in all subclasses of <code class="docutils literal notranslate"><span class="pre
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">):</span>
-<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;kw_only&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"kw_only"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 <span class="gp">... </span>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStruct</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">KwOnlyStructMeta</span><span class="p">):</span> <span class="o">...</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">KwOnlyStruct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 <span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;python-input-3&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;python-input-3&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="w">    </span><span class="n">Example</span><span class="p">()</span>
 <span class="w">    </span><span class="pm">~~~~~~~^^</span>
-<span class="gr">TypeError</span>: <span class="n">Missing required argument &#39;b&#39;</span>
+<span class="gr">TypeError</span>: <span class="n">Missing required argument 'b'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
-<span class="go">Example(a=&#39;&#39;, b=123)</span>
+<span class="go">Example(a='', b=123)</span>
 </pre></div>
 </div>
 <p>You can also mix <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with other metaclasses. One common
@@ -1189,18 +1189,18 @@ Structs.</p>
 <span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Event</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;python-input-4&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;python-input-4&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="w">    </span><span class="n">Event</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="w">    </span><span class="pm">~~~~~^^^^^^</span>
-<span class="gr">TypeError</span>: <span class="n">Can&#39;t instantiate abstract class Event without an implementation for abstract method &#39;kind&#39;</span>
+<span class="gr">TypeError</span>: <span class="n">Can't instantiate abstract class Event without an implementation for abstract method 'kind'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">UserCreated</span><span class="p">(</span><span class="n">Event</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="nf">kind</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="gp">... </span>        <span class="k">return</span> <span class="s2">&quot;user_created&quot;</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="s2">"user_created"</span>
 <span class="gp">...</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">UserCreated</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
-<span class="go">UserCreated(id=1, username=&#39;alice&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">UserCreated</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s2">"alice"</span><span class="p">)</span>
+<span class="go">UserCreated(id=1, username='alice')</span>
 </pre></div>
 </div>
 <p>Here <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> participates fully in the ABC machinery:
@@ -1248,7 +1248,7 @@ structs referencing containers (lists, dicts, structs, …) will.</p>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="n">Any</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="n">Any</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ex1</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;two&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ex1</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># ex1 is untracked, since it only references untracked objects</span>
 <span class="gp">... </span><span class="n">gc</span><span class="o">.</span><span class="n">is_tracked</span><span class="p">(</span><span class="n">ex1</span><span class="p">)</span>

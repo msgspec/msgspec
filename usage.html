@@ -326,12 +326,12 @@ respective protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as JSON</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
-<span class="go">b&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
+<span class="go">b'{"hello":"world"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as msgpack</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
-<span class="go">b&#39;\x81\xa5hello\xa5world&#39;</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
+<span class="go">b'\x81\xa5hello\xa5world'</span>
 </pre></div>
 </div>
 <p>Note that if you’re making multiple calls to <code class="docutils literal notranslate"><span class="pre">encode</span></code>, it’s more efficient to
@@ -342,8 +342,8 @@ create an <code class="docutils literal notranslate"><span class="pre">Encoder</
 <span class="gp">... </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as JSON using the encoder</span>
-<span class="gp">... </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
-<span class="go">b&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span>
+<span class="gp">... </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
+<span class="go">b'{"hello":"world"}'</span>
 </pre></div>
 </div>
 </section>
@@ -354,12 +354,12 @@ protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode JSON</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span><span class="p">)</span>
-<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"hello":"world"}'</span><span class="p">)</span>
+<span class="go">{'hello': 'world'}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode msgpack</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x81\xa5</span><span class="s1">hello</span><span class="se">\xa5</span><span class="s1">world&#39;</span><span class="p">)</span>
-<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'</span><span class="se">\x81\xa5</span><span class="s1">hello</span><span class="se">\xa5</span><span class="s1">world'</span><span class="p">)</span>
+<span class="go">{'hello': 'world'}</span>
 </pre></div>
 </div>
 <p>Note that if you’re making multiple calls to <code class="docutils literal notranslate"><span class="pre">decode</span></code>, it’s more efficient to
@@ -370,8 +370,8 @@ create a <code class="docutils literal notranslate"><span class="pre">Decoder</s
 <span class="gp">... </span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode JSON using the decoder</span>
-<span class="gp">... </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span><span class="p">)</span>
-<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
+<span class="gp">... </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"hello":"world"}'</span><span class="p">)</span>
+<span class="go">{'hello': 'world'}</span>
 </pre></div>
 </div>
 </section>
@@ -403,19 +403,19 @@ the type to <code class="docutils literal notranslate"><span class="pre">decode<
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;alice&quot;, &quot;groups&quot;: [&quot;admin&quot;, &quot;engineering&quot;]}&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'{"name": "alice", "groups": ["admin", "engineering"]}'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">User</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="go">User(name=&#39;alice&#39;, groups={&#39;admin&#39;, &#39;engineering&#39;}, email=None)</span>
+<span class="go">User(name='alice', groups={'admin', 'engineering'}, email=None)</span>
 </pre></div>
 </div>
 <p>If a message doesn’t match the expected type, an error is raised.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;bill&quot;, &quot;groups&quot;: [&quot;devops&quot;, 123]}&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'{"name": "bill", "groups": ["devops", 123]}'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">User</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
 </pre></div>
 </div>
@@ -425,9 +425,9 @@ the type to <code class="docutils literal notranslate"><span class="pre">decode<
 unsafe implicit conversion by default (“strict” mode). For example, if an
 integer is specified and a string is provided instead, an error is raised
 rather than attempting to cast the string to an int.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;3&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, "3"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
@@ -435,7 +435,7 @@ rather than attempting to cast the string to an int.</p>
 <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> to any <code class="docutils literal notranslate"><span class="pre">decode</span></code> function or <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> class (“lax” mode).
 See <a class="reference internal" href="supported-types.html"><span class="doc">Supported Types</span></a> for information on how this affects individual
 types.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;3&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, "3"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">[1, 2, 3]</span>
 </pre></div>
 </div>
@@ -479,15 +479,15 @@ validates them against a schema, producing high-level types.</p></li>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># to_builtins applies omit_defaults and expands nested types</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">to_builtins</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">{&#39;name&#39;: &#39;alice&#39;}</span>
+<span class="go">{'name': 'alice'}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># convert is the inverse operation</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">convert</span><span class="p">({</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;bill&quot;</span><span class="p">,</span> <span class="s2">&quot;groups&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;devops&quot;</span><span class="p">]},</span> <span class="n">User</span><span class="p">)</span>
-<span class="go">User(name=&#39;bill&#39;, groups={&#39;devops&#39;}, email=None)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">convert</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"bill"</span><span class="p">,</span> <span class="s2">"groups"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"devops"</span><span class="p">]},</span> <span class="n">User</span><span class="p">)</span>
+<span class="go">User(name='bill', groups={'devops'}, email=None)</span>
 </pre></div>
 </div>
 <p>See <a class="reference internal" href="converters.html"><span class="doc">Converters</span></a> for a more detailed guide, including how to use these

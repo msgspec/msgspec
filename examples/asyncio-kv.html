@@ -339,9 +339,9 @@ to make it easier to efficiently determine message boundaries.</p>
 <span class="c1"># length-prefixed framing makes it easier for the reader to determine the</span>
 <span class="c1"># boundaries of each message before passing it to msgspec to be decoded.</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prefixed_send</span><span class="p">(</span><span class="n">stream</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamWriter</span><span class="p">,</span> <span class="n">buffer</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a length-prefixed buffer to the stream&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Write a length-prefixed buffer to the stream"""</span>
     <span class="c1"># Encode the message length as a 4 byte big-endian integer.</span>
-    <span class="n">prefix</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">"big"</span><span class="p">)</span>
 
     <span class="c1"># Write the prefix and buffer to the stream.</span>
     <span class="n">stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
@@ -350,19 +350,19 @@ to make it easier to efficiently determine message boundaries.</p>
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">prefixed_recv</span><span class="p">(</span><span class="n">stream</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamReader</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read a length-prefixed buffer from the stream&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Read a length-prefixed buffer from the stream"""</span>
     <span class="c1"># Read the next 4 byte prefix</span>
     <span class="n">prefix</span> <span class="o">=</span> <span class="k">await</span> <span class="n">stream</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
 
     <span class="c1"># Convert the prefix back into an integer for the next message length</span>
-    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="s2">"big"</span><span class="p">)</span>
 
     <span class="c1"># Read in the full message buffer</span>
     <span class="k">return</span> <span class="k">await</span> <span class="n">stream</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
 
 
 <span class="c1"># Define some request types. We set `tag=True` on each type so they can be used</span>
-<span class="c1"># in a &quot;tagged-union&quot; defining the request types.</span>
+<span class="c1"># in a "tagged-union" defining the request types.</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Get</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 
@@ -385,23 +385,23 @@ to make it easier to efficiently determine message boundaries.</p>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Server</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;An example TCP key-value server using asyncio and msgspec&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""An example TCP key-value server using asyncio and msgspec"""</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8888</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8888</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="n">port</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">kv</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="c1"># A msgpack encoder for encoding responses</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
-        <span class="c1"># A *typed* msgpack decoder for decoding requests. If a request doesn&#39;t</span>
+        <span class="c1"># A *typed* msgpack decoder for decoding requests. If a request doesn't</span>
         <span class="c1"># match the specified types, a nice error will be raised.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">handle_connection</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">reader</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamReader</span><span class="p">,</span> <span class="n">writer</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamWriter</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the full lifetime of a single connection&quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Connection opened&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">"""Handle the full lifetime of a single connection"""</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Connection opened"</span><span class="p">)</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Receive and decode a request</span>
@@ -415,11 +415,11 @@ to make it easier to efficiently determine message boundaries.</p>
                 <span class="n">buffer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
                 <span class="k">await</span> <span class="n">prefixed_send</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="n">buffer</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">EOFError</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Connection closed&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"Connection closed"</span><span class="p">)</span>
                 <span class="k">return</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">handle_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle a single request and return the result (if any)&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Handle a single request and return the result (if any)"""</span>
         <span class="c1"># We use pattern matching here to branch on the different message types.</span>
         <span class="c1"># You could just as well use an if-else statement, but pattern matching</span>
         <span class="c1"># works pretty well here.</span>
@@ -443,35 +443,35 @@ to make it easier to efficiently determine message boundaries.</p>
         <span class="n">server</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">start_server</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">handle_connection</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">host</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span>
         <span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Serving on tcp://</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">host</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Serving on tcp://</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">host</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="si">}</span><span class="s2">..."</span><span class="p">)</span>
         <span class="k">async</span> <span class="k">with</span> <span class="n">server</span><span class="p">:</span>
             <span class="k">await</span> <span class="n">server</span><span class="o">.</span><span class="n">serve_forever</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run the server until ctrl-C&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Run the server until ctrl-C"""</span>
         <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">serve_forever</span><span class="p">())</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Client</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;An example TCP key-value client using asyncio and msgspec.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""An example TCP key-value client using asyncio and msgspec."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reader</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamReader</span><span class="p">,</span> <span class="n">writer</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">StreamWriter</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reader</span> <span class="o">=</span> <span class="n">reader</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">writer</span> <span class="o">=</span> <span class="n">writer</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8888</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a new client&quot;&quot;&quot;</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8888</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Create a new client"""</span>
         <span class="n">reader</span><span class="p">,</span> <span class="n">writer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">open_connection</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">reader</span><span class="p">,</span> <span class="n">writer</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Close the client.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Close the client."""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Send a request and await the response&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Send a request and await the response"""</span>
         <span class="c1"># Encode and send the request</span>
         <span class="n">buffer</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
         <span class="k">await</span> <span class="n">prefixed_send</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="p">,</span> <span class="n">buffer</span><span class="p">)</span>
@@ -481,23 +481,23 @@ to make it easier to efficiently determine message boundaries.</p>
         <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a key from the KV store, returning None if not present&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Get a key from the KV store, returning None if not present"""</span>
         <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">Get</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Put a key-val pair in the KV store&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Put a key-val pair in the KV store"""</span>
         <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">Put</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">))</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Delete a key-val pair from the KV store&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Delete a key-val pair from the KV store"""</span>
         <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">Del</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;List all keys in the KV store&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""List all keys in the KV store"""</span>
         <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">ListKeys</span><span class="p">())</span>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">Server</span><span class="p">()</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
 </pre></div>
 </div>
@@ -514,20 +514,20 @@ Connection<span class="w"> </span>closed
 
 <span class="gp">In [2]: </span><span class="n">client</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Client</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
 
-<span class="gp">In [3]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">&quot;foo&quot;</span><span class="p">,</span> <span class="s2">&quot;bar&quot;</span><span class="p">)</span>
+<span class="gp">In [3]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"foo"</span><span class="p">,</span> <span class="s2">"bar"</span><span class="p">)</span>
 
-<span class="gp">In [4]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">&quot;fizz&quot;</span><span class="p">,</span> <span class="s2">&quot;buzz&quot;</span><span class="p">)</span>
+<span class="gp">In [4]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s2">"fizz"</span><span class="p">,</span> <span class="s2">"buzz"</span><span class="p">)</span>
 
-<span class="gp">In [5]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;foo&quot;</span><span class="p">)</span>
-<span class="gh">Out[5]: </span><span class="go">&#39;bar&#39;</span>
+<span class="gp">In [5]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"foo"</span><span class="p">)</span>
+<span class="gh">Out[5]: </span><span class="go">'bar'</span>
 
 <span class="gp">In [6]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">list_keys</span><span class="p">()</span>
-<span class="gh">Out[6]: </span><span class="go">[&#39;fizz&#39;, &#39;foo&#39;]</span>
+<span class="gh">Out[6]: </span><span class="go">['fizz', 'foo']</span>
 
-<span class="gp">In [7]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;fizz&quot;</span><span class="p">)</span>
+<span class="gp">In [7]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"fizz"</span><span class="p">)</span>
 
 <span class="gp">In [8]: </span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">list_keys</span><span class="p">()</span>
-<span class="gh">Out[8]: </span><span class="go">[&#39;foo&#39;]</span>
+<span class="gh">Out[8]: </span><span class="go">['foo']</span>
 </pre></div>
 </div>
 </section>

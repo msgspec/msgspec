@@ -384,7 +384,7 @@ decoding fields that are never used.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">example_json</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Tweet</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">name</span>
-<span class="go">&#39;Twitter Dev&#39;</span>
+<span class="go">'Twitter Dev'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">favorite_count</span>
 <span class="go">70</span>
@@ -446,9 +446,9 @@ payload contains a JSON message followed by <code class="docutils literal notran
 <p>This <em>could</em> be handled in python as:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="n">json_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="s2">&quot;my&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">])</span>
+<span class="n">json_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="s2">"my"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">])</span>
 
-<span class="n">full_payload</span> <span class="o">=</span> <span class="n">json_msg</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+<span class="n">full_payload</span> <span class="o">=</span> <span class="n">json_msg</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">'</span><span class="se">\n</span><span class="s1">'</span>
 </pre></div>
 </div>
 <p>However, this results in an unnecessary copy of <code class="docutils literal notranslate"><span class="pre">json_msg</span></code>, which can be
@@ -463,10 +463,10 @@ avoided by using <a class="reference internal" href="api.html#msgspec.json.Encod
 <span class="n">buffer</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span>
 
 <span class="c1"># Encode into the existing buffer.</span>
-<span class="n">encoder</span><span class="o">.</span><span class="n">encode_into</span><span class="p">([</span><span class="s2">&quot;my&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">],</span> <span class="n">buffer</span><span class="p">)</span>
+<span class="n">encoder</span><span class="o">.</span><span class="n">encode_into</span><span class="p">([</span><span class="s2">"my"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">],</span> <span class="n">buffer</span><span class="p">)</span>
 
 <span class="c1"># Append a newline character without copying</span>
-<span class="n">buffer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">buffer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
 
 <span class="c1"># Write the full buffer to a socket/file/etc...</span>
 <span class="n">socket</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
@@ -496,7 +496,7 @@ efficient to do using <code class="docutils literal notranslate"><span class="pr
 <span class="c1"># Encode the message length as a 4 byte big-endian integer, and</span>
 <span class="c1"># prefix the message with it (without copying).</span>
 <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span>
-<span class="n">buffer</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
+<span class="n">buffer</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">"big"</span><span class="p">)</span>
 
 <span class="c1"># Write the buffer to a socket/file/etc...</span>
 <span class="n">socket</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
@@ -540,15 +540,15 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 <span class="gp">... </span>    <span class="n">my_first_field</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">my_second_field</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="s2">&quot;some string&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="s2">"some string"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b&#39;[&quot;some string&quot;,2]&#39;</span>
+<span class="go">b'["some string",2]'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
-<span class="go">Example(my_first_field=&quot;some string&quot;, my_second_field=2)</span>
+<span class="go">Example(my_first_field="some string", my_second_field=2)</span>
 </pre></div>
 </div>
 </section>
@@ -559,11 +559,11 @@ will treat different datastructures differently.
 Some type conversions are faster than others.</p>
 <p>For example, this model:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-    <span class="n">items</span><span class="p">:</span> <span class="n">frozendict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>  <span class="c1"># requires Python3.15+ to be used</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">frozendict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>  <span class="c1"># requires Python3.15+ to be used</span>
 
-<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;items&quot;: {&quot;pen&quot;: 1, &quot;book&quot;: 2}}&#39;</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"items": {"pen": 1, "book": 2}}'</span>
 <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
-<span class="c1"># Example(items=frozendict({&quot;pen&quot;: 1, &quot;book&quot;: 2}))</span>
+<span class="c1"># Example(items=frozendict({"pen": 1, "book": 2}))</span>
 </pre></div>
 </div>
 <p>As <code class="docutils literal notranslate"><span class="pre">frozendict</span></code> does not allow adding items one at a time,
@@ -576,10 +576,10 @@ Regular <a class="reference external" href="https://docs.python.org/3/library/st
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">items</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;items&quot;: [&quot;pen&quot;, &quot;book&quot;]}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">'{"items": ["pen", "book"]}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
-<span class="go">Example(items=(&quot;pen&quot;, &quot;book&quot;))</span>
+<span class="go">Example(items=("pen", "book"))</span>
 </pre></div>
 </div>
 <p>We would first create a <code class="docutils literal notranslate"><span class="pre">list</span></code> object and then convert

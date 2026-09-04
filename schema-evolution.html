@@ -331,7 +331,7 @@ must be appended to the end (and have defaults).</p></li>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct representing a user&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""A struct representing a user"""</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -342,7 +342,7 @@ that wouldn’t break clients/servers still using the prior definition. To
 accomplish this, we add <code class="docutils literal notranslate"><span class="pre">phone</span></code> as an _optional_ field (defaulting to
 <code class="docutils literal notranslate"><span class="pre">None</span></code>), at the end of the struct.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;An updated version of the User struct, now with a phone number&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">"""An updated version of the User struct, now with a phone number"""</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -359,18 +359,18 @@ efficiently skipped without decoding.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">User2</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">User2</span><span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;finance&quot;</span><span class="p">},</span> <span class="n">phone</span><span class="o">=</span><span class="s2">&quot;512-867-5309&quot;</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">User2</span><span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"finance"</span><span class="p">},</span> <span class="n">phone</span><span class="o">=</span><span class="s2">"512-867-5309"</span><span class="p">)</span>
 <span class="gp">... </span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">new_msg</span><span class="p">)</span>  <span class="c1"># deserializing a new msg with an older decoder</span>
-<span class="go">User(name=&#39;bob&#39;, groups={&#39;finance&#39;}, email=None)</span>
+<span class="go">User(name='bob', groups={'finance'}, email=None)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">old_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<span class="gp">... </span>    <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
 <span class="gp">... </span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">old_msg</span><span class="p">)</span> <span class="c1"># deserializing an old msg with a new decoder</span>
-<span class="go">User2(name=&quot;alice&quot;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None, phone=None)</span>
+<span class="go">User2(name="alice", groups={"admin", "engineering"}, email=None, phone=None)</span>
 </pre></div>
 </div>
 </section>
