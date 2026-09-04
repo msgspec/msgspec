@@ -330,6 +330,7 @@ class _SchemaGenerator:
         elif isinstance(t, mi.UnionType):
             structs = {}
             other = []
+            none_member = None
             tag_field = None
             for subtype in t.types:
                 real_type = subtype
@@ -338,6 +339,8 @@ class _SchemaGenerator:
                 if isinstance(real_type, mi.StructType) and not real_type.array_like:
                     tag_field = real_type.tag_field
                     structs[real_type.tag] = real_type
+                elif isinstance(real_type, mi.NoneType):
+                    none_member = subtype
                 else:
                     other.append(subtype)
 
@@ -354,17 +357,29 @@ class _SchemaGenerator:
                 }
                 if options:
                     options.append(struct_schema)
+                    if none_member is not None:
+                        options.append(self.to_schema(none_member))
                     schema["anyOf"] = options
+                elif none_member is not None:
+                    schema["anyOf"] = [struct_schema, self.to_schema(none_member)]
                 else:
                     schema.update(struct_schema)
             elif len(structs) == 1:
                 _, subtype = structs.popitem()
                 options.append(self.to_schema(subtype))
+                if none_member is not None:
+                    options.append(self.to_schema(none_member))
                 schema["anyOf"] = options
             else:
+                if none_member is not None:
+                    options.append(self.to_schema(none_member))
                 schema["anyOf"] = options
         elif isinstance(t, mi.LiteralType):
-            schema["enum"] = sorted(t.values)
+            # `t.values` may mix types (e.g. `Literal[1, None]`), which a plain
+            # `sorted` can't order; reuse the same type-aware sort as
+            # `inspect.type_info` so the two entry points agree and neither
+            # crashes.
+            schema["enum"] = list(mi._sort_literal_args(t.values))
         elif isinstance(t, mi.EnumType):
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):

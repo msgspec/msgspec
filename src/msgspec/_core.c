@@ -9315,7 +9315,7 @@ Ext_dealloc(Ext *self)
 }
 
 static PyMemberDef Ext_members[] = {
-    {"code", T_INT, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"code", T_LONG, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
@@ -14153,9 +14153,20 @@ json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
 
-    int status = (
-        is_key ? json_encode_dict_key_noinline(self, value) : json_encode(self, value)
-    );
+    int status;
+    if (is_key) {
+        /* A str value must be written as a JSON object key directly.
+         * json_encode_dict_key_noinline only handles non-str keys (str keys
+         * are fast-pathed in json_encode_dict_key), so recursing into it with
+         * a str value would wrongly raise "unsupported key" - e.g. for a plain
+         * Enum whose members have str values when used as a dict key. */
+        status = PyUnicode_Check(value)
+            ? json_encode_str(self, value)
+            : json_encode_dict_key_noinline(self, value);
+    }
+    else {
+        status = json_encode(self, value);
+    }
 
     Py_DECREF(value);
     return status;
@@ -17928,11 +17939,11 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
     char *view = NULL;
     Py_ssize_t size;
-    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 #ifndef Py_GIL_DISABLED
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
         return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
@@ -19934,7 +19945,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
