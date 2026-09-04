@@ -4,7 +4,7 @@ import array
 from collections.abc import Callable
 import decimal
 import pickle
-from typing import Annotated, Any, Final, Literal
+from typing import Annotated, Any, Final, Literal, final
 
 import msgspec
 from typing_extensions import assert_type, Buffer
@@ -540,6 +540,48 @@ def check_meta_constructor() -> None:
     for val6 in [{"foo": "bar"}, None]:
         msgspec.Meta(extra_json_schema=val6)
         msgspec.Meta(extra=val6)
+
+    Meta = msgspec.Meta
+
+    # Numeric cases:
+    Meta(gt=1, lt=5)
+    Meta(gt=1, le=5)
+    Meta(ge=1, lt=5)
+    Meta(ge=1, le=5)
+
+    Meta(gt=1, lt=5, multiple_of=2)
+    Meta(gt=1, le=5, multiple_of=0.5)
+    Meta(ge=1.0, lt=5.0, multiple_of=0.5)
+    Meta(
+        ge=1,
+        le=5,
+        multiple_of=1,
+        title='title',
+        examples=[1, 2],
+        description='descr',
+        extra={},
+        extra_json_schema={},
+    )
+
+    # Other:
+    Meta(min_length=1, max_length=5)
+    Meta(
+        min_length=1,
+        max_length=5,
+        title='title',
+        examples=[1, 2],
+        description='descr',
+        extra={'extra': 'extra'},
+        extra_json_schema={'extra': 'extra'},
+    )
+
+    # Invalid cases:
+    Meta(gt=1, ge=5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(le=1, lt=5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+
+    Meta(le=1, min_length=1)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(gt=1.0, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
+    Meta(multiple_of=1, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
 
 
 def check_meta_attributes() -> None:
@@ -1112,12 +1154,12 @@ def check_inspect_is_struct_type() -> None:
     class Point(msgspec.Struct):
         x: int
 
+    @final
     class Other: ...
 
     tp: type[Point] | type[Other] = Point
     if msgspec.inspect.is_struct_type(tp):
-        # this is a bug in `pyrefly` https://github.com/facebook/pyrefly/issues/3821:
-        assert_type(tp, type[Point])  # pyrefly: ignore[assert-type]
+        assert_type(tp, type[Point])
     else:
         assert_type(tp, type[Other])
 

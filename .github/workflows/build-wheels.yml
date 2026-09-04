@@ -91,7 +91,7 @@ jobs:
     - name: Build & Test Wheels
       if: runner.os != 'Windows'
       run: >-
-        uvx --from cibuildwheel==4.1.0
+        uvx --from cibuildwheel==4.2.0
         cibuildwheel
         --config-file .cibuildwheel.toml
         --output-dir wheelhouse
@@ -100,7 +100,7 @@ jobs:
     - name: Build & Test Wheels
       if: runner.os == 'Windows'
       run: >-
-        uvx --from cibuildwheel==4.1.0
+        uvx --from cibuildwheel==4.2.0
         cibuildwheel
         --config-file .cibuildwheel.toml
         --output-dir wheelhouse

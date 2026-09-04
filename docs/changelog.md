@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Version 0.22.0 (2026-08-11)
 
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
@@ -17,6 +17,7 @@
 - Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
   `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
   {pr}`1023`, {pr}`1040`).
+- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
 - Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
 - Ensure an exception is always set on allocation failures ({pr}`1044`).
 - Fix compilation warnings on Python 3.15 ({pr}`1077`).
@@ -26,6 +27,9 @@
   `msgspec.to_builtins` ({pr}`1025`).
 - Document that `omit_defaults` ignores fields with a custom
   `default_factory` ({pr}`1076`).
+- Fix the `msgspec.json.decode` docstring to say `dec_hook` should raise
+  `NotImplementedError` for unsupported types, not `TypeError` ({issue}`774`).
+- Fix backing type declaration of `Ext.code` ({pr}`1135`).
 - msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
   documentation now lives at [msgspec.dev](https://msgspec.dev) (repository
   references updated in {pr}`1045`).

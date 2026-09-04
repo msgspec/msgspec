@@ -20,6 +20,7 @@ requires-python = ">=3.10"
 maintainers = [
   { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
   { name = "Ofek Lev", email = "oss@ofek.dev" },
+  { name = "Nikita Sobolev", email = "mail@sobolevn.me" },
 ]
 keywords = [
   "JSON",
@@ -83,7 +84,7 @@ doc = [
 hooks = [
   "codespell==2.4.1",
   "prek>=0.2.13",
-  "ruff==0.15.16",
+  "ruff==0.16.2",
 ]
 test-base = [
   "pytest>=9",
@@ -98,9 +99,9 @@ test-prof = [
 ]
 test-typing = [
   { include-group = "test-base" },
-  "mypy",
-  "pyright",
-  "pyrefly",
+  "mypy==2.3.0",
+  "pyright==1.1.411",
+  "pyrefly==1.2.0",
 ]
 test-unit = [
   { include-group = "test-base" },
@@ -158,3 +159,7 @@ preset = 'strict'
 min-severity = 'warn'
 # Don't use '# type: ignore' to suppress with pyright:
 enabled-ignores = ["pyrefly"]
+
+[tool.pyrefly.errors]
+# Do not require type annotations for `lambda` functions:
+implicit-any-lambda = false
