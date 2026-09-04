@@ -16,7 +16,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import Buffer, Self, dataclass_transform
+from typing_extensions import Buffer, Self, TypeAlias, dataclass_transform
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -91,6 +91,7 @@ def field(*, name: str | None = None) -> Any: ...
 class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
+    __struct_encode_fields__: ClassVar[tuple[str, ...]]
     __match_args__: ClassVar[tuple[str, ...]]
     # A default __init__ so that Structs with unknown field types (say
     # constructed by `defstruct`) won't error on every call to `__init__`
@@ -160,21 +161,78 @@ class Raw(bytes):
     def __new__(cls, msg: Buffer | str) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
-_NumericBound = int | float | Decimal | None
+#: Numeric constraints accept `Decimal` bounds as well as `int` and `float`:
+_NumericBound: TypeAlias = int | float | Decimal | None
+
+#: We can't represent this in types, only via a name:
+_NonNegativeInt: TypeAlias = int
 
 @final
 class Meta:
+    # Numeric:
+    # You can't mix:
+    # - `gt` and `ge`
+    # - `lt` and `le`
+    @overload
     def __init__(
         self,
         *,
         gt: _NumericBound = None,
-        ge: _NumericBound = None,
         lt: _NumericBound = None,
+        multiple_of: _NumericBound = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        gt: _NumericBound = None,
         le: _NumericBound = None,
         multiple_of: _NumericBound = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        ge: _NumericBound = None,
+        lt: _NumericBound = None,
+        multiple_of: _NumericBound = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        ge: _NumericBound = None,
+        le: _NumericBound = None,
+        multiple_of: _NumericBound = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    # Other:
+    @overload
+    def __init__(
+        self,
+        *,
         pattern: str | None = None,
-        min_length: int | None = None,
-        max_length: int | None = None,
+        min_length: _NonNegativeInt | None = None,
+        max_length: _NonNegativeInt | None = None,
         tz: bool | None = None,
         title: str | None = None,
         description: str | None = None,
