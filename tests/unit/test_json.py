@@ -2019,6 +2019,7 @@ class TestDict:
             1,
             1.5,
             FruitInt.APPLE,
+            FruitStr.APPLE,
             uuid.uuid4(),
             datetime.datetime.now(),
             datetime.date.today(),
@@ -2036,6 +2037,45 @@ class TestDict:
 
         msg2 = msgspec.json.decode(sol, type=dict[type(key), int])
         assert msg == msg2
+
+    def test_encode_dict_plain_enum_str_key(self):
+        # Regression: a plain `enum.Enum` with str values, used as a dict key.
+        # json.encode previously raised "Only dicts with str-like or
+        # number-like keys are supported", even though `dict[FruitStr, int]` is
+        # an accepted decode type and both msgpack and to_builtins handle it.
+        msg = {FruitStr.APPLE: 1, FruitStr.BANANA: 2}
+
+        res = msgspec.json.encode(msg)
+        assert res == b'{"apple":1,"banana":2}'
+
+        # JSON must agree with the msgpack encoder and with to_builtins.
+        expected = {"apple": 1, "banana": 2}
+        assert msgspec.msgpack.decode(msgspec.msgpack.encode(msg)) == expected
+        assert msgspec.to_builtins(msg, str_keys=True) == expected
+
+        # Full round-trip through the accepted decode type.
+        assert msgspec.json.decode(res, type=dict[FruitStr, int]) == msg
+
+    def test_encode_dict_plain_enum_str_key_nested(self):
+        # The same must hold when the dict is nested inside a Struct field.
+        class Rec(msgspec.Struct):
+            fruits: dict[FruitStr, int]
+
+        rec = Rec(fruits={FruitStr.APPLE: 5})
+        res = msgspec.json.encode(rec)
+        assert res == b'{"fruits":{"apple":5}}'
+        assert msgspec.json.decode(res, type=Rec) == rec
+
+    def test_encode_dict_plain_int_enum_key(self):
+        # A plain Enum with int values (not IntEnum) must keep round-tripping.
+        class IntVals(enum.Enum):
+            A = 1
+            B = 2
+
+        msg = {IntVals.A: 9, IntVals.B: 8}
+        res = msgspec.json.encode(msg)
+        assert res == b'{"1":9,"2":8}'
+        assert msgspec.json.decode(res, type=dict[IntVals, int]) == msg
 
     def test_decode_dict_int_enum_key(self):
         dec = msgspec.json.Decoder(dict[FruitInt, int])
