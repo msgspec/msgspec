@@ -1,8 +1,13 @@
-# Allowlist for `python -m mypy.stubtest msgspec`.
+# Allowlist for `python -m mypy.stubtest msgspec`, run via scripts/stubtest.py.
 #
 # Each entry is a regex matched against the fully-qualified name of a stubtest
 # finding. Entries here are known false positives or intentional gaps; real
 # stub/runtime drift should be fixed rather than added here.
+#
+# This file holds entries that apply to every supported Python version. Entries
+# that only surface from a given version onwards belong in
+# stubtest_allowlist_py<major><minor>_plus.txt instead. stubtest runs without
+# --ignore-unused-allowlist, so an entry that stops matching fails the run.
 
 # msgspec.Struct subclasses get a per-class __init__ synthesized in C. stubtest
 # can't see through it, so every Struct subtype reports an __init__ mismatch
@@ -15,12 +20,6 @@ msgspec\.inspect\..*\.__init__
 msgspec\.msgpack\.Ext\.__init__
 msgspec\.msgpack\.Ext\.__new__
 msgspec\.UnsetType\.__new__
-
-# Struct.__init_subclass__ is stubbed with the config kwargs (via
-# dataclass_transform) so type checkers accept `class Foo(Struct, frozen=True)`.
-# At runtime those kwargs are handled by the metaclass, so __init_subclass__
-# itself takes none. Surfaces on Python 3.14+.
-msgspec\.Struct\.__init_subclass__
 
 # Private, intentionally unstubbed helper module.
 msgspec\._utils\..*

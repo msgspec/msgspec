@@ -91,8 +91,7 @@ test-typing: (
 ) (
   env-run "test" "pyrefly check tests/typing"
 ) (
-  env-run "test"
-  "python -m mypy.stubtest msgspec --allowlist tests/typing/stubtest_allowlist.txt --ignore-unused-allowlist"
+  env-run "test" "python scripts/stubtest.py"
 )
 
 # Run doctests.
