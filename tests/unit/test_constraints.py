@@ -160,6 +160,39 @@ class TestMetaObject:
         with pytest.raises(ValueError, match=f"`{field}` must be finite"):
             Meta(**{field: float("inf")})
 
+    @pytest.mark.parametrize("field", ["gt", "ge", "lt", "le", "multiple_of"])
+    @pytest.mark.parametrize("val", ["Infinity", "-Infinity", "NaN"])
+    def test_numeric_fields_reject_nonfinite_decimal(self, field, val):
+        with pytest.raises(ValueError, match=f"`{field}` must be finite"):
+            Meta(**{field: Decimal(val)})
+
+    @pytest.mark.parametrize("field", ["gt", "ge", "lt", "le", "multiple_of"])
+    @pytest.mark.parametrize("val", ["1E+400", "1E-400"])
+    def test_numeric_fields_accept_decimal_beyond_float_range(self, field, val):
+        # These are finite Decimals that overflow or underflow when converted
+        # to a double, so the checks can't go through `float`.
+        assert getattr(Meta(**{field: Decimal(val)}), field) == Decimal(val)
+
+    def test_decimal_subclass_cannot_bypass_bound_checks(self):
+        class LyingFinite(Decimal):
+            def is_finite(self):
+                return True
+
+        class AlwaysGreater(Decimal):
+            def __gt__(self, other):
+                return True
+
+        with pytest.raises(ValueError, match="`gt` must be finite"):
+            Meta(gt=LyingFinite("NaN"))
+
+        with pytest.raises(ValueError, match=r"`multiple_of` must be > 0"):
+            Meta(multiple_of=AlwaysGreater("-5"))
+
+        # A well behaved subclass is still accepted, and the original object
+        # is what gets stored.
+        bound = LyingFinite("1.5")
+        assert Meta(gt=bound).gt is bound
+
     @pytest.mark.parametrize("val", [0, 0.0])
     def test_multiple_of_bounds(self, val):
         with pytest.raises(ValueError, match=r"`multiple_of` must be > 0"):

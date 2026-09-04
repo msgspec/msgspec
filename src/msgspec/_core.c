@@ -1747,18 +1747,70 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
             return false;
         }
     }
-    else if (PyObject_IsInstance(val, mod->DecimalType)) {
-        /* Accept Decimal, convert to double for the positivity check only */
-        x = PyFloat_AsDouble(val);
-        if (x == -1.0 && PyErr_Occurred()) return false;
-    }
     else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "`%s` must be an int, float, or Decimal, got %.200s",
-            param, Py_TYPE(val)->tp_name
-        );
-        return false;
+        int is_decimal = PyObject_IsInstance(val, mod->DecimalType);
+        if (MS_UNLIKELY(is_decimal < 0)) return false;
+        if (!is_decimal) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "`%s` must be an int, float, or Decimal, got %.200s",
+                param, Py_TYPE(val)->tp_name
+            );
+            return false;
+        }
+        /* Decimal has its own notion of finiteness and its own zero. Going
+         * through a double would reject large-but-finite bounds like
+         * Decimal("1E+400"), which overflows to inf, and tiny positive ones
+         * like Decimal("1E-400"), which underflows to 0.0.
+         *
+         * Both checks run against an exact Decimal rather than `val` itself,
+         * so a subclass overriding `is_finite` or the comparison dunders can't
+         * slip a non-finite or non-positive bound past them. `Meta` still
+         * stores the original object. */
+        PyObject *exact = PyObject_CallOneArg(mod->DecimalType, val);
+        if (exact == NULL) return false;
+
+        PyObject *finite = PyObject_CallMethod(exact, "is_finite", NULL);
+        if (finite == NULL) {
+            Py_DECREF(exact);
+            return false;
+        }
+        int is_finite = PyObject_IsTrue(finite);
+        Py_DECREF(finite);
+        if (MS_UNLIKELY(is_finite < 0)) {
+            Py_DECREF(exact);
+            return false;
+        }
+        if (!is_finite) {
+            Py_DECREF(exact);
+            PyErr_Format(
+                PyExc_ValueError,
+                "`%s` must be finite, %R is not supported",
+                param, val
+            );
+            return false;
+        }
+
+        if (positive) {
+            PyObject *zero = PyLong_FromLong(0);
+            if (zero == NULL) {
+                Py_DECREF(exact);
+                return false;
+            }
+            int above_zero = PyObject_RichCompareBool(exact, zero, Py_GT);
+            Py_DECREF(zero);
+            if (MS_UNLIKELY(above_zero < 0)) {
+                Py_DECREF(exact);
+                return false;
+            }
+            if (!above_zero) {
+                Py_DECREF(exact);
+                PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
+                return false;
+            }
+        }
+        Py_DECREF(exact);
+        return true;
     }
     if (positive && x <= 0) {
         PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
@@ -1777,15 +1829,15 @@ PyDoc_STRVAR(Meta__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"gt : int or float, optional\n"
+"gt : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be greater than ``gt``.\n"
-"ge : int or float, optional\n"
+"ge : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be greater than or equal to ``ge``.\n"
-"lt : int or float, optional\n"
+"lt : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be less than ``lt``.\n"
-"le : int or float, optional\n"
+"le : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be less than or equal to ``le``.\n"
-"multiple_of : int or float, optional\n"
+"multiple_of : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be a multiple of ``multiple_of``.\n"
 "pattern : str, optional\n"
 "    A regex pattern that the annotated value must match against. Note that\n"
