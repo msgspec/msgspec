@@ -347,6 +347,8 @@ with <code class="docutils literal notranslate"><span class="pre">ge</span></cod
 <li><p>Fix the <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code> docstring to say <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> should raise
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> for unsupported types, not <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/774">Issue #774</a>).</p></li>
 <li><p>Fix backing type declaration of <code class="docutils literal notranslate"><span class="pre">Ext.code</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1135">PR #1135</a>).</p></li>
+<li><p>Fix <code class="docutils literal notranslate"><span class="pre">NameError</span></code> when creating a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> with an unquoted forward
+reference on Python 3.14 (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/1165">Issue #1165</a>).</p></li>
 <li><p>msgspec moved to the <a class="reference external" href="https://github.com/msgspec/msgspec">msgspec GitHub organization</a>;
 documentation now lives at <a class="reference external" href="https://msgspec.dev">msgspec.dev</a> (repository
 references updated in <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1045">PR #1045</a>).</p></li>
