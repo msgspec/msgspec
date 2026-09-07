@@ -53,11 +53,28 @@ else:
 
 
 if sys.version_info >= (3, 14):
-    from annotationlib import get_annotations as _get_class_annotations
+    from annotationlib import (
+        Format as _AnnotationFormat,
+        call_annotate_function as _call_annotate_function,
+        get_annotations as _get_class_annotations,
+    )
+
+    def call_annotate_forwardref(annotate):
+        """Evaluate a class annotate function without requiring names to exist.
+
+        Metaclasses should use ``Format.FORWARDREF`` (via
+        ``call_annotate_function``, which implements the format when the
+        annotate function only supports ``VALUE``).
+        """
+        return _call_annotate_function(annotate, _AnnotationFormat.FORWARDREF)
+
 else:
 
     def _get_class_annotations(cls):
         return cls.__dict__.get("__annotations__", {})
+
+    def call_annotate_forwardref(annotate):
+        return annotate(1)  # annotationlib.Format.VALUE
 
 
 def _apply_params(obj, mapping):
