@@ -1731,14 +1731,35 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
 }
 
 static bool
+ensure_is_positive(PyObject *val, const char *param) {
+    PyObject *zero = PyLong_FromLong(0);
+    if (zero == NULL) return false;
+    int above_zero = PyObject_RichCompareBool(val, zero, Py_GT);
+    Py_DECREF(zero);
+    if (MS_UNLIKELY(above_zero < 0)) return false;
+    if (!above_zero) {
+        PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
+        return false;
+    }
+    return true;
+}
+
+static bool
 ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
     MsgspecState *mod = msgspec_get_global_state();
-    double x;
     if (PyLong_CheckExact(val)) {
-        x = PyLong_AsDouble(val);
+        /* Every int is finite, so the only check left is positivity, and it
+         * is done exactly. Going through a double would overflow for ints
+         * outside the range of a double, leaving an `OverflowError` pending
+         * and (for `multiple_of`) reporting a large positive bound as
+         * non-positive. Whether a bound is *usable* is not decided here but
+         * downstream, per annotated type - `Meta(gt=2**64)` is already
+         * accepted here and rejected only for `int` types. */
+        if (positive && !ensure_is_positive(val, param)) return false;
+        return true;
     }
     else if (PyFloat_CheckExact(val)) {
-        x = PyFloat_AS_DOUBLE(val);
+        double x = PyFloat_AS_DOUBLE(val);
         if (!isfinite(x)) {
             PyErr_Format(
                 PyExc_ValueError,
@@ -1747,6 +1768,11 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
             );
             return false;
         }
+        if (positive && x <= 0) {
+            PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
+            return false;
+        }
+        return true;
     }
     else {
         int is_decimal = PyObject_IsInstance(val, mod->DecimalType);
@@ -1792,32 +1818,13 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
             return false;
         }
 
-        if (positive) {
-            PyObject *zero = PyLong_FromLong(0);
-            if (zero == NULL) {
-                Py_DECREF(exact);
-                return false;
-            }
-            int above_zero = PyObject_RichCompareBool(exact, zero, Py_GT);
-            Py_DECREF(zero);
-            if (MS_UNLIKELY(above_zero < 0)) {
-                Py_DECREF(exact);
-                return false;
-            }
-            if (!above_zero) {
-                Py_DECREF(exact);
-                PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
-                return false;
-            }
+        if (positive && !ensure_is_positive(exact, param)) {
+            Py_DECREF(exact);
+            return false;
         }
         Py_DECREF(exact);
         return true;
     }
-    if (positive && x <= 0) {
-        PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
-        return false;
-    }
-    return true;
 }
 
 PyDoc_STRVAR(Meta__doc__,
@@ -3827,8 +3834,19 @@ static bool
 _constr_as_f64(PyObject *obj, double *target, int offset) {
     /* Use PyFloat_AsDouble to also handle integers */
     double x = PyFloat_AsDouble(obj);
-    /* Should never be hit, types already checked */
-    if (x == -1.0 && PyErr_Occurred()) return false;
+    if (x == -1.0 && PyErr_Occurred()) {
+        /* `Meta` accepts any int bound; only here is the annotated type known
+         * to be a float, so only here can an int bound outside the range of a
+         * double be reported against the type it is invalid for. */
+        if (!PyErr_ExceptionMatches(PyExc_OverflowError)) return false;
+        PyErr_Clear();
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Bounds constraints (`ge`, `le`, ...) that don't fit in a float64 "
+            "are not supported for `float` types"
+        );
+        return false;
+    }
     if (offset == 1) {
         x = nextafter(x, DBL_MAX);
     }
