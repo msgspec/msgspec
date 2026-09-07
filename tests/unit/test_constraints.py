@@ -170,6 +170,17 @@ class TestMetaObject:
         Meta(**{field: 10})
         with pytest.raises(TypeError, match=f"`{field}` must be an int, got float"):
             Meta(**{field: 1.5})
+
+        with pytest.raises(ValueError, match=f"`{field}` must be >= 0, got -1"):
+            Meta(**{field: -1})
+
+    @pytest.mark.parametrize("field", ["min_length", "max_length"])
+    @pytest.mark.parametrize("val", [2**63, 10**400, -(10**400)])
+    def test_nonnegative_integer_fields_out_of_range(self, field, val):
+        # Doesn't fit in a Py_ssize_t. The overflow must not be reported as
+        # the value being negative, which it isn't.
+        with pytest.raises(ValueError, match=f"`{field}` is out of range"):
+            Meta(**{field: val})
         with pytest.raises(ValueError, match=f"{field}` must be >= 0, got -10"):
             Meta(**{field: -10})
 
