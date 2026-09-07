@@ -173,6 +173,30 @@ class TestMetaObject:
         # to a double, so the checks can't go through `float`.
         assert getattr(Meta(**{field: Decimal(val)}), field) == Decimal(val)
 
+    @pytest.mark.parametrize("field", ["gt", "ge", "lt", "le"])
+    @pytest.mark.parametrize("val", [10**400, -(10**400)])
+    def test_numeric_fields_accept_int_beyond_float_range(self, field, val):
+        # Every int is finite, so bounds outside the range of a double are
+        # accepted here, exactly like the equal `Decimal` spelling above.
+        # Whether such a bound is usable is decided per annotated type.
+        assert getattr(Meta(**{field: val}), field) == val
+
+    def test_multiple_of_int_beyond_float_range(self):
+        # The positivity check is exact: going through a double would report
+        # this large positive bound as non-positive.
+        assert Meta(multiple_of=10**400).multiple_of == 10**400
+        with pytest.raises(ValueError, match=r"`multiple_of` must be > 0"):
+            Meta(multiple_of=-(10**400))
+
+    @pytest.mark.parametrize("field", ["gt", "ge", "lt", "le", "multiple_of"])
+    def test_equal_int_and_decimal_bounds_are_interchangeable(self, field):
+        # `Meta` compares (and hashes) these bounds as equal, so `Meta` must
+        # not accept one spelling and reject the other.
+        int_meta = Meta(**{field: 10**400})
+        dec_meta = Meta(**{field: Decimal("1E+400")})
+        assert int_meta == dec_meta
+        assert hash(int_meta) == hash(dec_meta)
+
     def test_decimal_subclass_cannot_bypass_bound_checks(self):
         class LyingFinite(Decimal):
             def is_finite(self):
@@ -314,6 +338,11 @@ class TestInvalidConstraintAnnotations:
 
 
 class TestIntConstraints:
+    @pytest.mark.parametrize("name", ["ge", "gt", "le", "lt", "multiple_of"])
+    def test_bound_constraint_beyond_int64_errors(self, name):
+        with pytest.raises(ValueError, match="don't fit in an int64"):
+            msgspec.json.Decoder(Annotated[int, Meta(**{name: 10**400})])
+
     @pytest.mark.parametrize(
         "name, bound, good, bad",
         [
@@ -394,6 +423,11 @@ class TestFloatConstraints:
     def test_bound_constraint_uint64_valid_for_floats(self, name):
         typ = Annotated[float, Meta(**{name: 2**63})]
         msgspec.json.Decoder(typ)
+
+    @pytest.mark.parametrize("name", ["ge", "gt", "le", "lt", "multiple_of"])
+    def test_bound_constraint_beyond_float64_errors(self, name):
+        with pytest.raises(ValueError, match="don't fit in a float64"):
+            msgspec.json.Decoder(Annotated[float, Meta(**{name: 10**400})])
 
     def get_bounds_cases(self, name, bound):
         def ceilp1(x):
@@ -539,6 +573,19 @@ class TestDecimalConstraints:
 
         with pytest.raises(msgspec.ValidationError):
             dec.decode(proto.encode(Ex(Decimal("100"))))
+
+    def test_bounds_beyond_float_range(self, proto):
+        # `Decimal` bounds are kept exact, so an `int` bound outside the range
+        # of a double works here just like the equal `Decimal` spelling.
+        # (`typing.Annotated` collapses the two spellings onto one object,
+        # since `Meta(gt=10**400) == Meta(gt=Decimal("1E+400"))`.)
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(gt=10**400)]
+
+        dec = proto.Decoder(Ex)
+        assert dec.decode(proto.encode(Ex(Decimal("1E+500")))).x == Decimal("1E+500")
+        with pytest.raises(msgspec.ValidationError, match="Expected `Decimal` >"):
+            dec.decode(proto.encode(Ex(Decimal("1E+300"))))
 
     def test_convert(self):
         typ = Annotated[Decimal, Meta(gt=0)]

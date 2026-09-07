@@ -125,6 +125,14 @@ These constraints are valid on `int`, `float`, or `decimal.Decimal` types:
     ``Decimal("0.1")``). Use an ``int`` or ``float`` literal instead, or change
     the annotated type to `decimal.Decimal`.
 
+.. note::
+
+    ``int`` bounds are kept exact on `decimal.Decimal` types as well, so a
+    bound too large for a ``float`` to represent (e.g. ``ge=10**400``) is
+    valid there. On ``int`` types a bound must still fit in an int64, and on
+    ``float`` types it must fit in a float64; a bound that doesn't raises a
+    `ValueError` when the annotation is used.
+
 String Constraints
 ------------------
 
