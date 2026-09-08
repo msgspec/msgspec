@@ -96,6 +96,7 @@ def field(*, name: str | None = None) -> Any: ...
 @dataclass_transform(field_specifiers=(field,))
 class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[tuple[str, ...]]
+    __struct_defaults__: ClassVar[tuple[Any, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
     __struct_encode_fields__: ClassVar[tuple[str, ...]]
     __match_args__: ClassVar[tuple[str, ...]]
