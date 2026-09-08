@@ -23,6 +23,7 @@ on:
     - .github/workflows/*
     - .cibuildwheel.toml
     - .justfile
+    - scripts/**
     # Changes to testing
     - tests/**
     - .codecov.yml

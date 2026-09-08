@@ -429,6 +429,17 @@ class TestFloat:
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
 
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_float_from_int_out_of_range(self, strict):
+        # A python int too large to represent as a C double must raise a
+        # ValidationError, matching json.decode, rather than leaking the
+        # OverflowError PyLong_AsDouble sets as a SystemError.
+        big = 10**400
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(big, float, strict=strict)
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert({"x": big}, dict[str, float], strict=strict)
+
     @pytest.mark.parametrize(
         "meta, good, bad",
         [
