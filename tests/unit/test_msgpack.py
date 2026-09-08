@@ -2033,22 +2033,43 @@ class TestRaw:
         assert bytes(r) == s
         assert r.copy() is not r  # actual copy indicates a view
 
-    def test_raw_in_union_works_but_doesnt_change_anything(self):
+    def test_raw_in_union_only_allows_none(self):
         class Test(msgspec.Struct):
             x: int | str | msgspec.Raw
 
         s = msgspec.msgpack.encode({"x": 1})
-        r = msgspec.msgpack.decode(s, type=Test)
-        assert r == Test(1)
+        with pytest.raises(TypeError, match="Type unions containing"):
+            msgspec.msgpack.decode(s, type=Test)
 
-    def test_raw_can_be_mixed_with_custom_type(self):
+    def test_raw_cannot_be_mixed_with_custom_type(self):
         class Test(msgspec.Struct):
             x: Custom | msgspec.Raw
 
-        def dec_hook(typ, obj):
-            assert typ is Custom
-            return typ(*obj)
-
         s = msgspec.msgpack.encode({"x": [1, 2]})
-        res = msgspec.msgpack.decode(s, type=Test, dec_hook=dec_hook)
-        assert res == Test(Custom(1, 2))
+        with pytest.raises(TypeError, match="Type unions containing"):
+            msgspec.msgpack.decode(s, type=Test)
+
+    def test_decode_optional_raw_object(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        s = msgspec.msgpack.encode({"result": {"foo": "bar"}})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert res.result is not None
+        assert bytes(res.result) == msgspec.msgpack.encode({"foo": "bar"})
+
+    def test_decode_optional_raw_null(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        s = msgspec.msgpack.encode({"result": None})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert res.result is None
+
+    def test_decode_optional_raw_scalar(self):
+        class Test(msgspec.Struct):
+            result: msgspec.Raw | None
+
+        s = msgspec.msgpack.encode({"result": 1})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert bytes(res.result) == msgspec.msgpack.encode(1)

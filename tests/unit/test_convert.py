@@ -2780,3 +2780,12 @@ class TestRaw:
 
         sol = Ex(x=raw)
         assert convert({"x": raw}, type=Ex) == sol
+
+    def test_optional_raw(self):
+        raw = msgspec.Raw(b"123")
+
+        class Ex(Struct):
+            x: msgspec.Raw | None
+
+        assert convert({"x": raw}, type=Ex) == Ex(x=raw)
+        assert convert({"x": None}, type=Ex) == Ex(x=None)

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Support `Optional[msgspec.Raw]` / `Raw | None` when decoding JSON and MessagePack ({issue}`659`).
+
 ## Version 0.22.0 (2026-08-11)
 
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
