@@ -1,6 +1,7 @@
 import datetime
 import math
 import re
+import sys
 from typing import Annotated
 
 import pytest
@@ -168,21 +169,27 @@ class TestMetaObject:
     def test_nonnegative_integer_fields(self, field):
         Meta(**{field: 0})
         Meta(**{field: 10})
+        Meta(**{field: sys.maxsize})
         with pytest.raises(TypeError, match=f"`{field}` must be an int, got float"):
             Meta(**{field: 1.5})
 
         with pytest.raises(ValueError, match=f"`{field}` must be >= 0, got -1"):
             Meta(**{field: -1})
+        with pytest.raises(ValueError, match=f"`{field}` must be >= 0, got -10"):
+            Meta(**{field: -10})
+        with pytest.raises(
+            ValueError, match=f"`{field}` must be >= 0, got {-sys.maxsize - 1}"
+        ):
+            Meta(**{field: -sys.maxsize - 1})
 
     @pytest.mark.parametrize("field", ["min_length", "max_length"])
-    @pytest.mark.parametrize("val", [2**63, 10**400, -(10**400)])
+    @pytest.mark.parametrize(
+        "val", [sys.maxsize + 1, -sys.maxsize - 2, 10**400, -(10**400)]
+    )
     def test_nonnegative_integer_fields_out_of_range(self, field, val):
-        # Doesn't fit in a Py_ssize_t. The overflow must not be reported as
-        # the value being negative, which it isn't.
+        # Values outside Py_ssize_t need a range error in either direction.
         with pytest.raises(ValueError, match=f"`{field}` is out of range"):
             Meta(**{field: val})
-        with pytest.raises(ValueError, match=f"{field}` must be >= 0, got -10"):
-            Meta(**{field: -10})
 
     @pytest.mark.parametrize("field", ["pattern", "title", "description"])
     def test_string_fields(self, field):
