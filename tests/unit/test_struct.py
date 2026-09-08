@@ -2222,6 +2222,88 @@ class TestIntKeys:
         with pytest.raises(ValueError, match="array_like"):
             msgspec.defstruct("Q", [("a", int)], array_like=True, int_keys={"a": 1})
 
+    @pytest.mark.parametrize("key", [-(2**63), 2**63 - 1])
+    def test_int_keys_int64_boundaries_accepted(self, key):
+        class Test(Struct, int_keys={"a": key}):
+            a: int
+
+        assert Test.__struct_encode_int_keys__ == (key,)
+
+    @pytest.mark.parametrize("key", [-(2**63) - 1, 2**63, 2**64])
+    def test_int_keys_value_outside_int64_rejected(self, key):
+        with pytest.raises(ValueError, match=r"\[-2\*\*63, 2\*\*63 - 1\]"):
+
+            class Test(Struct, int_keys={"a": key}):
+                a: int
+
+    def test_int_keys_conflict_with_renamed_field(self):
+        # In JSON the int key 1 is written as "1", the same key as field `b`
+        with pytest.raises(ValueError, match="conflicts with field 'b'"):
+
+            class Test(Struct, int_keys={"a": 1}, rename={"b": "1"}):
+                a: int
+                b: int = 0
+
+    def test_int_keys_conflict_with_field_named_like_int(self):
+        with pytest.raises(ValueError, match="conflicts with field"):
+            defstruct("Test", [("a", int), ("1", int)], int_keys={"a": 1})
+
+    def test_int_keys_conflict_with_renamed_field_via_rename_callable(self):
+        with pytest.raises(ValueError, match="conflicts with field 'b'"):
+
+            class Test(
+                Struct,
+                int_keys={"a": -5},
+                rename=lambda n: "-5" if n == "b" else None,
+            ):
+                a: int
+                b: int
+
+    def test_int_keys_conflict_with_field_name_in_subclass(self):
+        class Base(Struct, int_keys={"a": 1}):
+            a: int
+
+        with pytest.raises(ValueError, match="conflicts with field 'b'"):
+
+            class Child(Base, rename={"b": "1"}):
+                b: int
+
+    def test_int_keys_same_field_name_and_key_spelling_allowed(self):
+        # Both spellings name the same field, so there's no ambiguity
+        class Test(Struct, int_keys={"a": 1}, rename={"a": "1"}):
+            a: int
+
+        assert Test.__struct_encode_fields__ == ("1",)
+        assert Test.__struct_encode_int_keys__ == (1,)
+
+    def test_int_keys_conflict_with_tag_field(self):
+        with pytest.raises(
+            ValueError, match="tag_field='1' conflicts with the `int_keys` value 1"
+        ):
+
+            class Test(Struct, tag=True, tag_field="1", int_keys={"a": 1}):
+                a: int
+
+        with pytest.raises(ValueError, match="tag_field='-2' conflicts"):
+            defstruct("Test", [("a", int)], tag="t", tag_field="-2", int_keys={"a": -2})
+
+    def test_int_keys_tag_field_conflict_inherited(self):
+        class Base(Struct, tag=True, tag_field="1"):
+            pass
+
+        with pytest.raises(ValueError, match="tag_field='1' conflicts"):
+
+            class Child(Base, int_keys={"a": 1}):
+                a: int
+
+    def test_int_keys_no_conflict_when_untagged(self):
+        # `tag_field` is ignored (and so can't conflict) when `tag=False`
+        class Test(Struct, tag=False, tag_field="1", int_keys={"a": 1}):
+            a: int
+
+        assert Test.__struct_config__.tag_field is None
+        assert msgspec.json.encode(Test(5)) == b'{"1":5}'
+
 
 class TestDefStruct:
     def test_defstruct_simple(self):

@@ -6484,8 +6484,39 @@ structmeta_construct_int_keys(StructMetaInfo *info)
         }
         if (PySet_Add(seen, key) < 0) goto done;
 
-        /* place PyLong key in encode tuple at the field's index */
         Py_ssize_t idx = PyLong_AsSsize_t(index);
+
+        /* In JSON an int key is written as its decimal string, and decoding
+         * accepts both that string and the field's encoded name. The decimal
+         * string must therefore not also be the encoded name of a *different*
+         * field (e.g. int key 1 alongside a field renamed to "1"), or the two
+         * fields would be indistinguishable on the wire. The same field carrying
+         * both spellings is unambiguous and allowed. The tag field is checked
+         * separately once the tag is constructed. */
+        PyObject *key_str = PyObject_Str(key);
+        if (key_str == NULL) goto done;
+        for (Py_ssize_t j = 0; j < nfields; j++) {
+            if (j == idx) continue;
+            PyObject *other = PyTuple_GET_ITEM(info->encode_fields, j);
+            int eq = PyObject_RichCompareBool(other, key_str, Py_EQ);
+            if (eq < 0) {
+                Py_DECREF(key_str);
+                goto done;
+            }
+            if (eq) {
+                PyErr_Format(
+                    PyExc_ValueError,
+                    "`int_keys` value %R for field %R conflicts with field %R, "
+                    "whose encoded name is also '%U'",
+                    key, field_name, PyTuple_GET_ITEM(info->fields, j), key_str
+                );
+                Py_DECREF(key_str);
+                goto done;
+            }
+        }
+        Py_DECREF(key_str);
+
+        /* place PyLong key in encode tuple at the field's index */
         Py_INCREF(key);
         PyObject *old = PyTuple_GET_ITEM(encode_int_keys, idx);
         PyTuple_SET_ITEM(encode_int_keys, idx, key);
@@ -6609,6 +6640,29 @@ structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod, PyObject *cls)
             info->tag_field
         );
         return -1;
+    }
+    /* In JSON an int key is written as its decimal string, so the tag field
+     * must not spell one of those either (e.g. `tag_field="1"` with int key 1),
+     * or the tag and that field would share a key on the wire. */
+    if (info->encode_int_keys != NULL) {
+        Py_ssize_t nfields = PyTuple_GET_SIZE(info->encode_int_keys);
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *int_key = PyTuple_GET_ITEM(info->encode_int_keys, i);
+            if (int_key == Py_None) continue;
+            PyObject *key_str = PyObject_Str(int_key);
+            if (key_str == NULL) return -1;
+            int eq = PyObject_RichCompareBool(info->tag_field, key_str, Py_EQ);
+            Py_DECREF(key_str);
+            if (eq < 0) return -1;
+            if (eq) {
+                PyErr_Format(
+                    PyExc_ValueError,
+                    "`tag_field='%U' conflicts with the `int_keys` value %R of field %R",
+                    info->tag_field, int_key, PyTuple_GET_ITEM(info->fields, i)
+                );
+                return -1;
+            }
+        }
     }
     return 0;
 }
@@ -8781,12 +8835,15 @@ PyDoc_STRVAR(Struct__doc__,
 "   callable that takes the field name and returns a new name or ``None`` to\n"
 "   not rename that field. Default is ``None`` for no field renaming.\n"
 "int_keys: mapping, or None, default None\n"
-"   A mapping from field name to a unique integer key, used only when encoding\n"
-"   or decoding this struct as **msgpack**. Listed fields are encoded using\n"
-"   their integer key instead of the field name (unlisted fields keep their\n"
-"   string name); decoding accepts both integer and string keys. This has no\n"
-"   effect on JSON, which always uses string field names. Composes with\n"
-"   ``rename`` (which stays str-only). Default is ``None``.\n"
+"   A mapping from field name to a unique integer key. Listed fields are\n"
+"   encoded using their integer key instead of the field name (unlisted fields\n"
+"   keep their string name). In msgpack the key is an integer; in JSON, where\n"
+"   object keys must be strings, it is the integer's decimal string (e.g.\n"
+"   ``\"1\"``). Decoding accepts both the integer key and the field's encoded\n"
+"   name. Keys must be unique, fit in a signed 64-bit integer, and their\n"
+"   decimal string must not equal another field's encoded name or the\n"
+"   ``tag_field``. Composes with ``rename`` (which stays str-only). Cannot be\n"
+"   combined with ``array_like=True``. Default is ``None``.\n"
 "repr_omit_defaults: bool, default False\n"
 "   Whether fields should be omitted from the generated repr if the\n"
 "   corresponding value is the default for that field.\n"
@@ -19461,27 +19518,47 @@ error:
 }
 
 /* Resolve a JSON string object key that encodes an `int_keys` integer id (e.g.
- * "1") to a field index via the struct's int-key lookup. Returns -1 if the key is
- * not a plain decimal integer or isn't a mapped int key -- the caller then falls
- * back to matching it as a field name (so an `order='sorted'` message, which uses
- * field names, and foreign name-keyed JSON both still decode). */
+ * "1") to a field index via the struct's int-key lookup.
+ *
+ * Only the canonical decimal form that the encoder emits is recognized: an
+ * optional leading '-', no leading zeros, no "-0", and a value within the
+ * signed 64-bit range [-2**63, 2**63 - 1]. Any other key (non-canonical, out of
+ * range, or not a mapped id) returns -1 and the caller falls back to matching
+ * it as a field name -- so a name-keyed message from another producer still
+ * decodes, while a key like "9223372036854775808" is treated as an unknown
+ * field rather than silently wrapping onto a different field's id. */
 static Py_ssize_t
 json_struct_int_key_index(StructMetaObject *st_type, const char *key, Py_ssize_t key_size) {
-    if (key_size == 0 || key_size > 19) return -1;
+    /* Longest canonical keys: 19 digits, or '-' followed by 19 digits */
+    if (key_size == 0 || key_size > 20) return -1;
     Py_ssize_t i = 0;
     bool neg = false;
     if (key[0] == '-') {
-        if (key_size == 1) return -1;
         neg = true;
         i = 1;
     }
-    int64_t val = 0;
+    Py_ssize_t ndigits = key_size - i;
+    if (ndigits == 0 || ndigits > 19) return -1;
+    /* Reject leading zeros ("01") and "-0"; a lone "0" is fine */
+    if (key[i] == '0' && (ndigits > 1 || neg)) return -1;
+    /* At most 19 decimal digits always fit in a uint64_t, so this accumulation
+     * cannot overflow; the signed range is checked explicitly below. */
+    uint64_t uval = 0;
     for (; i < key_size; i++) {
         char c = key[i];
         if (c < '0' || c > '9') return -1;
-        val = val * 10 + (c - '0');
+        uval = uval * 10 + (uint64_t)(c - '0');
     }
-    if (neg) val = -val;
+    int64_t val;
+    if (neg) {
+        if (uval > (uint64_t)LLONG_MAX + 1) return -1;  /* below -2**63 */
+        /* Negate without ever forming +2**63 in signed arithmetic */
+        val = (uval == (uint64_t)LLONG_MAX + 1) ? LLONG_MIN : -(int64_t)uval;
+    }
+    else {
+        if (uval > (uint64_t)LLONG_MAX) return -1;  /* above 2**63 - 1 */
+        val = (int64_t)uval;
+    }
     PyObject *idx = IntLookup_GetInt64((IntLookup *)st_type->struct_int_key_lookup, val);
     if (idx == NULL) return -1;
     return PyLong_AsSsize_t(idx);

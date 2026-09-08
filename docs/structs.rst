@@ -908,14 +908,45 @@ dict keys:
     >>> msgspec.json.decode(b'{"1":1,"2":2}', type=Point)
     Point(x=1, y=2)
 
-Decoding also accepts the original field names, so a message that uses names (for
-example one produced with a plain ``rename``, or by a non-msgspec producer) still
-round-trips:
+Only the exact decimal string the encoder emits is recognized as an integer key
+when decoding JSON: no leading zeros, no ``"-0"``, and a value within the signed
+64-bit range. Anything else (``"01"``, ``"9223372036854775808"``, ...) is treated
+as an ordinary, unknown field name.
+
+Decoding also accepts the field's encoded (string) name as an alias, so a message
+that uses names (for example one produced by a non-msgspec producer) still
+round-trips. The alias is a decoding convenience only; the encoder never emits it.
 
 .. code-block:: python
 
     >>> msgspec.json.decode(b'{"x":1,"y":2}', type=Point)
     Point(x=1, y=2)
+
+Because both spellings are accepted, the decimal string of an integer key must not
+also be the encoded name of a *different* field, or the ``tag_field`` of a tagged
+struct — otherwise two keys would be indistinguishable on the wire. Such
+collisions raise a ``ValueError`` at class definition:
+
+.. code-block:: python
+
+    >>> class Bad(msgspec.Struct, int_keys={"a": 1}, rename={"b": "1"}):
+    ...     a: int
+    ...     b: int = 0
+    Traceback (most recent call last):
+      ...
+    ValueError: `int_keys` value 1 for field 'a' conflicts with field 'b', whose encoded name is also '1'
+
+Generated :doc:`JSON schemas <jsonschema>` describe the encoded form: an
+int-keyed field appears under its decimal-string key (``"1"``), and is listed
+there in ``required`` if it has no default. The name alias is not part of the
+schema. Note that this means a schema generated with ``forbid_unknown_fields=True``
+(``additionalProperties: false``) rejects alias-keyed messages that msgspec itself
+would still accept.
+
+.. code-block:: python
+
+    >>> msgspec.json.schema(Point)["$defs"]["Point"]
+    {'title': 'Point', 'type': 'object', 'properties': {'1': {'type': 'integer'}, '2': {'type': 'integer'}}, 'required': ['1', '2']}
 
 A few things to note:
 
@@ -927,8 +958,11 @@ A few things to note:
   ``order="sorted"``, which emits the same integer keys.
 - ``int_keys`` composes with ``rename`` (and ``field(name=...)``): ``int_keys``
   sets the wire key for the fields it lists, while ``rename`` still controls the
-  string key of any unlisted fields (and the name that JSON decoding falls back to).
-- Integer keys must be unique within a struct and fit in a signed 64-bit integer.
+  string key of any unlisted fields (and the encoded name that decoding accepts
+  as an alias).
+- Integer keys must be unique within a struct, fit in a signed 64-bit integer
+  (``-2**63`` through ``2**63 - 1``), and not collide with another field's
+  encoded name or the ``tag_field`` as described above.
 - ``int_keys`` cannot be combined with ``array_like=True`` (array-encoded structs
   have no field keys); doing so raises a ``ValueError`` at class definition.
 

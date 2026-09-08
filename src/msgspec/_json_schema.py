@@ -402,13 +402,22 @@ class _SchemaGenerator:
 
             for field in t.fields:
                 field_schema = self.to_schema(field.type)
+                # The schema describes the encoded (wire) form. A field with an
+                # `int_keys` entry is written under its integer key's decimal
+                # string (e.g. "1") rather than its name. Decoding also accepts
+                # the encoded name as an alias, but that leniency is not part of
+                # the schema, matching how the encoder never emits it.
+                if field.int_key is not None:
+                    key = str(field.int_key)
+                else:
+                    key = field.encode_name
                 if field.required:
-                    required.append(field.encode_name)
+                    required.append(key)
                 elif field.default is not mi.NODEFAULT:
                     field_schema["default"] = to_builtins(field.default, str_keys=True)
                 elif field.default_factory in (list, dict, set, bytearray):
                     field_schema["default"] = field.default_factory()
-                names.append(field.encode_name)
+                names.append(key)
                 fields.append(field_schema)
 
             if t.array_like:
