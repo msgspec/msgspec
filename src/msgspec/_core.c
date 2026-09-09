@@ -20367,7 +20367,6 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
             if (val == NULL) goto cleanup;
             PyObject *val2 = to_builtins(self, val, is_key);
             if (val2 == NULL) goto cleanup;
-            Py_INCREF(val2);
             if (is_key) {
                 PyTuple_SET_ITEM(out, i + tagged, val2);
             }
