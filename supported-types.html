@@ -1695,6 +1695,16 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="go">Point3D(x=1, y=2, z=3)</span>
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> values are only populated by <a class="reference internal" href="api.html#msgspec.json.decode" title="msgspec.json.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code></a> and
+<a class="reference internal" href="api.html#msgspec.msgpack.decode" title="msgspec.msgpack.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.decode</span></code></a>, which can capture the original encoded bytes of
+a field before decoding it further. <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (and anything
+built on it, like <a class="reference internal" href="api.html#msgspec.yaml.decode" title="msgspec.yaml.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.yaml.decode</span></code></a> and <a class="reference internal" href="api.html#msgspec.toml.decode" title="msgspec.toml.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.toml.decode</span></code></a>)
+operates on already-decoded Python objects, so there’s no encoded byte
+buffer left to capture – a <code class="xref py py-obj docutils literal notranslate"><span class="pre">Raw</span></code>-typed field will only accept an
+already-constructed <code class="xref py py-obj docutils literal notranslate"><span class="pre">Raw</span></code> object as input, not an arbitrary value.</p>
+</div>
 </section>
 <section id="any">
 <h2><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Link to this heading">¶</a></h2>
