@@ -2796,3 +2796,26 @@ class TestRaw:
 
         with pytest.raises(ValidationError, match=r"^Expected `raw`, got `\w+`"):
             convert({"x": value}, type=Ex)
+
+    @pytest.mark.parametrize("total", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_typeddict_error_message(self, total, value, kind):
+        class Ex(TypedDict, total=total):
+            x: msgspec.Raw
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"
+
+    @pytest.mark.parametrize("default_factory", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_dataclass_error_message(self, default_factory, value, kind):
+        @dataclass
+        class Ex:
+            x: msgspec.Raw = (
+                field(default_factory=msgspec.Raw) if default_factory else field()
+            )
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"

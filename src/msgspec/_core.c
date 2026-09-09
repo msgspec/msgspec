@@ -3493,12 +3493,8 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
     }
-    if (self->types == 0) {
-        /* `Raw` is marked with a typecode of 0. JSON/msgpack decoding never
-         * reaches this repr for a `Raw` field (the raw bytes are captured
-         * before type checking), but `convert()` has no such interception
-         * and falls through to here on a type mismatch -- report `raw`, not
-         * `any`, so the message doesn't contradict the error being raised. */
+    if ((self->types & ~MS_EXTRA_FLAG) == 0) {
+        /* Ignore TypedDict/dataclass field metadata when identifying Raw. */
         return PyUnicode_FromString("raw");
     }
     if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
