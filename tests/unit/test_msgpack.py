@@ -1800,6 +1800,217 @@ class TestStruct:
         assert res == Test()
 
 
+class IKInner(msgspec.Struct, int_keys={"x": 0, "y": 1}):
+    x: int
+    y: int
+
+
+class IKOuter(msgspec.Struct, int_keys={"inner": 0, "n": 1}):
+    inner: IKInner
+    n: int
+
+
+class IKPartial(msgspec.Struct, int_keys={"a": 0, "c": 2}):
+    a: int
+    b: int
+    c: int
+
+
+class IKDefaults(msgspec.Struct, int_keys={"a": 0, "b": 1}):
+    a: int
+    b: int = 42
+
+
+class IKTagged(msgspec.Struct, tag=123, int_keys={"a": 0, "b": 1}):
+    a: int
+    b: int
+
+
+class TestIntKeys:
+    def test_all_int_keys_roundtrip(self):
+        obj = IKInner(1, 2)
+        buf = msgspec.msgpack.encode(obj)
+        # Wire form uses integer keys
+        assert msgspec.msgpack.decode(buf) == {0: 1, 1: 2}
+        assert msgspec.msgpack.decode(buf, type=IKInner) == obj
+
+    def test_partial_map_roundtrip(self):
+        obj = IKPartial(1, 2, 3)
+        buf = msgspec.msgpack.encode(obj)
+        # a -> 0, c -> 2 are int; b stays a string key
+        assert msgspec.msgpack.decode(buf) == {0: 1, "b": 2, 2: 3}
+        assert msgspec.msgpack.decode(buf, type=IKPartial) == obj
+
+    def test_nested_int_keys_roundtrip(self):
+        obj = IKOuter(IKInner(1, 2), 3)
+        buf = msgspec.msgpack.encode(obj)
+        # Nested struct encodes with its own int keys automatically
+        assert msgspec.msgpack.decode(buf) == {0: {0: 1, 1: 2}, 1: 3}
+        assert msgspec.msgpack.decode(buf, type=IKOuter) == obj
+
+    def test_missing_key_uses_default(self):
+        # Only field `a` present -> `b` falls back to default
+        buf = msgspec.msgpack.encode({0: 5})
+        assert msgspec.msgpack.decode(buf, type=IKDefaults) == IKDefaults(5, 42)
+
+    def test_unknown_int_key_skipped(self):
+        # Int key 7 is unknown -> skipped
+        buf = msgspec.msgpack.encode({0: 1, 7: "junk", 1: 2})
+        assert msgspec.msgpack.decode(buf, type=IKInner) == IKInner(1, 2)
+
+    def test_unknown_int_key_forbidden(self):
+        Forbid = msgspec.defstruct(
+            "Forbid",
+            [("a", int), ("b", int)],
+            int_keys={"a": 0, "b": 1},
+            forbid_unknown_fields=True,
+        )
+        buf = msgspec.msgpack.encode({0: 1, 7: 2, 1: 3})
+        with pytest.raises(msgspec.ValidationError):
+            msgspec.msgpack.decode(buf, type=Forbid)
+
+    def test_string_keys_still_decode(self):
+        # An int-keyed struct still accepts string field names on decode
+        buf = msgspec.msgpack.encode({"x": 1, "y": 2})
+        assert msgspec.msgpack.decode(buf, type=IKInner) == IKInner(1, 2)
+
+        # Mixed int and string keys
+        buf = msgspec.msgpack.encode({0: 1, "y": 2})
+        assert msgspec.msgpack.decode(buf, type=IKInner) == IKInner(1, 2)
+
+    def test_json_int_keys_string_coercion(self):
+        obj = IKInner(1, 2)
+        buf = msgspec.json.encode(obj)
+        # JSON object keys must be strings, so int_keys are coerced to their
+        # decimal string form ("0", "1"), mirroring integer dict keys.
+        assert buf == b'{"0":1,"1":2}'
+        assert msgspec.json.decode(buf, type=IKInner) == obj
+        # Decode also accepts the original field names (name fallback), so a
+        # name-keyed producer or the `order='sorted'` output still round-trips.
+        assert msgspec.json.decode(b'{"x":1,"y":2}', type=IKInner) == obj
+
+    def test_json_int_keys_partial(self):
+        # a->0, c->2 are int-keyed; b keeps its name.
+        obj = IKPartial(a=1, b=2, c=3)
+        buf = msgspec.json.encode(obj)
+        assert msgspec.json.decode(buf) == {"0": 1, "b": 2, "2": 3}
+        assert msgspec.json.decode(buf, type=IKPartial) == obj
+
+    def test_json_int_keys_tagged_union(self):
+        # Tag stays a string key; int fields coerce to string keys; union decodes.
+        obj = IKTagged(1, 2)
+        buf = msgspec.json.encode(obj)
+        assert msgspec.json.decode(buf) == {"type": 123, "0": 1, "1": 2}
+        assert msgspec.json.decode(buf, type=IKTagged) == obj
+
+    def test_json_int_keys_sorted_emits_int_strings(self):
+        # order='sorted' emits the same int-string keys as the default JSON path
+        # (strict consistency), not field names.
+        buf = msgspec.json.Encoder(order="sorted").encode(IKInner(1, 2))
+        assert msgspec.json.decode(buf) == {"0": 1, "1": 2}
+        assert msgspec.json.decode(buf, type=IKInner) == IKInner(1, 2)
+        # tagged: the tag stays a string key, sorted after the int keys
+        tbuf = msgspec.json.Encoder(order="sorted").encode(IKTagged(1, 2))
+        assert msgspec.json.decode(tbuf) == {"0": 1, "1": 2, "type": 123}
+        assert msgspec.json.decode(tbuf, type=IKTagged) == IKTagged(1, 2)
+
+    def test_int_tag_with_int_keys(self):
+        obj = IKTagged(1, 2)
+        buf = msgspec.msgpack.encode(obj)
+        # Tag key stays a string ("type"), fields use int keys
+        assert msgspec.msgpack.decode(buf) == {"type": 123, 0: 1, 1: 2}
+        assert msgspec.msgpack.decode(buf, type=IKTagged) == obj
+
+    def test_omit_defaults(self):
+        Omit = msgspec.defstruct(
+            "Omit",
+            [("a", int), ("b", int, 0)],
+            int_keys={"a": 0, "b": 1},
+            omit_defaults=True,
+        )
+        buf = msgspec.msgpack.encode(Omit(1, 0))
+        assert msgspec.msgpack.decode(buf) == {0: 1}
+        assert msgspec.msgpack.decode(buf, type=Omit) == Omit(1, 0)
+
+    def test_sorted_order_uses_int_keys(self):
+        class P(msgspec.Struct, int_keys={"a": 5, "b": 2, "c": 8}):
+            a: int
+            b: int
+            c: int
+
+        enc = msgspec.msgpack.Encoder(order="sorted")
+        raw = msgspec.msgpack.decode(enc.encode(P(1, 2, 3)))
+        # integer keys, emitted in ascending-id order (2, 5, 8) -- not strings
+        assert list(raw.items()) == [(2, 2), (5, 1), (8, 3)]
+        assert msgspec.msgpack.decode(enc.encode(P(1, 2, 3)), type=P) == P(1, 2, 3)
+
+    def test_deterministic_order_uses_int_keys(self):
+        class P(msgspec.Struct, int_keys={"x": 1, "y": 2}):
+            x: int
+            y: int
+
+        enc = msgspec.msgpack.Encoder(order="deterministic")
+        assert msgspec.msgpack.decode(enc.encode(P(1, 2))) == {1: 1, 2: 2}
+
+    def test_sorted_order_omit_defaults(self):
+        Omit = msgspec.defstruct(
+            "Omit", [("a", int), ("b", int, 0)],
+            int_keys={"a": 1, "b": 2}, omit_defaults=True,
+        )
+        enc = msgspec.msgpack.Encoder(order="sorted")
+        assert msgspec.msgpack.decode(enc.encode(Omit(5, 0))) == {1: 5}
+
+    def test_sorted_order_tagged(self):
+        class P(msgspec.Struct, tag=True, int_keys={"a": 1, "b": 2}):
+            a: int
+            b: int
+
+        enc = msgspec.msgpack.Encoder(order="sorted")
+        raw = msgspec.msgpack.decode(enc.encode(P(1, 2)))
+        assert raw == {"type": "P", 1: 1, 2: 2}      # tag stays a string key
+        assert msgspec.msgpack.decode(enc.encode(P(1, 2)), type=P) == P(1, 2)
+
+    def test_sorted_order_partial_map(self):
+        class P(msgspec.Struct, int_keys={"a": 1}):
+            a: int
+            b: int
+
+        enc = msgspec.msgpack.Encoder(order="sorted")
+        raw = msgspec.msgpack.decode(enc.encode(P(1, 2)))
+        # int-keyed fields sort (as ints) before string-keyed fields
+        assert list(raw.items()) == [(1, 1), ("b", 2)]
+        assert msgspec.msgpack.decode(enc.encode(P(1, 2)), type=P) == P(1, 2)
+
+    def test_tagged_union_decode_order_independent(self):
+        # An int-keyed tagged struct must decode as a union member regardless of
+        # where the (string) tag key falls on the wire. The sorted encoder orders
+        # int keys ahead of the tag, which previously broke the union tag-scan.
+        class A(msgspec.Struct, tag=True, int_keys={"a": 1, "b": 2}):
+            a: int
+            b: int
+
+        class B(msgspec.Struct, tag=True, int_keys={"a": 1}):
+            a: int
+
+        U = A | B
+        for enc in (msgspec.msgpack.Encoder(),
+                    msgspec.msgpack.Encoder(order="sorted")):
+            assert msgspec.msgpack.decode(enc.encode(A(1, 2)), type=U) == A(1, 2)
+            assert msgspec.msgpack.decode(enc.encode(B(9)), type=U) == B(9)
+
+    def test_tagged_union_decode_tag_last(self):
+        # Foreign-producer style: the tag is the LAST key, after the int keys.
+        class A(msgspec.Struct, tag=True, int_keys={"a": 1, "b": 2}):
+            a: int
+            b: int
+
+        class B(msgspec.Struct, tag=True, int_keys={"x": 1}):
+            x: int
+
+        wire = msgspec.msgpack.encode({1: 10, 2: 20, "type": "A"})
+        assert msgspec.msgpack.decode(wire, type=A | B) == A(10, 20)
+
+
 class TestStructArray:
     @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_empty_struct(self, tag):

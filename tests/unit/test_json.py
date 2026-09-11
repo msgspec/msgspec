@@ -2656,6 +2656,158 @@ class TestStruct:
             msgspec.json.decode(s, type=Test1)
 
 
+class TestStructIntKeys:
+    """JSON handling of structs configured with `int_keys`. Integer keys are
+    written as their decimal strings; decoding accepts that string or the
+    field's encoded name."""
+
+    def test_roundtrip_and_name_alias(self):
+        class Point(msgspec.Struct, int_keys={"x": 1, "y": 2}):
+            x: int
+            y: int
+
+        buf = msgspec.json.encode(Point(1, 2))
+        assert buf == b'{"1":1,"2":2}'
+        assert msgspec.json.decode(buf, type=Point) == Point(1, 2)
+        # The encoded field name is accepted as an alias when decoding
+        assert msgspec.json.decode(b'{"x":1,"2":2}', type=Point) == Point(1, 2)
+        assert msgspec.json.decode(b'{"x":1,"y":2}', type=Point) == Point(1, 2)
+
+    @pytest.mark.parametrize("key", [-(2**63), -1, 0, 1, 2**63 - 1])
+    def test_int64_boundaries_roundtrip(self, key):
+        class Test(msgspec.Struct, int_keys={"a": key}):
+            a: int
+
+        buf = msgspec.json.encode(Test(5))
+        assert buf == b'{"%d":5}' % key
+        assert msgspec.json.decode(buf, type=Test) == Test(5)
+
+    def test_min_int64_key_is_20_chars(self):
+        # `-9223372036854775808` is 20 characters; the sign must not eat into
+        # the digit budget.
+        class Test(msgspec.Struct, int_keys={"a": -(2**63)}):
+            a: int
+
+        key = b"-9223372036854775808"
+        assert len(key) == 20
+        assert msgspec.json.decode(b'{"' + key + b'":7}', type=Test) == Test(7)
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "9223372036854775808",  # 2**63, one past the max
+            "-9223372036854775809",  # -2**63 - 1, one past the min
+            "18446744073709551615",  # 2**64 - 1
+            "18446744073709551616",  # 2**64, wraps a uint64 accumulator
+            "99999999999999999999",  # 20 digits
+            "-99999999999999999999",
+            "999999999999999999999999",  # far too long
+        ],
+    )
+    def test_out_of_range_key_never_matches_a_field(self, key):
+        # Both int64 extremes are mapped, so an overflowing parse that wrapped
+        # would land on one of them. It must instead be an unknown key.
+        class Test(msgspec.Struct, int_keys={"lo": -(2**63), "hi": 2**63 - 1}):
+            lo: int = 0
+            hi: int = 0
+
+        msg = ('{"%s": 99}' % key).encode()
+        assert msgspec.json.decode(msg, type=Test) == Test(0, 0)
+
+        Forbid = msgspec.defstruct(
+            "Forbid",
+            [("lo", int, 0), ("hi", int, 0)],
+            int_keys={"lo": -(2**63), "hi": 2**63 - 1},
+            forbid_unknown_fields=True,
+        )
+        with pytest.raises(msgspec.ValidationError, match="unknown field"):
+            msgspec.json.decode(msg, type=Forbid)
+
+    @pytest.mark.parametrize(
+        "key", ["01", "00", "-0", "-01", "+1", " 1", "1 ", "1.0", "1e0", "-", "", "０"]
+    )
+    def test_non_canonical_key_never_matches_a_field(self, key):
+        # Only the exact decimal string the encoder emits resolves to an int key
+        class Test(msgspec.Struct, int_keys={"a": 0, "b": 1}):
+            a: int = -1
+            b: int = -1
+
+        msg = ('{"%s": 99}' % key).encode()
+        assert msgspec.json.decode(msg, type=Test) == Test(-1, -1)
+
+    def test_unknown_int_key_skipped_or_forbidden(self):
+        class Test(msgspec.Struct, int_keys={"a": 1}):
+            a: int
+
+        assert msgspec.json.decode(b'{"1": 1, "2": 2}', type=Test) == Test(1)
+
+        Forbid = msgspec.defstruct(
+            "Forbid", [("a", int)], int_keys={"a": 1}, forbid_unknown_fields=True
+        )
+        with pytest.raises(msgspec.ValidationError, match="unknown field `2`"):
+            msgspec.json.decode(b'{"1": 1, "2": 2}', type=Forbid)
+
+    def test_partial_int_keys_and_rename(self):
+        class Test(msgspec.Struct, int_keys={"a": 1}, rename={"b": "bee"}):
+            a: int
+            b: int
+            c: int
+
+        buf = msgspec.json.encode(Test(1, 2, 3))
+        assert msgspec.json.decode(buf) == {"1": 1, "bee": 2, "c": 3}
+        assert msgspec.json.decode(buf, type=Test) == Test(1, 2, 3)
+        assert msgspec.json.decode(b'{"a":1,"bee":2,"c":3}', type=Test) == Test(
+            1, 2, 3
+        )
+
+    def test_same_field_name_and_int_key_spelling_allowed(self):
+        # A field whose *own* encoded name equals its int key's decimal string
+        # is unambiguous, and both spellings resolve to it.
+        class Test(msgspec.Struct, int_keys={"a": 1}, rename={"a": "1"}):
+            a: int
+
+        assert msgspec.json.encode(Test(3)) == b'{"1":3}'
+        assert msgspec.json.decode(b'{"1":3}', type=Test) == Test(3)
+
+    def test_tagged_union_roundtrip(self):
+        class A(msgspec.Struct, tag=True, int_keys={"x": 1}):
+            x: int
+
+        class B(msgspec.Struct, tag=True, int_keys={"x": 1, "y": 2}):
+            x: int
+            y: int
+
+        for obj in [A(1), B(1, 2)]:
+            buf = msgspec.json.encode(obj)
+            assert msgspec.json.decode(buf, type=Union[A, B]) == obj
+
+        # The tag may appear after the int keys
+        msg = b'{"1": 1, "2": 2, "type": "B"}'
+        assert msgspec.json.decode(msg, type=Union[A, B]) == B(1, 2)
+
+    def test_encoded_output_matches_schema(self):
+        class Test(msgspec.Struct, int_keys={"a": 1}, forbid_unknown_fields=True):
+            a: int
+            b: int = 0
+
+        schema = msgspec.json.schema(Test)["$defs"]["Test"]
+        msg = msgspec.json.decode(msgspec.json.encode(Test(10, 20)))
+        assert msg == {"1": 10, "b": 20}
+        assert set(schema["required"]) <= set(msg)
+        assert set(msg) <= set(schema["properties"])
+
+        jsonschema = pytest.importorskip("jsonschema")
+        full_schema = msgspec.json.schema(Test)
+        # The encoded form validates; the name alias `a` is not in the schema,
+        # so with `forbid_unknown_fields` it is rejected by the schema even
+        # though msgspec accepts it when decoding.
+        jsonschema.validate(msg, full_schema)
+        jsonschema.validate({"1": 10}, full_schema)
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({"a": 10}, full_schema)
+        assert msgspec.json.decode(b'{"a": 10}', type=Test) == Test(10)
+
+
 class TestStructUnion:
     """Most functionality is tested in `test_common.py:TestStructUnion`, this only
     checks for malformed inputs and whitespace handling"""
