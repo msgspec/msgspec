@@ -2013,6 +2013,43 @@ class TestDict:
         ids = {id(k) for d in res for k in d.keys()}
         assert len(ids) == 3
 
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="cache is disabled without GIL",
+    )
+    def test_decode_dataclass_utf8_keys_cache(self):
+        """Non-ascii dataclass field names decode correctly with a fresh cache"""
+
+        @dataclass
+        class Foo:
+            π: float
+            μ: int
+
+        for _ in range(10):
+            gc.collect()  # cache is cleared every 10 full collections
+
+        foo = msgspec.json.decode(b'{"\xcf\x80":3.14,"\xce\xbc":0}', type=Foo)
+        assert foo.π == 3.14
+        assert foo.μ == 0
+
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="cache is disabled without GIL",
+    )
+    def test_decode_typeddict_utf8_keys_cache(self):
+        """Non-ascii TypedDict field names decode correctly with a fresh cache"""
+
+        class Foo(TypedDict):
+            π: float
+            μ: int
+
+        for _ in range(10):
+            gc.collect()  # cache is cleared every 10 full collections
+
+        foo = msgspec.json.decode(b'{"\xcf\x80":3.14,"\xce\xbc":0}', type=Foo)
+        assert foo["π"] == 3.14
+        assert foo["μ"] == 0
+
     @pytest.mark.parametrize(
         "key",
         [
