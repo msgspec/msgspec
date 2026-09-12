@@ -6804,6 +6804,59 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     );
 }
 
+/* Determine the most derived metaclass among `metatype` and the metaclasses
+ * of `bases`. This mirrors the metaclass calculation CPython performs when
+ * creating a class through `type`, so that classes created by `defstruct`
+ * resolve the same metaclass as equivalent class definitions. Returns NULL
+ * with an exception set if the metaclasses conflict. */
+static PyTypeObject *
+structmeta_calculate_metaclass(PyTypeObject *metatype, PyObject *bases) {
+    PyTypeObject *winner = metatype;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(bases); i++) {
+        PyObject *base = PyTuple_GET_ITEM(bases, i);
+        if (!PyType_Check(base)) continue;
+        PyTypeObject *base_meta = Py_TYPE(base);
+        if (PyType_IsSubtype(winner, base_meta)) continue;
+        if (PyType_IsSubtype(base_meta, winner)) {
+            winner = base_meta;
+            continue;
+        }
+        PyErr_SetString(
+            PyExc_TypeError,
+            "metaclass conflict: the metaclass of a derived class must be a "
+            "(non-strict) subclass of the metaclasses of all its bases"
+        );
+        return NULL;
+    }
+    return winner;
+}
+
+/* Collect the Struct configuration options from `defstruct`'s keyword
+ * arguments, dropping the parameters that describe the class itself. These
+ * options have already been validated by `defstruct`'s own argument parsing;
+ * they're forwarded as given so the metaclass applies them exactly as it does
+ * for an equivalent class definition. Returns a new dict, or NULL with an
+ * exception set. */
+static PyObject *
+structmeta_config_kwargs(PyObject *kwargs) {
+    static const char *not_config[] = {
+        "name", "fields", "bases", "module", "namespace", NULL
+    };
+    PyObject *out = PyDict_New();
+    if (out == NULL || kwargs == NULL) return out;
+
+    if (PyDict_Update(out, kwargs) < 0) goto error;
+    for (const char **key = not_config; *key != NULL; key++) {
+        if (PyDict_GetItemString(out, *key) == NULL) continue;
+        if (PyDict_DelItemString(out, *key) < 0) goto error;
+    }
+    return out;
+
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=None, module=None, namespace=None, "
@@ -6860,6 +6913,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
+    PyObject *create_args = NULL, *create_kwargs = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
     int arg_repr_omit_defaults = -1, arg_array_like = -1;
@@ -6965,20 +7019,34 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     }
     if (PyDict_SetItemString(namespace, "__annotations__", annotations) < 0) goto cleanup;
 
-    out = StructMeta_new_inner(
-        &StructMetaType, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_rename,
-        arg_omit_defaults, arg_forbid_unknown_fields,
-        arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_repr_omit_defaults, arg_array_like,
-        arg_gc, arg_weakref, arg_dict, arg_cache_hash
-    );
+    /* Create the class by calling the metaclass, exactly as evaluating a
+     * `class` statement would. This runs the metaclass's `__new__` and
+     * `__init__` hooks once each, at the same point they run for an equivalent
+     * class definition, so a metaclass that supplies or validates struct
+     * configuration behaves the same either way.
+     *
+     * The metaclass to call is the most derived among `StructMeta` and the
+     * metaclasses of `bases`. Calling `StructMeta` unconditionally would make
+     * type creation re-dispatch to that metaclass, running the struct
+     * machinery a second time on a namespace we've already injected
+     * `__slots__` into, which would fail the namespace check. */
+    PyTypeObject *metatype = structmeta_calculate_metaclass(&StructMetaType, bases);
+    if (metatype == NULL) goto cleanup;
+
+    create_args = Py_BuildValue("(OOO)", name, bases, namespace);
+    if (create_args == NULL) goto cleanup;
+    create_kwargs = structmeta_config_kwargs(kwargs);
+    if (create_kwargs == NULL) goto cleanup;
+
+    out = PyObject_Call((PyObject *)metatype, create_args, create_kwargs);
 
 cleanup:
     Py_XDECREF(namespace);
     Py_XDECREF(new_bases);
     Py_XDECREF(annotations);
     Py_XDECREF(fields_fast);
+    Py_XDECREF(create_args);
+    Py_XDECREF(create_kwargs);
     return out;
 }
 
