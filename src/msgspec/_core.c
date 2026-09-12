@@ -1731,13 +1731,35 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
 }
 
 static bool
+ensure_is_positive(PyObject *val, const char *param) {
+    PyObject *zero = PyLong_FromLong(0);
+    if (zero == NULL) return false;
+    int above_zero = PyObject_RichCompareBool(val, zero, Py_GT);
+    Py_DECREF(zero);
+    if (MS_UNLIKELY(above_zero < 0)) return false;
+    if (!above_zero) {
+        PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
+        return false;
+    }
+    return true;
+}
+
+static bool
 ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
-    double x;
+    MsgspecState *mod = msgspec_get_global_state();
     if (PyLong_CheckExact(val)) {
-        x = PyLong_AsDouble(val);
+        /* Every int is finite, so the only check left is positivity, and it
+         * is done exactly. Going through a double would overflow for ints
+         * outside the range of a double, leaving an `OverflowError` pending
+         * and (for `multiple_of`) reporting a large positive bound as
+         * non-positive. Whether a bound is *usable* is not decided here but
+         * downstream, per annotated type - `Meta(gt=2**64)` is already
+         * accepted here and rejected only for `int` types. */
+        if (positive && !ensure_is_positive(val, param)) return false;
+        return true;
     }
     else if (PyFloat_CheckExact(val)) {
-        x = PyFloat_AS_DOUBLE(val);
+        double x = PyFloat_AS_DOUBLE(val);
         if (!isfinite(x)) {
             PyErr_Format(
                 PyExc_ValueError,
@@ -1746,20 +1768,63 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
             );
             return false;
         }
+        if (positive && x <= 0) {
+            PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
+            return false;
+        }
+        return true;
     }
     else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "`%s` must be an int or float, got %.200s",
-            param, Py_TYPE(val)->tp_name
-        );
-        return false;
+        int is_decimal = PyObject_IsInstance(val, mod->DecimalType);
+        if (MS_UNLIKELY(is_decimal < 0)) return false;
+        if (!is_decimal) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "`%s` must be an int, float, or Decimal, got %.200s",
+                param, Py_TYPE(val)->tp_name
+            );
+            return false;
+        }
+        /* Decimal has its own notion of finiteness and its own zero. Going
+         * through a double would reject large-but-finite bounds like
+         * Decimal("1E+400"), which overflows to inf, and tiny positive ones
+         * like Decimal("1E-400"), which underflows to 0.0.
+         *
+         * Both checks run against an exact Decimal rather than `val` itself,
+         * so a subclass overriding `is_finite` or the comparison dunders can't
+         * slip a non-finite or non-positive bound past them. `Meta` still
+         * stores the original object. */
+        PyObject *exact = PyObject_CallOneArg(mod->DecimalType, val);
+        if (exact == NULL) return false;
+
+        PyObject *finite = PyObject_CallMethod(exact, "is_finite", NULL);
+        if (finite == NULL) {
+            Py_DECREF(exact);
+            return false;
+        }
+        int is_finite = PyObject_IsTrue(finite);
+        Py_DECREF(finite);
+        if (MS_UNLIKELY(is_finite < 0)) {
+            Py_DECREF(exact);
+            return false;
+        }
+        if (!is_finite) {
+            Py_DECREF(exact);
+            PyErr_Format(
+                PyExc_ValueError,
+                "`%s` must be finite, %R is not supported",
+                param, val
+            );
+            return false;
+        }
+
+        if (positive && !ensure_is_positive(exact, param)) {
+            Py_DECREF(exact);
+            return false;
+        }
+        Py_DECREF(exact);
+        return true;
     }
-    if (positive && x <= 0) {
-        PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
-        return false;
-    }
-    return true;
 }
 
 PyDoc_STRVAR(Meta__doc__,
@@ -1772,15 +1837,15 @@ PyDoc_STRVAR(Meta__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"gt : int or float, optional\n"
+"gt : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be greater than ``gt``.\n"
-"ge : int or float, optional\n"
+"ge : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be greater than or equal to ``ge``.\n"
-"lt : int or float, optional\n"
+"lt : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be less than ``lt``.\n"
-"le : int or float, optional\n"
+"le : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be less than or equal to ``le``.\n"
-"multiple_of : int or float, optional\n"
+"multiple_of : int, float, or decimal.Decimal, optional\n"
 "    The annotated value must be a multiple of ``multiple_of``.\n"
 "pattern : str, optional\n"
 "    A regex pattern that the annotated value must match against. Note that\n"
@@ -2853,6 +2918,11 @@ AssocList_Sort(AssocList* list) {
 // Despite the fact that `frozendict` was added in 3.15,
 // this type is always defined for order consistency:
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+/* Decimal constraints - a single bit, the details slot holds a 5-tuple
+ * (gt, ge, lt, le, multiple_of) of Decimal instances (None when unset).
+ * Grouped into one slot since there aren't enough free bits left for
+ * per-constraint bits. */
+#define MS_CONSTR_DECIMAL           (1ull << 40)
 
 /* Aliases for commonly used types */
 #if PY315_PLUS
@@ -2923,6 +2993,7 @@ AssocList_Sort(AssocList* list) {
  * S | ARRAY_MAX_LENGTH |
  * S | MAP_MIN_LENGTH |
  * S | MAP_MAX_LENGTH |
+ * O | DECIMAL [5-tuple (gt, ge, lt, le, multiple_of)] |
  * T | FIXTUPLE [size, types ...] |
  * */
 
@@ -2952,6 +3023,7 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_19 MS_CONSTR_ARRAY_MAX_LENGTH
 #define SLOT_20 MS_CONSTR_MAP_MIN_LENGTH
 #define SLOT_21 MS_CONSTR_MAP_MAX_LENGTH
+#define SLOT_22 MS_CONSTR_DECIMAL
 
 /* Common groups */
 #define MS_INT_CONSTRS (SLOT_08 | SLOT_09 | SLOT_10)
@@ -3390,13 +3462,25 @@ TypeNode_get_constr_map_max_length(TypeNode *type) {
     return type->details[i].py_ssize_t;
 }
 
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
+        )
+    );
+    return (PyObject *)(type->details[i].pointer);
+}
+
 static MS_INLINE void
 TypeNode_get_fixtuple(TypeNode *type, Py_ssize_t *offset, Py_ssize_t *size) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
             SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
-            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22
         )
     );
     *size = type->details[i].py_ssize_t;
@@ -3460,6 +3544,11 @@ TypeNode_Free(TypeNode *self) {
         TypeNode *node = (TypeNode *)(self->details[i + fixtuple_offset].pointer);
         TypeNode_Free(node);
     }
+    /* Free the Decimal constraints tuple stored after scalar constraint slots */
+    if (self->types & MS_CONSTR_DECIMAL) {
+        PyObject *obj = TypeNode_get_constr_decimal(self);
+        Py_XDECREF(obj);
+    }
     PyMem_Free(self);
 }
 
@@ -3472,6 +3561,11 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
     for (i = 0; i < n_obj; i++) {
         PyObject *obj = (PyObject *)(self->details[i].pointer);
         Py_VISIT(obj);
+    }
+    /* Visit the Decimal constraints tuple (a direct reference on this node)
+     * before recursing into children, which may return early. */
+    if (self->types & MS_CONSTR_DECIMAL) {
+        Py_VISIT(TypeNode_get_constr_decimal(self));
     }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
         int out;
@@ -3594,6 +3688,9 @@ typedef struct {
     bool literal_none;
     bool literal_bool_true;
     bool literal_bool_false;
+    /* Decimal constraints, a 5-tuple (gt, ge, lt, le, multiple_of) of
+     * Decimal instances (None when unset) */
+    PyObject *py_decimal_constrs;
     /* Constraints */
     int64_t c_int_min;
     int64_t c_int_max;
@@ -3687,7 +3784,8 @@ enum constraint_kind {
     CK_TIME = 4,
     CK_ARRAY = 5,
     CK_MAP = 6,
-    CK_OTHER = 7,
+    CK_DECIMAL = 7,
+    CK_OTHER = 8,
 };
 
 static int
@@ -3740,8 +3838,19 @@ static bool
 _constr_as_f64(PyObject *obj, double *target, int offset) {
     /* Use PyFloat_AsDouble to also handle integers */
     double x = PyFloat_AsDouble(obj);
-    /* Should never be hit, types already checked */
-    if (x == -1.0 && PyErr_Occurred()) return false;
+    if (x == -1.0 && PyErr_Occurred()) {
+        /* `Meta` accepts any int bound; only here is the annotated type known
+         * to be a float, so only here can an int bound outside the range of a
+         * double be reported against the type it is invalid for. */
+        if (!PyErr_ExceptionMatches(PyExc_OverflowError)) return false;
+        PyErr_Clear();
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Bounds constraints (`ge`, `le`, ...) that don't fit in a float64 "
+            "are not supported for `float` types"
+        );
+        return false;
+    }
     if (offset == 1) {
         x = nextafter(x, DBL_MAX);
     }
@@ -3749,6 +3858,25 @@ _constr_as_f64(PyObject *obj, double *target, int offset) {
         x = nextafter(x, -DBL_MAX);
     }
     *target = x;
+    return true;
+}
+
+static bool
+_constr_as_decimal(PyObject *obj, PyObject **target) {
+    MsgspecState *mod = msgspec_get_global_state();
+    PyObject *decimal;
+    if (PyFloat_Check(obj)) {
+        /* Convert float to string first for precision */
+        PyObject *str = PyObject_Str(obj);
+        if (str == NULL) return false;
+        decimal = PyObject_CallOneArg(mod->DecimalType, str);
+        Py_DECREF(str);
+    }
+    else {
+        decimal = PyObject_CallOneArg(mod->DecimalType, obj);
+    }
+    if (decimal == NULL) return false;
+    *target = decimal;  /* Owns the new reference from PyObject_CallOneArg */
     return true;
 }
 
@@ -3773,12 +3901,37 @@ typenode_collect_constraints(
     if (constraints_is_empty(constraints)) return 0;
 
     /* Check that the constraints are valid for the corresponding type */
-    if (kind != CK_INT && kind != CK_FLOAT) {
+    if (kind != CK_INT && kind != CK_FLOAT && kind != CK_DECIMAL) {
         if (constraints->gt != NULL) return err_invalid_constraint("gt", "numeric", obj);
         if (constraints->ge != NULL) return err_invalid_constraint("ge", "numeric", obj);
         if (constraints->lt != NULL) return err_invalid_constraint("lt", "numeric", obj);
         if (constraints->le != NULL) return err_invalid_constraint("le", "numeric", obj);
         if (constraints->multiple_of != NULL) return err_invalid_constraint("multiple_of", "numeric", obj);
+    }
+    if (kind == CK_INT || kind == CK_FLOAT) {
+        /* Decimal bounds lose precision when coerced to int/float - only allow
+         * them on Decimal types to force the user to pick consistent semantics. */
+        MsgspecState *mod = msgspec_get_global_state();
+        PyObject *bounds[] = {
+            constraints->gt, constraints->ge,
+            constraints->lt, constraints->le,
+            constraints->multiple_of,
+        };
+        const char *names[] = {"gt", "ge", "lt", "le", "multiple_of"};
+        for (size_t i = 0; i < 5; i++) {
+            if (bounds[i] == NULL) continue;
+            int is_decimal = PyObject_IsInstance(bounds[i], mod->DecimalType);
+            if (is_decimal < 0) return -1;
+            if (is_decimal) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "`%s` with a `Decimal` bound is only valid for `Decimal` "
+                    "types - type `%R` is invalid",
+                    names[i], obj
+                );
+                return -1;
+            }
+        }
     }
     if (kind != CK_STR) {
         if (constraints->regex != NULL) return err_invalid_constraint("pattern", "str", obj);
@@ -3834,6 +3987,44 @@ typenode_collect_constraints(
         if (constraints->multiple_of != NULL) {
             state->types |= MS_CONSTR_FLOAT_MULTIPLE_OF;
             if (!_constr_as_f64(constraints->multiple_of, &(state->c_float_multiple_of), 0)) return -1;
+        }
+    }
+    else if (kind == CK_DECIMAL) {
+        PyObject *bounds[5] = {
+            constraints->gt, constraints->ge,
+            constraints->lt, constraints->le,
+            constraints->multiple_of,
+        };
+        PyObject *converted[5] = {NULL, NULL, NULL, NULL, NULL};
+        bool any = false;
+        for (size_t i = 0; i < 5; i++) {
+            if (bounds[i] == NULL) continue;
+            if (!_constr_as_decimal(bounds[i], &converted[i])) {
+                for (size_t j = 0; j < i; j++) {
+                    Py_XDECREF(converted[j]);
+                }
+                return -1;
+            }
+            any = true;
+        }
+        if (any) {
+            PyObject *tuple = PyTuple_New(5);
+            if (tuple == NULL) {
+                for (size_t i = 0; i < 5; i++) {
+                    Py_XDECREF(converted[i]);
+                }
+                return -1;
+            }
+            for (size_t i = 0; i < 5; i++) {
+                PyObject *val = converted[i];
+                if (val == NULL) {
+                    val = Py_None;
+                    Py_INCREF(val);
+                }
+                PyTuple_SET_ITEM(tuple, i, val);
+            }
+            state->types |= MS_CONSTR_DECIMAL;
+            state->py_decimal_constrs = tuple;
         }
     }
     else if (kind == CK_STR) {
@@ -3926,7 +4117,8 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_CONSTR_ARRAY_MIN_LENGTH |
             MS_CONSTR_ARRAY_MAX_LENGTH |
             MS_CONSTR_MAP_MIN_LENGTH |
-            MS_CONSTR_MAP_MAX_LENGTH
+            MS_CONSTR_MAP_MAX_LENGTH |
+            MS_CONSTR_DECIMAL
         )
     );
     if (state->types & MS_TYPE_FIXTUPLE) {
@@ -4121,6 +4313,10 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     }
     if (state->types & MS_CONSTR_MAP_MAX_LENGTH) {
         out->details[e_ind++].py_ssize_t = state->c_map_max_length;
+    }
+    if (state->types & MS_CONSTR_DECIMAL) {
+        Py_INCREF(state->py_decimal_constrs);
+        out->details[e_ind++].pointer = state->py_decimal_constrs;
     }
     return (TypeNode *)out;
 
@@ -4837,6 +5033,7 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->literal_str_values);
     Py_CLEAR(state->literal_str_lookup);
     Py_CLEAR(state->c_str_regex);
+    Py_CLEAR(state->py_decimal_constrs);
 }
 
 /* This decomposes an input type `obj`, stripping out any "wrapper" types
@@ -5117,6 +5314,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (t == state->mod->DecimalType) {
         state->types |= MS_TYPE_DECIMAL;
+        kind = CK_DECIMAL;
     }
     else if (t == (PyObject *)(&Ext_Type)) {
         state->types |= MS_TYPE_EXT;
@@ -10523,6 +10721,78 @@ ms_check_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 }
 
 static MS_NOINLINE bool
+ms_passes_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    PyObject *constrs = TypeNode_get_constr_decimal(type);
+    PyObject *gt = PyTuple_GET_ITEM(constrs, 0);
+    PyObject *ge = PyTuple_GET_ITEM(constrs, 1);
+    PyObject *lt = PyTuple_GET_ITEM(constrs, 2);
+    PyObject *le = PyTuple_GET_ITEM(constrs, 3);
+    PyObject *multiple_of = PyTuple_GET_ITEM(constrs, 4);
+
+    if (gt != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, gt, Py_GT);
+        if (MS_UNLIKELY(ok < 0)) return false;
+        if (MS_UNLIKELY(!ok)) {
+            ms_raise_validation_error(path, "Expected `Decimal` > %R", gt);
+            return false;
+        }
+    }
+    else if (ge != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, ge, Py_GE);
+        if (MS_UNLIKELY(ok < 0)) return false;
+        if (MS_UNLIKELY(!ok)) {
+            ms_raise_validation_error(path, "Expected `Decimal` >= %R", ge);
+            return false;
+        }
+    }
+    if (lt != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, lt, Py_LT);
+        if (MS_UNLIKELY(ok < 0)) return false;
+        if (MS_UNLIKELY(!ok)) {
+            ms_raise_validation_error(path, "Expected `Decimal` < %R", lt);
+            return false;
+        }
+    }
+    else if (le != Py_None) {
+        int ok = PyObject_RichCompareBool(obj, le, Py_LE);
+        if (MS_UNLIKELY(ok < 0)) return false;
+        if (MS_UNLIKELY(!ok)) {
+            ms_raise_validation_error(path, "Expected `Decimal` <= %R", le);
+            return false;
+        }
+    }
+    if (multiple_of != Py_None) {
+        PyObject *modulo = PyNumber_Remainder(obj, multiple_of);
+        if (modulo == NULL) return false;
+        /* Compare the remainder against zero explicitly rather than relying
+         * on `__bool__`, which Decimal subclasses may override. `zero` is a
+         * cached small int, creating it here is effectively free. */
+        PyObject *zero = PyLong_FromLong(0);
+        if (MS_UNLIKELY(zero == NULL)) {
+            Py_DECREF(modulo);
+            return false;
+        }
+        int equal = PyObject_RichCompareBool(modulo, zero, Py_EQ);
+        Py_DECREF(zero);
+        Py_DECREF(modulo);
+        if (MS_UNLIKELY(equal < 0)) return false;
+        if (MS_UNLIKELY(!equal)) {
+            ms_raise_validation_error(path, "Expected `Decimal` that's a multiple of %R", multiple_of);
+            return false;
+        }
+    }
+    return true;
+}
+
+static MS_NOINLINE PyObject *
+ms_check_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_LIKELY(!(type->types & MS_CONSTR_DECIMAL))) return obj;
+    if (ms_passes_decimal_constraints(obj, type, path)) return obj;
+    Py_DECREF(obj);
+    return NULL;
+}
+
+static MS_NOINLINE bool
 _err_py_ssize_t_constraint(const char *msg, Py_ssize_t c, PathNode *path) {
     ms_raise_validation_error(path, msg, c);
     return false;
@@ -12087,7 +12357,9 @@ ms_post_decode_int64(
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_int64(x, path);
+        PyObject *out = ms_decode_decimal_from_int64(x, path);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (!strict) {
         if (type->types & MS_TYPE_BOOL) {
@@ -12118,7 +12390,9 @@ ms_post_decode_uint64(
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_uint64(x, path);
+        PyObject *out = ms_decode_decimal_from_uint64(x, path);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (!strict) {
         if (type->types & MS_TYPE_BOOL) {
@@ -12311,9 +12585,11 @@ done:
             && type->types & MS_TYPE_DECIMAL
         )
     ) {
-        return ms_decode_decimal(
+        PyObject *out = ms_decode_decimal(
             (char *)start, pend - start, true, path, NULL
         );
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     if (is_negative) {
         val = -val;
@@ -12528,9 +12804,11 @@ end_parsing:
             && type->types & MS_TYPE_DECIMAL
         )
     ) {
-        return ms_decode_decimal(
+        PyObject *out = ms_decode_decimal(
             (char *)start, p - start, true, path, NULL
         );
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (MS_UNLIKELY(float_hook != NULL && type->types & MS_TYPE_ANY)) {
         return json_float_hook((char *)start, p - start, path, float_hook);
@@ -15626,7 +15904,9 @@ mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path)
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_float(x, path, NULL);
+        PyObject *out = ms_decode_decimal_from_float(x, path, NULL);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (!self->strict) {
         if (type->types & MS_TYPE_INT) {
@@ -15680,7 +15960,9 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_uuid_from_str(s, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(s, size, false, path, NULL);
+        PyObject *out = ms_decode_decimal(s, size, false, path, NULL);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
 
     return ms_validation_error("str", type, path);
@@ -17870,7 +18152,9 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_uuid_from_str(view, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(view, size, is_ascii, path, NULL);
+        PyObject *out = ms_decode_decimal(view, size, is_ascii, path, NULL);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (
         MS_UNLIKELY(type->types &
@@ -20958,7 +21242,9 @@ convert_int(
         type->types & MS_TYPE_DECIMAL
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pyobj(obj, path, self->mod);
+        PyObject *out = ms_decode_decimal_from_pyobj(obj, path, self->mod);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     return convert_int_uncommon(self, obj, type, path);
 }
@@ -20975,9 +21261,11 @@ convert_float(
         type->types & MS_TYPE_DECIMAL
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_float(
+        PyObject *out = ms_decode_decimal_from_float(
             PyFloat_AS_DOUBLE(obj), path, self->mod
         );
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (!self->strict) {
         double val = PyFloat_AS_DOUBLE(obj);
@@ -21087,7 +21375,9 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DECIMAL)
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pystr(obj, path, self->mod);
+        PyObject *out = ms_decode_decimal_from_pystr(obj, path, self->mod);
+        if (out == NULL) return NULL;
+        return ms_check_decimal_constraints(out, type, path);
     }
     else if (
         (type->types & MS_TYPE_BYTES)
@@ -21275,7 +21565,7 @@ convert_decimal(
 ) {
     if (type->types & MS_TYPE_DECIMAL) {
         Py_INCREF(obj);
-        return obj;
+        return ms_check_decimal_constraints(obj, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
         PyObject *temp = PyNumber_Float(obj);
