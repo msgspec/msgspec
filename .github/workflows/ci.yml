@@ -35,6 +35,10 @@ on:
   release:
     types:
     - published
+  schedule:
+    # Weekly full wheel build (build-all), so a musllinux or riscv64 breakage
+    # surfaces before the release run that would otherwise be the first to try it.
+    - cron: '17 4 * * 1'
 
 permissions: {}
 
@@ -201,7 +205,7 @@ jobs:
       contents: read
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
-      build-all: ${{ github.event_name == 'release' }}
+      build-all: ${{ github.event_name == 'release' || github.event_name == 'schedule' }}
 
   upload-pypi:
     name: Upload artifacts to PyPI

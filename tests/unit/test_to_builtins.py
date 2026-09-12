@@ -475,6 +475,27 @@ class TestToBuiltins:
         sol = {("Ex", 1, -1) if tagged else (1, -1): "abc"}
         assert to_builtins(msg) == sol
 
+    @pytest.mark.parametrize("tagged", [False, True])
+    @pytest.mark.parametrize("is_key", [False, True])
+    @pytest.mark.parametrize("error", [False, True])
+    def test_struct_array_field_refcounts(self, tagged, is_key, error):
+        class Ex(Struct, array_like=True, tag=tagged, frozen=True):
+            x: Any
+            y: Any
+
+        value = float("1.5")
+        obj = Ex((value,), Bad() if error else value)
+        msg = {obj: None} if is_key else obj
+        count = sys.getrefcount(value)
+
+        if error:
+            with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+                to_builtins(msg)
+        else:
+            to_builtins(msg)
+
+        assert sys.getrefcount(value) == count
+
     @pytest.mark.parametrize("array_like", [False, True])
     def test_struct_unsupported_value(self, array_like):
         class Ex(Struct):

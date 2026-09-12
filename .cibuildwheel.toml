@@ -1,5 +1,5 @@
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
+build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-* cp315-* cp315t*"
 build-frontend = "build[uv]"
 test-command = "pytest {project}/tests/unit"
 test-groups = ["test-unit"]
