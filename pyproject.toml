@@ -62,7 +62,7 @@ bench = [
   "cattrs==25.3.0",
   "mashumaro==3.17",
   "msgpack==1.1.2",
-  "orjson==3.11.4",
+  "orjson==3.11.9",
   "ormsgpack==1.11.0",
   "pydantic==2.12.4",
   "python-rapidjson==1.22",
