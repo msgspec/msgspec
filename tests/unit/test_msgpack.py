@@ -29,6 +29,11 @@ from .utils import emscripten_stack_limited
 
 UTC = datetime.timezone.utc
 
+skip_if_is_32bit = pytest.mark.skipif(
+    sys.maxsize == (2**31 - 1),
+    reason="not supported on 32-bit architectures",
+)
+
 
 class FruitInt(enum.IntEnum):
     APPLE = 1
@@ -1416,6 +1421,7 @@ class TestTimestampExt:
         msg = b"\xd6\xff\x00\x00\x00\x00"
         self.check(dt, msg)
 
+    @skip_if_is_32bit
     def test_timestamp32_upper(self):
         dt = datetime.datetime.fromtimestamp(2**32 - 1, UTC)
         msg = b"\xd6\xff\xff\xff\xff\xff"
@@ -1426,6 +1432,7 @@ class TestTimestampExt:
         msg = b"\xd7\xff\x00\x00\x0f\xa0\x00\x00\x00\x00"
         self.check(dt, msg)
 
+    @skip_if_is_32bit
     def test_timestamp64_upper(self):
         dt = datetime.datetime.fromtimestamp(2**34, UTC) - datetime.timedelta(
             microseconds=1
@@ -1438,6 +1445,7 @@ class TestTimestampExt:
         msg = b"\xc7\x0c\xff;\x9a\xc6\x18\xff\xff\xff\xff\xff\xff\xff\xff"
         self.check(dt, msg)
 
+    @skip_if_is_32bit
     def test_timestamp96_upper(self):
         dt = datetime.datetime.fromtimestamp(2**34, UTC)
         msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"

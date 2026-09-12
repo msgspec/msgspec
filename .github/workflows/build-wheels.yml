@@ -28,6 +28,33 @@ jobs:
         - target: Linux (x86_64)
           os: ubuntu-latest
           archs: x86_64
+        - target: Linux (i686)
+          os: ubuntu-latest
+          archs: i686
+        - target: Linux / musllinux (ppc64le)
+          os: ubuntu-latest
+          archs: ppc64le
+          cibw_build: "*-musllinux_*"
+        - target: Linux / manylinux (ppc64le)
+          os: ubuntu-latest
+          archs: ppc64le
+          cibw_build: "*-manylinux_*"
+        - target: Linux / musllinux (s390x)
+          os: ubuntu-latest
+          archs: s390x
+          cibw_build: "*-musllinux_*"
+        - target: Linux / manylinux (s390x)
+          os: ubuntu-latest
+          archs: s390x
+          cibw_build: "*-manylinux_*"
+        - target: Linux / musllinux (armv7l)
+          os: ubuntu-latest
+          archs: armv7l
+          cibw_build: "*-musllinux_*"
+        - target: Linux / manylinux (armv7l)
+          os: ubuntu-latest
+          archs: armv7l
+          cibw_build: "*-manylinux_*"
         - target: Linux (riscv64)
           os: ubuntu-24.04-riscv
           archs: riscv64
@@ -38,12 +65,19 @@ jobs:
         - target: macOS (x86_64)
           os: macos-15-intel
           archs: x86_64
+        - target: macOS (universal2)
+          os: macos-latest
+          archs: universal2
         - target: Windows (ARM64)
           os: windows-11-arm
           archs: ARM64
         - target: Windows (AMD64)
           os: windows-latest
           archs: AMD64
+          # TODO: support Windows x86
+          # - target: Windows (x86)
+          #   os: windows-latest
+          #   archs: x86
         - target: Pyodide (wasm32)
           os: ubuntu-latest
           archs: wasm32
@@ -64,9 +98,9 @@ jobs:
 
     env:
       CIBW_ARCHS: "${{ matrix.wheel.archs }}"
+      CIBW_BUILD: "${{ matrix.wheel.cibw_build || '*' }}"
       CIBW_PLATFORM: "${{ matrix.wheel.cibw_platform || 'auto' }}"
-      CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
-      ARTIFACT_NAME: artifact-wheels-${{ matrix.wheel.cibw_platform || matrix.wheel.os }}-${{ matrix.wheel.archs }}
+      ARTIFACT_NAME: artifact-wheels-${{ matrix.wheel.cibw_platform || matrix.wheel.os }}-${{ matrix.wheel.archs }}-${{ matrix.wheel.cibw_build || 'all' }}
       PACKAGE_DIR: dist/${{ inputs.sdist-name }}
 
     steps:
@@ -86,25 +120,22 @@ jobs:
       with:
         enable-cache: false
 
-    # The upstream composite action calls actions/setup-python@v6, which is
-    # incompatible with the repository's full-SHA pinning requirement.
-    - name: Build & Test Wheels
-      if: runner.os != 'Windows'
-      run: >-
-        uvx --from cibuildwheel==4.2.0
-        cibuildwheel
-        --config-file .cibuildwheel.toml
-        --output-dir wheelhouse
-        "${PACKAGE_DIR}"
+    - name: Set up QEMU
+      if: >-
+        runner.os == 'Linux' &&
+        contains(fromJSON('["ppc64le","s390x","armv7l"]'), matrix.wheel.archs) &&
+        matrix.wheel.cibw_build != '*-musllinux_*'
+      uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
+      with:
+        platforms: all
 
     - name: Build & Test Wheels
-      if: runner.os == 'Windows'
-      run: >-
-        uvx --from cibuildwheel==4.2.0
-        cibuildwheel
-        --config-file .cibuildwheel.toml
-        --output-dir wheelhouse
-        "$env:PACKAGE_DIR"
+      uses: pypa/cibuildwheel@1828c10ab37f080699c7b81cea34097c684a7074 # v4.2.0
+      with:
+        package-dir: "${{ env.PACKAGE_DIR }}"
+        output-dir: wheelhouse
+        config-file: .cibuildwheel.toml
+        extras: uv
 
     - name: Upload artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

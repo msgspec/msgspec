@@ -1,10 +1,77 @@
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
+build = [
+    "cp310-*",  # CPython 3.10
+    "cp311-*",  # CPython 3.11
+    "cp312-*",  # CPython 3.12
+    "cp313-*",  # CPython 3.13
+    "cp314-*",  # CPython 3.14
+    "cp314t-*", # CPython 3.14t (free-threading)
+]
 build-frontend = "build[uv]"
 test-command = "pytest {project}/tests/unit"
-test-groups = ["test-unit"]
+test-groups = ["test-unit"] # uv pip install --group test-unit
+test-skip = "*-musllinux_{ppc64le,s390x,armv7l}"
 
 [tool.cibuildwheel.pyodide]
 build = "cp314-*"
 # https://cibuildwheel.pypa.io/en/stable/platforms/#pyodide
 test-command = "python -m pytest {project}/tests/unit"
+
+[tool.cibuildwheel.linux]
+archs = [
+    "x86_64",
+    "i686",
+    "aarch64",
+    "ppc64le",
+    "s390x",
+    "armv7l",
+    "riscv64",
+]
+
+[tool.cibuildwheel.macos]
+archs = [
+    "x86_64",
+    "arm64",
+    "universal2",
+]
+
+[tool.cibuildwheel.windows]
+# TODO: support Windows x86
+archs = [
+    # "x86",
+    "AMD64",
+    "ARM64",
+]
+
+[[tool.cibuildwheel.overrides]]
+# uv is not available in these images
+#
+# See:
+# * https://github.com/astral-sh/uv/issues/10883
+# * https://github.com/astral-sh/uv/issues/17764
+build-frontend = "build"
+select = "*-musllinux_{ppc64le,s390x,riscv64}"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_ppc64le"
+before-all = [
+    "curl -fsSLo /tmp/zig.tar.xz https://ziglang.org/builds/zig-powerpc64le-linux-0.17.0-dev.1778+767d25269.tar.xz",
+    "mkdir -p /opt/zig && tar -xf /tmp/zig.tar.xz -C /opt/zig --strip-components=1",
+]
+environment = { CC = "/opt/zig/zig cc -target powerpc64le-linux-musl", CXX = "/opt/zig/zig c++ -target powerpc64le-linux-musl" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_s390x"
+before-all = [
+    "curl -fsSLo /tmp/zig.tar.xz https://ziglang.org/builds/zig-s390x-linux-0.17.0-dev.1778+767d25269.tar.xz",
+    "mkdir -p /opt/zig && tar -xf /tmp/zig.tar.xz -C /opt/zig --strip-components=1",
+]
+environment = { CC = "/opt/zig/zig cc -target s390x-linux-musl", CXX = "/opt/zig/zig c++ -target s390x-linux-musl" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_armv7l"
+before-all = [
+    "curl -fsSLo /tmp/zig.tar.xz https://ziglang.org/builds/zig-arm-linux-0.17.0-dev.1778+767d25269.tar.xz",
+    "mkdir -p /opt/zig && tar -xf /tmp/zig.tar.xz -C /opt/zig --strip-components=1",
+]
+environment = { CC = "/opt/zig/zig cc -target arm-linux-musleabihf", CXX = "/opt/zig/zig c++ -target arm-linux-musleabihf" }
