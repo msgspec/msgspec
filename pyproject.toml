@@ -63,7 +63,7 @@ bench = [
   "mashumaro==3.17",
   "msgpack==1.1.2",
   "orjson==3.11.4",
-  "ormsgpack==1.11.0",
+  "ormsgpack==1.12.2",
   "pydantic==2.12.4",
   "python-rapidjson==1.22",
   "pysimdjson==7.0.2",
