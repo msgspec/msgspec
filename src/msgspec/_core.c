@@ -1726,6 +1726,17 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
     }
     Py_ssize_t x = PyLong_AsSsize_t(val);
     if (x >= 0) return true;
+    if (PyErr_Occurred()) {
+        /* Doesn't fit in a Py_ssize_t, in either direction. Without this the
+         * pending OverflowError is replaced by the message below, which for a
+         * large positive value says it isn't >= 0. */
+        PyErr_Clear();
+        PyErr_Format(
+            PyExc_ValueError, "`%s` is out of range, %R is not a valid length",
+            param, val
+        );
+        return false;
+    }
     PyErr_Format(PyExc_ValueError, "`%s` must be >= 0, got %R", param, val);
     return false;
 }
