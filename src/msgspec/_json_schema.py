@@ -411,9 +411,10 @@ class _SchemaGenerator:
 
             if t.array_like:
                 n_trailing_defaults = 0
-                for n_trailing_defaults, f in enumerate(reversed(t.fields)):
+                for f in reversed(t.fields):
                     if f.required:
                         break
+                    n_trailing_defaults += 1
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
                 schema["minItems"] = len(fields) - n_trailing_defaults
