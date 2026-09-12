@@ -257,6 +257,9 @@ class TestEncoderMisc:
         with pytest.raises(TypeError):
             enc.encode_into(1, bytearray(), "bad")
 
+        with pytest.raises(TypeError):
+            enc.encode_into(1, bytearray(), None)
+
         with pytest.raises(ValueError, match="offset"):
             enc.encode_into(1, bytearray(), -2)
 
