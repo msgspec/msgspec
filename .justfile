@@ -270,6 +270,16 @@ _with_env env action *args:
       } \
     } \
   }}{{ \
+    if env == "test" { \
+      if os() == "windows" { \
+        "$env:MSGSPEC_COMPILE_TEST_CAPI='1'; " \
+      } else { \
+        "MSGSPEC_COMPILE_TEST_CAPI=1 " \
+      } \
+    } else { \
+      "" \
+    } \
+  }}{{ \
     if debug =~ "^(true|1)$" { \
       if os() == "windows" { \
         "$env:MSGSPEC_DEBUG='1'; " \

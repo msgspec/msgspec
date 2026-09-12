@@ -121,7 +121,11 @@ packages = ["msgspec"]
 [tool.setuptools.exclude-package-data]
 msgspec = [
   "*.c",
-  "*.h",
+  "atof.h",
+  "atof_consts.h",
+  "common.h",
+  "itoa.h",
+  "ryu.h",
 ]
 
 [tool.setuptools_scm]

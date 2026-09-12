@@ -15,6 +15,7 @@
 #include "itoa.h"
 #include "ryu.h"
 #include "atof.h"
+#include "msgspec.h"
 
 /* Python version checks */
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
@@ -7535,6 +7536,214 @@ PyDoc_STRVAR(StructMeta__doc__,
 ">>> Example(b=123)\n"
 "Example(a='', b=123)\n"
 );
+
+
+/*************************************************************************
+ * Narrow native Struct-construction C API                               *
+ *************************************************************************/
+
+/* Forward declarations for helpers defined below this API block. */
+static PyObject *get_default(PyObject *obj);
+static MS_INLINE int Struct_post_init(StructMetaObject *st_type, PyObject *obj);
+static MS_NOINLINE void Struct_build_abstract_error(PyTypeObject *cls);
+
+/*
+ * Opaque producer-owned builder token. Consumers receive only PyObject*,
+ * never this layout. The token participates in cyclic GC because a Struct
+ * class can retain arbitrary objects that retain the token in turn.
+ */
+typedef struct {
+    PyObject_HEAD
+    PyTypeObject *cls;
+    StructMetaObject *st_type;
+    Py_ssize_t nfields;
+} StructBuilderObject;
+
+static int
+StructBuilder_traverse(StructBuilderObject *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->cls);
+    return 0;
+}
+
+static int
+StructBuilder_clear(StructBuilderObject *self)
+{
+    Py_CLEAR(self->cls);
+    self->st_type = NULL;
+    self->nfields = 0;
+    return 0;
+}
+
+static void
+StructBuilder_dealloc(StructBuilderObject *self)
+{
+    PyObject_GC_UnTrack(self);
+    StructBuilder_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject StructBuilder_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core._StructBuilder",
+    .tp_basicsize = sizeof(StructBuilderObject),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_dealloc = (destructor)StructBuilder_dealloc,
+    .tp_traverse = (traverseproc)StructBuilder_traverse,
+    .tp_clear = (inquiry)StructBuilder_clear,
+};
+
+static void
+struct_builder_consume_values(PyObject **values, Py_ssize_t nslots)
+{
+    if (values == NULL || nslots <= 0) return;
+    for (Py_ssize_t i = 0; i < nslots; i++) {
+        Py_XDECREF(values[i]);
+        values[i] = NULL;
+    }
+}
+
+static int
+struct_builder_prepare(PyObject *cls_obj, PyObject **builder_out)
+{
+    if (builder_out == NULL) {
+        PyErr_SetString(PyExc_SystemError, "builder_out must not be NULL");
+        return MSGSPEC_CAPI_ERROR;
+    }
+    *builder_out = NULL;
+
+#ifdef Py_GIL_DISABLED
+    /* V1 deliberately makes no free-threaded safety claim. */
+    return MSGSPEC_CAPI_UNSUPPORTED;
+#else
+    /* msgspec is currently a legacy single-phase extension. V1 refuses
+     * subinterpreters rather than sharing an interpreter-affine token. */
+    if (PyInterpreterState_Get() != PyInterpreterState_Main()) {
+        return MSGSPEC_CAPI_UNSUPPORTED;
+    }
+
+    /* Custom StructMeta subclasses retain the public-constructor fallback. */
+    if (!PyType_Check(cls_obj) || Py_TYPE(cls_obj) != &StructMetaType) {
+        return MSGSPEC_CAPI_UNSUPPORTED;
+    }
+
+    StructBuilderObject *builder = (StructBuilderObject *)StructBuilder_Type.tp_alloc(
+        &StructBuilder_Type, 0
+    );
+    if (builder == NULL) return MSGSPEC_CAPI_ERROR;
+
+    builder->cls = (PyTypeObject *)Py_NewRef(cls_obj);
+    builder->st_type = (StructMetaObject *)cls_obj;
+    builder->nfields = PyTuple_GET_SIZE(builder->st_type->struct_fields);
+    *builder_out = (PyObject *)builder;
+    return MSGSPEC_CAPI_OK;
+#endif
+}
+
+static PyObject *
+struct_builder_build_owned(
+    PyObject *builder_obj,
+    PyObject **values,
+    Py_ssize_t nslots
+)
+{
+    if (MS_UNLIKELY(nslots < 0 || (nslots != 0 && values == NULL))) {
+        PyErr_SetString(PyExc_SystemError, "invalid declared-order value array");
+        return NULL;
+    }
+    if (MS_UNLIKELY(!Py_IS_TYPE(builder_obj, &StructBuilder_Type))) {
+        struct_builder_consume_values(values, nslots);
+        PyErr_SetString(PyExc_TypeError, "invalid msgspec Struct builder");
+        return NULL;
+    }
+
+    StructBuilderObject *builder = (StructBuilderObject *)builder_obj;
+    StructMetaObject *st_type = builder->st_type;
+    Py_ssize_t nfields = builder->nfields;
+
+    /* __abstractmethods__ is mutable after prepare. Match Struct_vectorcall. */
+    if (MS_UNLIKELY(builder->cls->tp_flags & Py_TPFLAGS_IS_ABSTRACT)) {
+        struct_builder_consume_values(values, nslots);
+        Struct_build_abstract_error(builder->cls);
+        return NULL;
+    }
+
+    if (MS_UNLIKELY(nslots != nfields)) {
+        struct_builder_consume_values(values, nslots);
+        PyErr_Format(
+            PyExc_TypeError,
+            "expected %zd declared-order fields, got %zd",
+            nfields,
+            nslots
+        );
+        return NULL;
+    }
+
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    Py_ssize_t npos = nfields - ndefaults;
+    bool is_gc = MS_TYPE_IS_GC(builder->cls);
+    bool should_untrack = is_gc;
+
+    PyObject *out = Struct_alloc(builder->cls);
+    if (out == NULL) {
+        struct_builder_consume_values(values, nslots);
+        return NULL;
+    }
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = values[i];
+        values[i] = NULL;
+
+        if (val == NULL) {
+            if (MS_UNLIKELY(i < npos)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Missing required argument '%U'",
+                    PyTuple_GET_ITEM(st_type->struct_fields, i)
+                );
+                goto error;
+            }
+            PyObject *def = PyTuple_GET_ITEM(st_type->struct_defaults, i - npos);
+            if (MS_UNLIKELY(def == NODEFAULT)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Missing required argument '%U'",
+                    PyTuple_GET_ITEM(st_type->struct_fields, i)
+                );
+                goto error;
+            }
+            val = get_default(def);
+            if (MS_UNLIKELY(val == NULL)) goto error;
+        }
+
+        char *addr = (char *)out + st_type->struct_offsets[i];
+        *(PyObject **)addr = val;
+        if (should_untrack) should_untrack = !MS_MAYBE_TRACKED(val);
+    }
+
+    if (is_gc && should_untrack && MS_IS_TRACKED(out)) {
+        PyObject_GC_UnTrack(out);
+    }
+    if (Struct_post_init(st_type, out) < 0) goto error;
+    return out;
+
+error:
+    struct_builder_consume_values(values, nslots);
+    Py_DECREF(out);
+    return NULL;
+}
+
+static const Msgspec_CAPI_v1 msgspec_capi_v1 = {
+    .abi_version = MSGSPEC_CAPI_ABI_VERSION,
+    .struct_size = sizeof(Msgspec_CAPI_v1),
+#ifndef Py_GIL_DISABLED
+    .capabilities = MSGSPEC_CAPI_CAP_STRUCT_BUILD_OWNED_V1,
+#else
+    .capabilities = 0,
+#endif
+    .struct_builder_prepare = struct_builder_prepare,
+    .struct_builder_build_owned = struct_builder_build_owned,
+};
 
 static PyTypeObject StructMetaType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -22853,6 +23062,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&StructMetaType) < 0)
         return NULL;
+    if (PyType_Ready(&StructBuilder_Type) < 0)
+        return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
         return NULL;
     if (PyType_Ready(&StructConfig_Type) < 0)
@@ -23117,6 +23328,17 @@ PyInit__core(void)
         "__module__", "msgspec", "__doc__", Struct__doc__
     );
     if (PyModule_AddObjectRef(m, "Struct", st->StructType) < 0) return NULL;
+    PyObject *capi = PyCapsule_New(
+        (void *)&msgspec_capi_v1,
+        MSGSPEC_CAPI_CAPSULE_NAME,
+        NULL
+    );
+    if (capi == NULL) return NULL;
+    if (PyModule_AddObjectRef(m, "_C_API_v1", capi) < 0) {
+        Py_DECREF(capi);
+        return NULL;
+    }
+    Py_DECREF(capi);
 #ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif
