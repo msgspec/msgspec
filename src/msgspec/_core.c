@@ -9682,6 +9682,24 @@ ms_resize_bytearray(PyObject** output_buffer, Py_ssize_t size)
     return PyByteArray_AS_STRING(*output_buffer);
 }
 
+/* Used for `encode_into` when writing into a fixed-size writable buffer
+ * (e.g. a `memoryview`, such as one backed by shared memory). These
+ * buffers can't grow, so "resizing" always fails with a clear error
+ * rather than silently doing the wrong thing. */
+static char*
+ms_resize_fixed(PyObject** output_buffer, Py_ssize_t size)
+{
+    (void)output_buffer;
+    PyErr_Format(
+        PyExc_ValueError,
+        "buffer is too small to hold the encoded message (needs to grow "
+        "to at least %zd bytes) and does not support resizing (only "
+        "`bytearray` does) - pass a larger buffer",
+        size
+    );
+    return NULL;
+}
+
 static MS_NOINLINE int
 ms_resize(EncoderState *self, Py_ssize_t size)
 {
@@ -9840,17 +9858,30 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "encode_into(self, obj, buffer, offset=0, /)\n"
 "--\n"
 "\n"
-"Serialize an object into an existing bytearray buffer.\n"
+"Serialize an object into an existing buffer.\n"
 "\n"
-"Upon success, the buffer will be truncated to the end of the serialized\n"
-"message. Note that the underlying memory buffer *won't* be truncated,\n"
-"allowing for efficiently appending additional bytes later.\n"
+"If `buffer` is a `bytearray`, it will be grown/shrunk as needed and\n"
+"truncated to the end of the serialized message (the underlying\n"
+"allocation won't be truncated, allowing for efficiently appending\n"
+"additional bytes later).\n"
+"\n"
+"If `buffer` is some other writable contiguous buffer-protocol object\n"
+"(e.g. a `memoryview`, such as one backed by `multiprocessing.shared_"
+"memory.SharedMemory`), it is treated as fixed-size: it will never be\n"
+"resized, and a `ValueError` is raised if it isn't large enough to hold\n"
+"the encoded message. `offset=-1` is not supported for such buffers (it\n"
+"always raises `ValueError`), since they have no concept of\n"
+"already-written data to append after; pass an explicit offset instead.\n"
+"\n"
+"In both cases, the number of newly-written bytes (i.e. the length of the\n"
+"encoded message itself, not counting `offset`) is returned as an `int`,\n"
+"so `buffer[offset:offset + n]` always holds exactly the encoded message.\n"
 "\n"
 "Parameters\n"
 "----------\n"
 "obj : Any\n"
 "    The object to serialize.\n"
-"buffer : bytearray\n"
+"buffer : bytearray or writable buffer-like object\n"
 "    The buffer to serialize into.\n"
 "offset : int, optional\n"
 "    The offset into the buffer to start writing at. Defaults to 0. Set to -1\n"
@@ -9858,7 +9889,8 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "\n"
 "Returns\n"
 "-------\n"
-"None"
+"int\n"
+"    The number of bytes newly written by this call."
 );
 static PyObject*
 encoder_encode_into_common(
@@ -9871,51 +9903,123 @@ encoder_encode_into_common(
     if (!check_positional_nargs(nargs, 2, 3)) return NULL;
     PyObject *obj = args[0];
     PyObject *buf = args[1];
-    if (!PyByteArray_CheckExact(buf)) {
-        PyErr_SetString(PyExc_TypeError, "buffer must be a `bytearray`");
-        return NULL;
-    }
-    Py_ssize_t buf_size = PyByteArray_GET_SIZE(buf);
-    Py_ssize_t offset = 0;
-    if (nargs == 3) {
-        offset = PyLong_AsSsize_t(args[2]);
-        if (offset == -1) {
-            if (PyErr_Occurred()) return NULL;
-            offset = buf_size;
+
+    if (PyByteArray_CheckExact(buf)) {
+        /* Growable path: writing into a `bytearray`. This buffer can be
+         * resized as needed, and is truncated to the final message
+         * length on success. */
+        Py_ssize_t buf_size = PyByteArray_GET_SIZE(buf);
+        Py_ssize_t offset = 0;
+        if (nargs == 3) {
+            offset = PyLong_AsSsize_t(args[2]);
+            if (offset == -1) {
+                if (PyErr_Occurred()) return NULL;
+                offset = buf_size;
+            }
+            if (offset < 0) {
+                PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
+                return NULL;
+            }
+
+            if (offset < buf_size) {
+                buf_size = Py_MAX(8, 1.5 * offset);
+                if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
+            }
         }
-        if (offset < 0) {
-            PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
+
+        EncoderState state = {
+            .mod = self->mod,
+            .enc_hook = self->enc_hook,
+            .decimal_format = self->decimal_format,
+            .decimal_callable = self->decimal_callable,
+            .in_decimal_callable = false,
+            .uuid_format = self->uuid_format,
+            .order = self->order,
+            .output_buffer = buf,
+            .output_buffer_raw = PyByteArray_AS_STRING(buf),
+            .output_len = offset,
+            .max_output_len = buf_size,
+            .resize_buffer = ms_resize_bytearray
+        };
+
+        if (encode(&state, obj) < 0) {
             return NULL;
         }
 
-        if (offset < buf_size) {
-            buf_size = Py_MAX(8, 1.5 * offset);
-            if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
+        FAST_BYTEARRAY_SHRINK(buf, state.output_len);
+        return PyLong_FromSsize_t(state.output_len - offset);
+    }
+    else {
+        /* Fixed-size path: writing into any other writable, contiguous,
+         * buffer-protocol object - e.g. a `memoryview` onto a
+         * `multiprocessing.shared_memory.SharedMemory` block. This
+         * buffer cannot grow; if it's not large enough a clear
+         * `ValueError` is raised instead of resizing. */
+        Py_buffer view;
+        if (PyObject_GetBuffer(buf, &view, PyBUF_WRITABLE | PyBUF_C_CONTIGUOUS) < 0) {
+            PyErr_Clear();
+            PyErr_SetString(
+                PyExc_TypeError,
+                "buffer must be a `bytearray`, or a writable contiguous "
+                "buffer-protocol object (e.g. `memoryview`)"
+            );
+            return NULL;
         }
+
+        Py_ssize_t buf_size = view.len;
+        Py_ssize_t offset = 0;
+        if (nargs == 3) {
+            offset = PyLong_AsSsize_t(args[2]);
+            if (offset < 0) {
+                if (PyErr_Occurred()) {
+                    PyBuffer_Release(&view);
+                    return NULL;
+                }
+                PyBuffer_Release(&view);
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "offset < 0 is not supported for fixed-size buffers"
+                    " - pass an explicit non-negative offset instead"
+                );
+                return NULL;
+            }
+        }
+
+        if (offset > buf_size) {
+            PyBuffer_Release(&view);
+            PyErr_Format(
+                PyExc_ValueError,
+                "offset %zd is beyond the end of a fixed-size buffer of "
+                "length %zd",
+                offset, buf_size
+            );
+            return NULL;
+        }
+
+        EncoderState state = {
+            .mod = self->mod,
+            .enc_hook = self->enc_hook,
+            .decimal_format = self->decimal_format,
+            .decimal_callable = self->decimal_callable,
+            .in_decimal_callable = false,
+            .uuid_format = self->uuid_format,
+            .order = self->order,
+            .output_buffer = buf,
+            .output_buffer_raw = (char *)view.buf,
+            .output_len = offset,
+            .max_output_len = buf_size,
+            .resize_buffer = ms_resize_fixed
+        };
+
+        int status = encode(&state, obj);
+        Py_ssize_t written = state.output_len - offset;
+        PyBuffer_Release(&view);
+        if (status < 0) {
+            return NULL;
+        }
+
+        return PyLong_FromSsize_t(written);
     }
-
-    /* Setup buffer */
-    EncoderState state = {
-        .mod = self->mod,
-        .enc_hook = self->enc_hook,
-        .decimal_format = self->decimal_format,
-        .decimal_callable = self->decimal_callable,
-        .in_decimal_callable = false,
-        .uuid_format = self->uuid_format,
-        .order = self->order,
-        .output_buffer = buf,
-        .output_buffer_raw = PyByteArray_AS_STRING(buf),
-        .output_len = offset,
-        .max_output_len = buf_size,
-        .resize_buffer = ms_resize_bytearray
-    };
-
-    if (encode(&state, obj) < 0) {
-        return NULL;
-    }
-
-    FAST_BYTEARRAY_SHRINK(buf, state.output_len);
-    Py_RETURN_NONE;
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
