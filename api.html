@@ -450,7 +450,7 @@ default.</p>
 <li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value to use for this field.</p></li>
 <li><p><strong>default_factory</strong> (<em>callable</em><em>, </em><em>optional</em>) – A zero-argument function called to generate a new default value
 per-instance, rather than using a constant value as in <code class="docutils literal notranslate"><span class="pre">default</span></code>.</p></li>
-<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The name to use when encoding/decoding this field. If present, this
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The name to use when encoding/decoding this field. If present, this
 will override any struct-level configuration using the <code class="docutils literal notranslate"><span class="pre">rename</span></code>
 option for this field.</p></li>
 </ul>
@@ -465,15 +465,15 @@ option for this field.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name of the new Struct class.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name of the new Struct class.</p></li>
 <li><p><strong>fields</strong> (<em>iterable</em>) – An iterable of fields in the new class. Elements may be either <code class="docutils literal notranslate"><span class="pre">name</span></code>,
 tuples of <code class="docutils literal notranslate"><span class="pre">(name,</span> <span class="pre">type)</span></code>, <code class="docutils literal notranslate"><span class="pre">(name,</span> <span class="pre">type,</span> <span class="pre">default)</span></code>, or
 <code class="docutils literal notranslate"><span class="pre">(name,</span> <span class="pre">type,</span> <span class="pre">msgspec.field)</span></code>. Fields without a specified type will
 default to <code class="docutils literal notranslate"><span class="pre">typing.Any</span></code>.</p></li>
-<li><p><strong>bases</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – A tuple of any Struct base classes to use when defining the new class.</p></li>
-<li><p><strong>module</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The module name to use for the new class. If not provided, will be inferred
+<li><p><strong>bases</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – A tuple of any Struct base classes to use when defining the new class.</p></li>
+<li><p><strong>module</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The module name to use for the new class. If not provided, will be inferred
 from the caller’s stack frame.</p></li>
-<li><p><strong>namespace</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – If provided, will be used as the base namespace for the new class. This may
+<li><p><strong>namespace</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – If provided, will be used as the base namespace for the new class. This may
 be used to add additional methods to the class definition.</p></li>
 <li><p><strong>**kwargs</strong> – Additional Struct configuration options. See the <code class="docutils literal notranslate"><span class="pre">Struct</span></code> docs for more
 information.</p></li>
@@ -541,7 +541,7 @@ attribute name. Struct-level settings (<code class="docutils literal notranslate
 <code class="docutils literal notranslate"><span class="pre">array_like</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code>) are ignored, <a class="reference internal" href="#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> values are kept,
 nested <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> / attrs fields are
 not recursively converted, and no value-level conversions are applied
-(e.g. <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> is not base64-encoded, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> is not
+(e.g. <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> is not base64-encoded, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> is not
 converted to a string). Use <a class="reference internal" href="#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a> instead when the
 output is intended for serialization.</p>
 <dl class="field-list simple">
@@ -577,7 +577,7 @@ Struct-level settings (<code class="docutils literal notranslate"><span class="p
 <code class="docutils literal notranslate"><span class="pre">tag</span></code>) are ignored, <a class="reference internal" href="#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> values are kept, nested
 <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> / attrs fields are not
 recursively converted, and no value-level conversions are applied
-(e.g. <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> is not base64-encoded, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> is not
+(e.g. <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> is not base64-encoded, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> is not
 converted to a string). Use <a class="reference internal" href="#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a> instead when the
 output is intended for serialization.</p>
 <dl class="field-list simple">
@@ -618,7 +618,7 @@ unsafe. Only use it if you know what you’re doing!</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p></li>
-<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The attribute name.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The attribute name.</p></li>
 <li><p><strong>value</strong> (<em>Any</em>) – The attribute value.</p></li>
 </ul>
 </dd>
@@ -646,8 +646,8 @@ unsafe. Only use it if you know what you’re doing!</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The field name as seen by Python code (e.g. <code class="docutils literal notranslate"><span class="pre">field_one</span></code>).</p></li>
-<li><p><strong>encode_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name used when encoding/decoding the field. This may differ if
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The field name as seen by Python code (e.g. <code class="docutils literal notranslate"><span class="pre">field_one</span></code>).</p></li>
+<li><p><strong>encode_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name used when encoding/decoding the field. This may differ if
 the field is renamed (e.g. <code class="docutils literal notranslate"><span class="pre">fieldOne</span></code>).</p></li>
 <li><p><strong>type</strong> (<em>Any</em>) – The full field type annotation.</p></li>
 <li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no default value
@@ -704,31 +704,31 @@ details.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
-<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
-<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be less than <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
-<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
-<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
-<li><p><strong>pattern</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A regex pattern that the annotated value must match against. Note that
+<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
+<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
+<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be less than <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
+<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
+<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – The annotated value must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
+<li><p><strong>pattern</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A regex pattern that the annotated value must match against. Note that
 the pattern is treated as <strong>unanchored</strong>, meaning the <code class="docutils literal notranslate"><span class="pre">re.search</span></code>
 method is used when matching.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The annotated value must have a length greater than or equal to
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The annotated value must have a length greater than or equal to
 <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The annotated value must have a length less than or equal to
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The annotated value must have a length less than or equal to
 <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
-<li><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Configures the timezone-requirements for annotated <code class="docutils literal notranslate"><span class="pre">datetime</span></code>/<code class="docutils literal notranslate"><span class="pre">time</span></code>
+<li><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Configures the timezone-requirements for annotated <code class="docutils literal notranslate"><span class="pre">datetime</span></code>/<code class="docutils literal notranslate"><span class="pre">time</span></code>
 types. Set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to require timezone-aware values, or <code class="docutils literal notranslate"><span class="pre">False</span></code> to
 require timezone-naive values. The default is <code class="docutils literal notranslate"><span class="pre">None</span></code>, which accepts
 either timezone-aware or timezone-naive values.</p></li>
-<li><p><strong>title</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The title to use for the annotated value when generating a json-schema.</p></li>
-<li><p><strong>description</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The description to use for the annotated value when generating a
+<li><p><strong>title</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The title to use for the annotated value when generating a json-schema.</p></li>
+<li><p><strong>description</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – The description to use for the annotated value when generating a
 json-schema.</p></li>
-<li><p><strong>examples</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a><em>, </em><em>optional</em>) – A list of examples to use for the annotated value when generating a
+<li><p><strong>examples</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a><em>, </em><em>optional</em>) – A list of examples to use for the annotated value when generating a
 json-schema.</p></li>
-<li><p><strong>extra_json_schema</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra fields to set for the annotated value when generating
+<li><p><strong>extra_json_schema</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra fields to set for the annotated value when generating
 a json-schema. This dict is recursively merged with the generated schema,
 with <code class="docutils literal notranslate"><span class="pre">extra_json_schema</span></code> overriding any conflicting autogenerated fields.</p></li>
-<li><p><strong>extra</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – Any additional user-defined metadata.</p></li>
+<li><p><strong>extra</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – Any additional user-defined metadata.</p></li>
 </ul>
 </dd>
 </dl>
@@ -771,7 +771,7 @@ and re-encoding them.</p></li>
 </ul>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>msg</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><em>memoryview</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A buffer containing an encoded message. One of bytes, bytearray, memoryview,
+<dd class="field-odd"><p><strong>msg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#memoryview" title="(in Python v3.14)"><em>memoryview</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A buffer containing an encoded message. One of bytes, bytearray, memoryview,
 str, or any object that implements the buffer protocol. If not present,
 defaults to an empty buffer.</p>
 </dd>
@@ -902,8 +902,8 @@ allowing for efficiently appending additional bytes later.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
-<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
+<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
+<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
 to start writing at the end of the buffer.</p></li>
 </ul>
 </dd>
@@ -944,11 +944,11 @@ to start writing at the end of the buffer.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default JSON types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
 wider set of coercion rules from string to non-string types for all values.
 Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
@@ -972,7 +972,7 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 <dd><p>Deserialize an object from JSON.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p>
+<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
@@ -986,7 +986,7 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 <dd><p>Decode a list of items from newline-delimited JSON.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p>
+<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>items</strong> (<em>list</em>) – A list of decoded objects.</p>
@@ -1050,12 +1050,12 @@ slower than <code class="xref py py-obj docutils literal notranslate"><span clas
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default JSON types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
 wider set of coercion rules from string to non-string types for all values.
 Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
@@ -1082,8 +1082,8 @@ of only basic JSON types. This hook should transform <code class="docutils liter
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The JSON message to format.</p></li>
-<li><p><strong>indent</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – How many spaces to indent for a single indentation level. Defaults to 2.
+<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The JSON message to format.</p></li>
+<li><p><strong>indent</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – How many spaces to indent for a single indentation level. Defaults to 2.
 Set to 0 to format the message as a single line, with spaces added between
 items for readability. Set to a negative number to strip all unnecessary
 whitespace, minimizing the message size.</p></li>
@@ -1161,8 +1161,8 @@ allowing for efficiently appending additional bytes later.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
-<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
+<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
+<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
 to start writing at the end of the buffer.</p></li>
 </ul>
 </dd>
@@ -1181,11 +1181,11 @@ to start writing at the end of the buffer.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
 wider set of coercion rules from string to non-string types for all values.
 Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
@@ -1226,8 +1226,8 @@ If not provided, extension types will decode as <code class="docutils literal no
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>code</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – The integer type code for this extension. Must be between -128 and 127.</p></li>
-<li><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><em>memoryview</em></a>) – The byte buffer for this extension. One of bytes, bytearray, memoryview,
+<li><p><strong>code</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – The integer type code for this extension. Must be between -128 and 127.</p></li>
+<li><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><em>bytearray</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#memoryview" title="(in Python v3.14)"><em>memoryview</em></a>) – The byte buffer for this extension. One of bytes, bytearray, memoryview,
 or any object that implements the buffer protocol.</p></li>
 </ul>
 </dd>
@@ -1290,11 +1290,11 @@ slower than <code class="xref py py-obj docutils literal notranslate"><span clas
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>buf</strong> (<em>bytes-like</em>) – The message to decode.</p></li>
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
 wider set of coercion rules from string to non-string types for all values.
 Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
@@ -1370,12 +1370,12 @@ human-readable output.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded
 using the default YAML types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
 a wider set of coercion rules from string to non-string types for all
 values. Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have
@@ -1444,12 +1444,12 @@ human-readable output.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The message to decode.</p></li>
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded
 using the default TOML types.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
 a wider set of coercion rules from string to non-string types for all
 values. Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have
@@ -1483,11 +1483,11 @@ over the generated schema you may want to use <code class="docutils literal notr
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The type to generate the schema for.</p></li>
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The type to generate the schema for.</p></li>
 <li><p><strong>schema_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback to use for generating JSON schemas of custom
 types. Will be called with the custom type, and should return a dict
 representation of the JSON schema for that type.</p></li>
-<li><p><strong>ref_template</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A template to use when generating <code class="docutils literal notranslate"><span class="pre">&quot;$ref&quot;</span></code> fields. This template is
+<li><p><strong>ref_template</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A template to use when generating <code class="docutils literal notranslate"><span class="pre">&quot;$ref&quot;</span></code> fields. This template is
 formatted with the type name as <code class="docutils literal notranslate"><span class="pre">template.format(name=name)</span></code>. This
 can be useful if you intend to store the <code class="docutils literal notranslate"><span class="pre">components</span></code> mapping
 somewhere other than a top-level <code class="docutils literal notranslate"><span class="pre">&quot;$defs&quot;</span></code> field. For example, you
@@ -1514,11 +1514,11 @@ in a separate <code class="docutils literal notranslate"><span class="pre">compo
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em>) – An iterable of one or more types to generate schemas for.</p></li>
+<li><p><strong>types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em>) – An iterable of one or more types to generate schemas for.</p></li>
 <li><p><strong>schema_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback to use for generating JSON schemas of custom
 types. Will be called with the custom type, and should return a dict
 representation of the JSON schema for that type.</p></li>
-<li><p><strong>ref_template</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A template to use when generating <code class="docutils literal notranslate"><span class="pre">&quot;$ref&quot;</span></code> fields. This template is
+<li><p><strong>ref_template</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – A template to use when generating <code class="docutils literal notranslate"><span class="pre">&quot;$ref&quot;</span></code> fields. This template is
 formatted with the type name as <code class="docutils literal notranslate"><span class="pre">template.format(name=name)</span></code>. This
 can be useful if you intend to store the <code class="docutils literal notranslate"><span class="pre">components</span></code> mapping
 somewhere other than a top-level <code class="docutils literal notranslate"><span class="pre">&quot;$defs&quot;</span></code> field. For example, you
@@ -1553,11 +1553,11 @@ OpenAPI schema.</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to convert.</p></li>
 <li><p><strong>type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – A Python type (in type annotation form) to convert the object to.</p></li>
-<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
 wider set of coercion rules from string to non-string types for all values.
 Setting <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> implies <code class="docutils literal notranslate"><span class="pre">str_keys=True,</span> <span class="pre">builtin_types=None</span></code>.
 Default is True.</p></li>
-<li><p><strong>from_attributes</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, input objects may be coerced to <code class="docutils literal notranslate"><span class="pre">Struct</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclass</span></code>/<code class="docutils literal notranslate"><span class="pre">attrs</span></code>
+<li><p><strong>from_attributes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, input objects may be coerced to <code class="docutils literal notranslate"><span class="pre">Struct</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclass</span></code>/<code class="docutils literal notranslate"><span class="pre">attrs</span></code>
 types by extracting attributes from the input matching fields in the output
 type. One use case is converting database query results (ORM or otherwise)
 to msgspec structured types. Default is False.</p></li>
@@ -1566,16 +1566,16 @@ signature <code class="docutils literal notranslate"><span class="pre">dec_hook(
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
 type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
-<li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – Useful for wrapping other serialization protocols. An iterable of types to
+<li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – Useful for wrapping other serialization protocols. An iterable of types to
 treat as additional builtin types. Passing a type here indicates that the
 wrapped protocol natively supports that type, disabling any coercion to
 that type provided by <a class="reference internal" href="#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a>. For example, passing
 <code class="docutils literal notranslate"><span class="pre">builtin_types=(datetime,)</span></code> disables the default <code class="docutils literal notranslate"><span class="pre">str</span></code> to <code class="docutils literal notranslate"><span class="pre">datetime</span></code>
 conversion; the wrapped protocol must provide a <code class="docutils literal notranslate"><span class="pre">datetime</span></code> object
-directly. Currently supports <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>,
+directly. Currently supports <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>, and
 <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>.</p></li>
-<li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Useful for wrapping other serialization protocols. Indicates whether the
+<li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Useful for wrapping other serialization protocols. Indicates whether the
 wrapped protocol only supports string keys. Setting to True enables a wider
 set of coercion rules from string to non-string types for dict keys.
 Default is False.</p></li>
@@ -1620,7 +1620,7 @@ conversion applies the same semantics as <a class="reference internal" href="#ms
 <li><p>Nested <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> / attrs /
 <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> values are recursively
 expanded.</p></li>
-<li><p>Types without a direct builtin equivalent (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>,
+<li><p>Types without a direct builtin equivalent (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a>, …) are converted to their
 serializable representations. See <a class="reference internal" href="usage.html#to-builtins-vs-asdict"><span class="std std-ref">Converting to and from Builtin Types</span></a> for the
 full list.</p></li>
@@ -1631,12 +1631,12 @@ perform a plain one-to-one conversion, applying none of the above.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to convert.</p></li>
-<li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – An iterable of types to treat as additional builtin types. These types will
-be passed through <code class="docutils literal notranslate"><span class="pre">to_builtins</span></code> unchanged. Currently supports <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>,
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">frozendict</span></code>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
+<li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – An iterable of types to treat as additional builtin types. These types will
+be passed through <code class="docutils literal notranslate"><span class="pre">to_builtins</span></code> unchanged. Currently supports <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>,
+<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">frozendict</span></code>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>,
 and custom types.</p></li>
-<li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to convert all object keys to strings. Default is False.</p></li>
+<li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to convert all object keys to strings. Default is False.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
@@ -1697,8 +1697,8 @@ disable conversion by passing in the types to <code class="docutils literal notr
 <dd class="field-odd"><p><strong>obj</strong> – Object to check.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">obj</span></code> is an instance of a class whose metaclass is
-<a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> (or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise.
+<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">obj</span></code> is an instance of a class whose metaclass is
+<a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> (or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise.
 Static type checkers treat a successful <code class="docutils literal notranslate"><span class="pre">is_struct(obj)</span></code> check as
 narrowing <code class="docutils literal notranslate"><span class="pre">obj</span></code> to <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> within the true branch, even if
 the runtime class does not literally inherit <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>.</p>
@@ -1715,8 +1715,8 @@ the runtime class does not literally inherit <a class="reference internal" href=
 <dd class="field-odd"><p><strong>tp</strong> – Object to check, typically a class object.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">tp</span></code> is a class whose metaclass is <a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a>
-(or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise. Static type checkers
+<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">tp</span></code> is a class whose metaclass is <a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a>
+(or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise. Static type checkers
 treat a successful <code class="docutils literal notranslate"><span class="pre">is_struct_type(tp)</span></code> check as narrowing
 <code class="docutils literal notranslate"><span class="pre">tp</span></code> to <code class="xref py py-obj docutils literal notranslate"><span class="pre">type[msgspec.Struct]</span></code> within the true branch.</p>
 </dd>
@@ -1732,7 +1732,7 @@ treat a successful <code class="docutils literal notranslate"><span class="pre">
 multiple times.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The type to get info about.</p>
+<dd class="field-odd"><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The type to get info about.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><em>Type</em></p>
@@ -1790,9 +1790,9 @@ multiple times.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The subtype.</p></li>
-<li><p><strong>extra_json_schema</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra fields to set for the subtype when generating a
+<li><p><strong>extra_json_schema</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra fields to set for the subtype when generating a
 json-schema.</p></li>
-<li><p><strong>extra</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra user-defined metadata attached to the subtype.</p></li>
+<li><p><strong>extra</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em>, </em><em>optional</em>) – A dict of extra user-defined metadata attached to the subtype.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1807,27 +1807,27 @@ json-schema.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.NoneType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">NoneType</span></span><a class="headerlink" href="#msgspec.inspect.NoneType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.BoolType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">BoolType</span></span><a class="headerlink" href="#msgspec.inspect.BoolType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.IntType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">IntType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">le</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiple_of</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.IntType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
-<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
-<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than to <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
-<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
-<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
+<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
+<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
+<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than to <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
+<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
+<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1836,15 +1836,15 @@ json-schema.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.FloatType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">FloatType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">le</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiple_of</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.FloatType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
-<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
-<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than to <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
-<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
-<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
+<li><p><strong>gt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
+<li><p><strong>ge</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
+<li><p><strong>lt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than to <code class="docutils literal notranslate"><span class="pre">lt</span></code>.</p></li>
+<li><p><strong>le</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be less than or equal to <code class="docutils literal notranslate"><span class="pre">le</span></code>.</p></li>
+<li><p><strong>multiple_of</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must be a multiple of <code class="docutils literal notranslate"><span class="pre">multiple_of</span></code>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1853,15 +1853,15 @@ json-schema.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.StrType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">StrType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.StrType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
-<li><p><strong>pattern</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must match against this regex pattern.
+<li><p><strong>pattern</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must match against this regex pattern.
 Note that the pattern is treated as <strong>unanchored</strong>.</p></li>
 </ul>
 </dd>
@@ -1871,13 +1871,13 @@ Note that the pattern is treated as <strong>unanchored</strong>.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.BytesType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">BytesType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.BytesType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -1887,13 +1887,13 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.ByteArrayType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">ByteArrayType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.ByteArrayType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -1903,13 +1903,13 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.MemoryViewType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">MemoryViewType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.MemoryViewType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#memoryview" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -1922,7 +1922,7 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – The timezone-requirements for an instance of this type. <code class="docutils literal notranslate"><span class="pre">True</span></code>
+<dd class="field-odd"><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – The timezone-requirements for an instance of this type. <code class="docutils literal notranslate"><span class="pre">True</span></code>
 indicates a timezone-aware value is required, <code class="docutils literal notranslate"><span class="pre">False</span></code> indicates a
 timezone-naive value is required. The default is <code class="docutils literal notranslate"><span class="pre">None</span></code>, which
 accepts either timezone-aware or timezone-naive values.</p>
@@ -1936,7 +1936,7 @@ accepts either timezone-aware or timezone-naive values.</p>
 <dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – The timezone-requirements for an instance of this type. <code class="docutils literal notranslate"><span class="pre">True</span></code>
+<dd class="field-odd"><p><strong>tz</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – The timezone-requirements for an instance of this type. <code class="docutils literal notranslate"><span class="pre">True</span></code>
 indicates a timezone-aware value is required, <code class="docutils literal notranslate"><span class="pre">False</span></code> indicates a
 timezone-aware value is required. The default is <code class="docutils literal notranslate"><span class="pre">None</span></code>, which
 accepts either timezone-aware or timezone-naive values.</p>
@@ -1986,7 +1986,7 @@ accepts either timezone-aware or timezone-naive values.</p>
 <dd><p>A type corresponding to an <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> type.</p>
+<dd class="field-odd"><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> type.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1997,8 +1997,8 @@ accepts either timezone-aware or timezone-naive values.</p>
 <dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>values</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – A tuple of possible values for this literal instance. Only <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>,
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>, or <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> literals are supported, and a single literal
+<dd class="field-odd"><p><strong>values</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – A tuple of possible values for this literal instance. Only <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>,
+<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>, or <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> literals are supported, and a single literal
 may mix these types (e.g. <code class="docutils literal notranslate"><span class="pre">Literal[1,</span> <span class="pre">None]</span></code>).</p>
 </dd>
 </dl>
@@ -2010,7 +2010,7 @@ may mix these types (e.g. <code class="docutils literal notranslate"><span class
 <dd><p>A custom type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding custom type.</p>
+<dd class="field-odd"><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding custom type.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2021,7 +2021,7 @@ may mix these types (e.g. <code class="docutils literal notranslate"><span class
 <dd><p>A union type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>types</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of possible types for this union.</p>
+<dd class="field-odd"><p><strong>types</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of possible types for this union.</p>
 </dd>
 </dl>
 <dl class="py property">
@@ -2042,9 +2042,9 @@ may mix these types (e.g. <code class="docutils literal notranslate"><span class
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>item_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The item type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2054,14 +2054,14 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.ListType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">ListType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.ListType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>.</p>
+<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>item_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The item type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2071,14 +2071,14 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.SetType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">SetType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.SetType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>.</p>
+<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#set" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>item_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The item type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2088,14 +2088,14 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.FrozenSetType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">FrozenSetType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.FrozenSetType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a>.</p>
+<dd><p>A type corresponding to a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>item_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The item type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2105,15 +2105,15 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.DictType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">DictType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.DictType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>key_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The key type.</p></li>
 <li><p><strong>value_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The value type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2127,8 +2127,8 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding TypedDict type.</p></li>
-<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
+<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding TypedDict type.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the TypedDict.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2144,9 +2144,9 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>key_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The key type.</p></li>
 <li><p><strong>value_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The value type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2156,14 +2156,14 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.VarTupleType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">VarTupleType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.VarTupleType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to a variadic <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
+<dd><p>A type corresponding to a variadic <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>item_type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The item type.</p></li>
-<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
+<li><p><strong>min_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length greater than or equal
 to <code class="docutils literal notranslate"><span class="pre">min_length</span></code>.</p></li>
-<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
+<li><p><strong>max_length</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – If set, an instance of this type must have length less than or equal
 to <code class="docutils literal notranslate"><span class="pre">max_length</span></code>.</p></li>
 </ul>
 </dd>
@@ -2173,10 +2173,10 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.TupleType">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">TupleType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_types</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.TupleType" title="Link to this definition">¶</a></dt>
-<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
+<dd><p>A type corresponding to <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>item_types</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of types for each element in the tuple.</p>
+<dd class="field-odd"><p><strong>item_types</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of types for each element in the tuple.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2188,11 +2188,11 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The field name as seen by Python code (e.g. <code class="docutils literal notranslate"><span class="pre">field_one</span></code>).</p></li>
-<li><p><strong>encode_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name used when encoding/decoding the field. This may differ if
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The field name as seen by Python code (e.g. <code class="docutils literal notranslate"><span class="pre">field_one</span></code>).</p></li>
+<li><p><strong>encode_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name used when encoding/decoding the field. This may differ if
 the field is renamed (e.g. <code class="docutils literal notranslate"><span class="pre">fieldOne</span></code>).</p></li>
 <li><p><strong>type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The field type.</p></li>
-<li><p><strong>required</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the field is required. Note that if <code class="xref py py-obj docutils literal notranslate"><span class="pre">required</span></code> is False doesn’t
+<li><p><strong>required</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the field is required. Note that if <code class="xref py py-obj docutils literal notranslate"><span class="pre">required</span></code> is False doesn’t
 necessarily mean that <code class="xref py py-obj docutils literal notranslate"><span class="pre">default</span></code> or <code class="xref py py-obj docutils literal notranslate"><span class="pre">default_factory</span></code> will be set -
 optional fields may exist with no default value.</p></li>
 <li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no default value
@@ -2211,8 +2211,8 @@ is set.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding NamedTuple type.</p></li>
-<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the NamedTuple.</p></li>
+<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding NamedTuple type.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the NamedTuple.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2225,8 +2225,8 @@ is set.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding dataclass type.</p></li>
-<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the dataclass.</p></li>
+<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding dataclass type.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the dataclass.</p></li>
 </ul>
 </dd>
 </dl>
@@ -2239,12 +2239,12 @@ is set.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding Struct type.</p></li>
-<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the Struct.</p></li>
-<li><p><strong>tag_field</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – If set, the field name used for the tag in a tagged union.</p></li>
-<li><p><strong>tag</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, or </em><em>None</em><em>, </em><em>optional</em>) – If set, the value used for the tag in a tagged union.</p></li>
-<li><p><strong>array_like</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the struct is encoded as an array rather than an object.</p></li>
-<li><p><strong>forbid_unknown_fields</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If <code class="docutils literal notranslate"><span class="pre">False</span></code> (the default) unknown fields are ignored when decoding. If
+<li><p><strong>cls</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – The corresponding Struct type.</p></li>
+<li><p><strong>fields</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>[</em><a class="reference internal" href="#msgspec.inspect.Field" title="msgspec.inspect.Field"><em>Field</em></a><em>, </em><em>...</em><em>]</em>) – A tuple of fields in the Struct.</p></li>
+<li><p><strong>tag_field</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – If set, the field name used for the tag in a tagged union.</p></li>
+<li><p><strong>tag</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, or </em><em>None</em><em>, </em><em>optional</em>) – If set, the value used for the tag in a tagged union.</p></li>
+<li><p><strong>array_like</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the struct is encoded as an array rather than an object.</p></li>
+<li><p><strong>forbid_unknown_fields</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If <code class="docutils literal notranslate"><span class="pre">False</span></code> (the default) unknown fields are ignored when decoding. If
 <code class="docutils literal notranslate"><span class="pre">True</span></code> any unknown fields will result in an error.</p></li>
 </ul>
 </dd>
@@ -2257,7 +2257,7 @@ is set.</p></li>
 <dl class="py exception">
 <dt class="sig sig-object py" id="msgspec.MsgspecError">
 <span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">MsgspecError</span></span><a class="headerlink" href="#msgspec.MsgspecError" title="Link to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#Exception" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
 <p>Base class for all Msgspec exceptions</p>
 </dd></dl>
 
@@ -2271,7 +2271,7 @@ is set.</p></li>
 <dl class="py exception">
 <dt class="sig sig-object py" id="msgspec.DecodeError">
 <span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">DecodeError</span></span><a class="headerlink" href="#msgspec.DecodeError" title="Link to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#msgspec.MsgspecError" title="msgspec.MsgspecError"><code class="xref py py-class docutils literal notranslate"><span class="pre">MsgspecError</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ValueError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#msgspec.MsgspecError" title="msgspec.MsgspecError"><code class="xref py py-class docutils literal notranslate"><span class="pre">MsgspecError</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ValueError</span></code></a></p>
 <p>An error occurred while decoding an object</p>
 </dd></dl>
 

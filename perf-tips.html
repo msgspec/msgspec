@@ -345,7 +345,7 @@ typed, you may need to create multiple decoders, one for each type.</p>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
 They’re <a class="reference internal" href="benchmarks.html#json-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
-over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> / etc.</p>
+over other types like <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> / etc.</p>
 </section>
 <section id="avoid-encoding-default-values">
 <h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Link to this heading">¶</a></h2>
@@ -398,15 +398,15 @@ technique.</p>
 </section>
 <section id="reduce-allocations">
 <h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Link to this heading">¶</a></h2>
-<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code> / <code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
+<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code> / <code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
 the output. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes an alternative <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>) that writes into a pre-allocated
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
+<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
 <p>This has the following uses.</p>
 <section id="reusing-an-output-buffer">
 <h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Link to this heading">¶</a></h3>
 <p>If you’re encoding and writing messages to a socket/file in a hot loop, you
-<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
+<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytearray" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
 for every message.</p>
 <p>For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
@@ -567,12 +567,12 @@ Some type conversions are faster than others.</p>
 </pre></div>
 </div>
 <p>As <code class="docutils literal notranslate"><span class="pre">frozendict</span></code> does not allow adding items one at a time,
-<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> will first parse <code class="docutils literal notranslate"><span class="pre">items</span></code> as a regular <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>,
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> will first parse <code class="docutils literal notranslate"><span class="pre">items</span></code> as a regular <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>,
 and will then convert it to <code class="docutils literal notranslate"><span class="pre">frozendict</span></code>, which results in the
 total decoding operation having <code class="docutils literal notranslate"><span class="pre">O(n*2)</span></code> time complexity.
 Which might be slow on big dictionaries and consume more memory.
-Regular <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> would be more efficient to use.</p>
-<p>The same can be said for <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a> vs <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></a>:</p>
+Regular <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> would be more efficient to use.</p>
+<p>The same can be said for <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a> vs <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></a>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">items</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 
