@@ -252,7 +252,7 @@ class Meta:
     pattern: Final[str | None]
     min_length: Final[int | None]
     max_length: Final[int | None]
-    tz: Final[int | None]
+    tz: Final[bool | None]
     title: Final[str | None]
     description: Final[str | None]
     examples: Final[list[Any] | None]
