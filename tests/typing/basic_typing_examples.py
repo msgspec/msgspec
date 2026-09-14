@@ -590,6 +590,7 @@ def check_meta_attributes() -> None:
     c = msgspec.Meta()
     assert_type(c.title, str | None)
     assert_type(c.description, str | None)
+    assert_type(c.tz, bool | None)
 
 
 def check_meta_equal() -> None:
