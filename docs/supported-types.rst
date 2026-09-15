@@ -1561,6 +1561,16 @@ field (``point``) depends on the value of another (``dimensions``).
     >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
     Point3D(x=1, y=2, z=3)
 
+.. note::
+
+    `msgspec.Raw` values are only populated by `msgspec.json.decode` and
+    `msgspec.msgpack.decode`, which can capture the original encoded bytes of
+    a field before decoding it further. `msgspec.convert` (and anything
+    built on it, like `msgspec.yaml.decode` and `msgspec.toml.decode`)
+    operates on already-decoded Python objects, so there's no encoded byte
+    buffer left to capture -- a `Raw`-typed field will only accept an
+    already-constructed `Raw` object as input, not an arbitrary value.
+
 
 ``Any``
 -------

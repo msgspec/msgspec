@@ -344,6 +344,7 @@ def check_struct_attributes() -> None:
         y: int
 
     assert_type(Point.__struct_fields__, tuple[str, ...])
+    assert_type(Point.__struct_defaults__, tuple[Any, ...])
 
     for field in Point.__match_args__:
         # mypy inferences `field` as `str`,
@@ -354,6 +355,7 @@ def check_struct_attributes() -> None:
 
     assert_type(p.__struct_fields__, tuple[str, ...])
     assert_type(p.__struct_encode_fields__, tuple[str, ...])
+    assert_type(p.__struct_defaults__, tuple[Any, ...])
 
 
 def check_struct_config() -> None:
@@ -588,6 +590,7 @@ def check_meta_attributes() -> None:
     c = msgspec.Meta()
     assert_type(c.title, str | None)
     assert_type(c.description, str | None)
+    assert_type(c.tz, bool | None)
 
 
 def check_meta_equal() -> None:
@@ -649,6 +652,7 @@ def check_msgpack_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_msgpack_encode() -> None:
@@ -816,6 +820,7 @@ def check_json_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_json_encode() -> None:

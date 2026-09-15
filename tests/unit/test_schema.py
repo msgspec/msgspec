@@ -411,6 +411,20 @@ def test_struct_array_like(forbid_unknown_fields):
     assert msgspec.json.schema(Example) == sol
 
 
+@pytest.mark.parametrize(
+    "tag, min_items, payload",
+    [(False, 0, b"[]"), (True, 1, b'["Example"]')],
+)
+def test_struct_array_like_all_fields_optional(tag, min_items, payload):
+    class Example(msgspec.Struct, array_like=True, tag=tag):
+        a: int = 1
+        b: list[int] = msgspec.field(default_factory=list)
+
+    schema = msgspec.json.schema(Example)["$defs"]["Example"]
+    assert msgspec.json.decode(payload, type=Example) == Example()
+    assert schema["minItems"] == min_items
+
+
 def test_struct_no_fields():
     class Example(msgspec.Struct):
         pass
@@ -1205,6 +1219,25 @@ def test_dict_key_metadata(field, val, constraint):
         "type": "object",
         "additionalProperties": {"type": "integer"},
         "propertyNames": {constraint: val},
+    }
+
+
+@pytest.mark.parametrize(
+    "meta, property_names",
+    [
+        (Meta(title="key"), {"title": "key"}),
+        (
+            Meta(title="key", pattern="^A$"),
+            {"title": "key", "pattern": "^A$"},
+        ),
+    ],
+)
+def test_dict_key_metadata_with_schema_metadata(meta, property_names):
+    typ = Annotated[str, meta]
+    assert msgspec.json.schema(dict[typ, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+        "propertyNames": property_names,
     }
 
 

@@ -530,6 +530,7 @@ typedef struct {
     PyObject *concrete_types;
     PyObject *get_type_hints;
     PyObject *get_class_annotations;
+    PyObject *call_annotate_forwardref;
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *convert_generic_alias;
@@ -1725,6 +1726,17 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
     }
     Py_ssize_t x = PyLong_AsSsize_t(val);
     if (x >= 0) return true;
+    if (PyErr_Occurred()) {
+        /* Doesn't fit in a Py_ssize_t, in either direction. Without this the
+         * pending OverflowError is replaced by the message below, which for a
+         * large positive value says it isn't >= 0. */
+        PyErr_Clear();
+        PyErr_Format(
+            PyExc_ValueError, "`%s` is out of range, %R is not a valid length",
+            param, val
+        );
+        return false;
+    }
     PyErr_Format(PyExc_ValueError, "`%s` must be >= 0, got %R", param, val);
     return false;
 }
@@ -3489,8 +3501,12 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
+    }
+    if ((self->types & ~MS_EXTRA_FLAG) == 0) {
+        /* Ignore TypedDict/dataclass field metadata when identifying Raw. */
+        return PyUnicode_FromString("raw");
     }
     if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
         if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
@@ -5908,7 +5924,12 @@ structmeta_process_rename(
         ((Field *)default_value)->name != NULL
     ) {
         Field *field = (Field *)default_value;
-        if (PyUnicode_Compare(name, field->name) == 0) return 0;
+        if (PyUnicode_Compare(name, field->name) == 0) {
+            if (PyDict_GetItem(info->renamed_fields, name) != NULL) {
+                return PyDict_DelItem(info->renamed_fields, name);
+            }
+            return 0;
+        }
         return PyDict_SetItem(info->renamed_fields, name, field->name);
     }
 
@@ -5952,6 +5973,9 @@ structmeta_process_rename(
     int out = 0;
     if (PyUnicode_Compare(name, temp) != 0) {
         out = PyDict_SetItem(info->renamed_fields, name, temp);
+    }
+    else if (PyDict_GetItem(info->renamed_fields, name) != NULL) {
+        out = PyDict_DelItem(info->renamed_fields, name);
     }
     Py_DECREF(temp);
     return out;
@@ -6120,16 +6144,12 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             Py_DECREF(annotate);
             return 0;
         }
-        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
-        if (format == NULL) {
-            Py_DECREF(annotate);
-            return -1;
-        }
-        annotations = PyObject_CallOneArg(
-            annotate, format
-        );
+        /* Use Format.FORWARDREF so unresolved names do not raise NameError
+         * while the class body is still executing. See PEP 649 / annotationlib:
+         * https://docs.python.org/3/library/annotationlib.html#using-annotations-in-a-metaclass
+         */
+        annotations = PyObject_CallOneArg(mod->call_annotate_forwardref, annotate);
         Py_DECREF(annotate);
-        Py_DECREF(format);
         if (annotations == NULL) {
             return -1;
         }
@@ -9315,7 +9335,7 @@ Ext_dealloc(Ext *self)
 }
 
 static PyMemberDef Ext_members[] = {
-    {"code", T_INT, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"code", T_LONG, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
@@ -9910,7 +9930,7 @@ encoder_encode_into_common(
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
-"encode(self, obj)\n"
+"encode(self, obj, /)\n"
 "--\n"
 "\n"
 "Serialize an object to bytes.\n"
@@ -13804,7 +13824,7 @@ static PyTypeObject Encoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
-"msgpack_encode(obj, *, enc_hook=None, order=None)\n"
+"msgpack_encode(obj, /, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as MessagePack.\n"
@@ -14891,7 +14911,7 @@ JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
-"encode_lines(self, items)\n"
+"encode_lines(self, items, /)\n"
 "--\n"
 "\n"
 "Encode an iterable of items as newline-delimited JSON, one item per line.\n"
@@ -14997,7 +15017,7 @@ static PyTypeObject JSONEncoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,
-"json_encode(obj, *, enc_hook=None, order=None)\n"
+"json_encode(obj, /, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as JSON.\n"
@@ -16762,7 +16782,7 @@ mpack_decode(
 }
 
 PyDoc_STRVAR(Decoder_decode__doc__,
-"decode(self, buf)\n"
+"decode(self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from MessagePack.\n"
@@ -16845,7 +16865,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
-"msgpack_decode(buf, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
+"msgpack_decode(buf, /, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from MessagePack.\n"
@@ -17939,11 +17959,11 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
     char *view = NULL;
     Py_ssize_t size;
-    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 #ifndef Py_GIL_DISABLED
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
         return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
@@ -19734,7 +19754,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
 
 
 PyDoc_STRVAR(JSONDecoder_decode__doc__,
-"decode(self, buf)\n"
+"decode(self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from JSON.\n"
@@ -19791,7 +19811,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONDecoder_decode_lines__doc__,
-"decode_lines(self, buf)\n"
+"decode_lines(self, buf, /)\n"
 "--\n"
 "\n"
 "Decode a list of items from newline-delimited JSON.\n"
@@ -19922,7 +19942,7 @@ static PyTypeObject JSONDecoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_decode__doc__,
-"json_decode(buf, *, type='Any', strict=True, dec_hook=None)\n"
+"json_decode(buf, /, *, type='Any', strict=True, dec_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from JSON.\n"
@@ -20354,7 +20374,6 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
             if (val == NULL) goto cleanup;
             PyObject *val2 = to_builtins(self, val, is_key);
             if (val2 == NULL) goto cleanup;
-            Py_INCREF(val2);
             if (is_key) {
                 PyTuple_SET_ITEM(out, i + tagged, val2);
             }
@@ -20937,7 +20956,14 @@ convert_int(
         return ms_decode_int_enum_or_literal_pyint(obj, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(PyLong_AsDouble(obj), type, path);
+        double val = PyLong_AsDouble(obj);
+        if (val == -1.0 && PyErr_Occurred()) {
+            /* `obj` is out of range for a C double (PyLong_AsDouble sets
+             * OverflowError but still returns -1.0); without this check
+             * that error leaks past this function as a SystemError. */
+            return ms_error_with_path("Number out of range%U", path);
+        }
+        return ms_decode_float(val, type, path);
     }
     else if (
         type->types & MS_TYPE_DECIMAL
@@ -22695,6 +22721,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_class_annotations);
+    Py_CLEAR(st->call_annotate_forwardref);
     Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
@@ -22769,6 +22796,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_class_annotations);
+    Py_VISIT(st->call_annotate_forwardref);
     Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
@@ -22971,6 +22999,7 @@ PyInit__core(void)
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
+    SET_REF(call_annotate_forwardref, "call_annotate_forwardref");
     SET_REF(get_typeddict_info, "get_typeddict_info");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
