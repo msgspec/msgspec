@@ -1,0 +1,8 @@
+# Allowlist entries that only surface on Python 3.13 and later.
+# See scripts/stubtest.py for how this file is selected.
+
+# Struct.__init_subclass__ is stubbed with the config kwargs (via
+# dataclass_transform) so type checkers accept `class Foo(Struct, frozen=True)`.
+# At runtime those kwargs are handled by the metaclass, so __init_subclass__
+# itself takes none. stubtest only reports this from 3.13 onwards.
+msgspec\.Struct\.__init_subclass__

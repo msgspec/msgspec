@@ -2102,6 +2102,29 @@ class TestRename:
 
         assert Test4.__struct_encode_fields__ == ("my_field",)
 
+    def test_field_name_override_inherited(self):
+        class Base(Struct):
+            x: int = field(name="_x")
+
+        class Test1(Base):
+            x: int = field(name="x")
+
+        assert Test1.__struct_encode_fields__ == ("x",)
+
+        class Test2(Base):
+            x: int = 1
+
+        assert Test2.__struct_encode_fields__ == ("_x",)
+
+    def test_rename_override_inherited(self):
+        class Base(Struct, rename="upper"):
+            x: int
+
+        class Test(Base, rename="lower"):
+            x: int
+
+        assert Test.__struct_encode_fields__ == ("x",)
+
     def test_rename_fields_only_used_for_encode_and_decode(self):
         """Check that the renamed fields don't show up elsewhere"""
 
@@ -2700,3 +2723,96 @@ class TestPostInit:
         x2 = x1.__copy__()
         assert x1 == x2
         assert count == 1
+
+
+class TestForwardReferences:
+    """Quoted forward refs work on all supported Pythons. Unquoted forward
+    refs are only valid under PEP 649 deferred annotations (3.14+).
+    """
+
+    def test_quoted_forward_reference_struct_fields(self):
+        source = """
+        import msgspec
+
+        class Outer(msgspec.Struct):
+            inner: "Inner"
+
+        class Inner(msgspec.Struct):
+            value: int
+        """
+        with temp_module(source) as mod:
+            assert mod.Outer.__struct_fields__ == ("inner",)
+            msg = mod.Outer(mod.Inner(1))
+            assert msgspec.json.decode(msgspec.json.encode(msg), type=mod.Outer) == msg
+
+    def test_future_annotations_forward_reference_struct_fields(self):
+        source = """
+        from __future__ import annotations
+        import msgspec
+
+        class Outer(msgspec.Struct):
+            inner: Inner
+
+        class Inner(msgspec.Struct):
+            value: int
+        """
+        with temp_module(source) as mod:
+            assert mod.Outer.__struct_fields__ == ("inner",)
+            msg = mod.Outer(mod.Inner(1))
+            assert msgspec.json.decode(msgspec.json.encode(msg), type=mod.Outer) == msg
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="unquoted forward references require PEP 649 (Python 3.14+)",
+    )
+    def test_unquoted_forward_reference_struct_fields(self):
+        source = """
+        import msgspec
+
+        class Outer(msgspec.Struct):
+            inner: Inner
+
+        class Inner(msgspec.Struct):
+            value: int
+        """
+        with temp_module(source) as mod:
+            assert mod.Outer.__struct_fields__ == ("inner",)
+            assert mod.Outer.__annotations__["inner"] is mod.Inner
+            msg = mod.Outer(mod.Inner(1))
+            assert msgspec.json.decode(msgspec.json.encode(msg), type=mod.Outer) == msg
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="unquoted forward references require PEP 649 (Python 3.14+)",
+    )
+    def test_unquoted_forward_reference_generic_container(self):
+        source = """
+        import msgspec
+
+        class Outer(msgspec.Struct):
+            items: list[Inner]
+
+        class Inner(msgspec.Struct):
+            value: int
+        """
+        with temp_module(source) as mod:
+            assert mod.Outer.__struct_fields__ == ("items",)
+            msg = mod.Outer([mod.Inner(1), mod.Inner(2)])
+            assert msgspec.json.decode(msgspec.json.encode(msg), type=mod.Outer) == msg
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="unquoted forward references require PEP 649 (Python 3.14+)",
+    )
+    def test_unquoted_mutual_forward_references(self):
+        source = """
+        import msgspec
+
+        class Node(msgspec.Struct):
+            value: int
+            child: Node | None = None
+        """
+        with temp_module(source) as mod:
+            assert mod.Node.__struct_fields__ == ("value", "child")
+            msg = mod.Node(1, mod.Node(2))
+            assert msgspec.json.decode(msgspec.json.encode(msg), type=mod.Node) == msg
