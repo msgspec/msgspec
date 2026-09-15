@@ -310,15 +310,14 @@ class _SchemaGenerator:
                 schema["items"] = False
         elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             schema["type"] = "object"
-            # If there are restrictions on the keys, specify them as propertyNames
-            if isinstance(key_type := t.key_type, mi.StrType):
-                property_names: dict[str, Any] = {}
-                if key_type.min_length is not None:
-                    property_names["minLength"] = key_type.min_length
-                if key_type.max_length is not None:
-                    property_names["maxLength"] = key_type.max_length
-                if key_type.pattern is not None:
-                    property_names["pattern"] = key_type.pattern
+            # If keys have schema metadata or constraints, include them as propertyNames
+            key_type = t.key_type
+            while isinstance(key_type, mi.Metadata):
+                key_type = key_type.type
+            if isinstance(key_type, mi.StrType):
+                property_names = self.to_schema(t.key_type)
+                # Object property names are always strings, so omit the redundant type
+                property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
@@ -411,9 +410,10 @@ class _SchemaGenerator:
 
             if t.array_like:
                 n_trailing_defaults = 0
-                for n_trailing_defaults, f in enumerate(reversed(t.fields)):
+                for f in reversed(t.fields):
                     if f.required:
                         break
+                    n_trailing_defaults += 1
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
                 schema["minItems"] = len(fields) - n_trailing_defaults
