@@ -478,6 +478,22 @@ def test_struct_encode_name():
     assert mi.type_info(Example) == sol
 
 
+def test_struct_int_key():
+    class Example(msgspec.Struct, int_keys={"field_one": 1}, rename="camel"):
+        field_one: int
+        field_two: int
+
+    sol = mi.StructType(
+        Example,
+        fields=(
+            mi.Field("field_one", "fieldOne", mi.IntType(), int_key=1),
+            mi.Field("field_two", "fieldTwo", mi.IntType()),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+    assert mi.type_info(Example).fields[1].int_key is None
+
+
 def test_generic_struct():
     class Example(msgspec.Struct, Generic[T]):
         a: T
