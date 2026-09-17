@@ -6189,11 +6189,28 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         }
 
         int status = structmeta_is_classvar(info, mod, value, &module_ns);
-        if (status == 1) continue;
         if (status == -1) goto error;
 
+        bool inherited = PyDict_GetItem(info->defaults_lk, field) != NULL;
+        if (status == 1) {
+            /* A ClassVar annotation can't override a field inherited from a
+             * struct base; the inherited field is baked into the slot layout
+             * and the field list, while attribute access would resolve to the
+             * class variable. */
+            if (inherited) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Cannot override inherited field '%U' with a `ClassVar` "
+                    "annotation in struct '%U'",
+                    field, info->name
+                );
+                goto error;
+            }
+            continue;
+        }
+
         /* If the field is new, add it to slots */
-        if (PyDict_GetItem(info->defaults_lk, field) == NULL) {
+        if (!inherited) {
             if (PyList_Append(info->slots, field) < 0) goto error;
         }
 

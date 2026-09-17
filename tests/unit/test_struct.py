@@ -9,7 +9,7 @@ import textwrap
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 import pytest
 
@@ -2652,6 +2652,180 @@ class TestClassVar:
             match="'typing' has no attribute 'ClassVar'",
         ):
             temp_module(source).__enter__()  # It used to crash, but must not!
+
+
+class TestClassVarOverride:
+    """A ClassVar annotation can't override a field inherited from a struct base.
+
+    See https://github.com/msgspec/msgspec/issues/1086
+    """
+
+    def test_classvar_cannot_override_field(self):
+        class Base(Struct):
+            name: str = "base_name"
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Base):
+                name: ClassVar[str] = "overridden"
+
+    def test_classvar_cannot_override_inherited_field(self):
+        class GrandParent(Struct):
+            name: str = "grandparent"
+
+        class Parent(GrandParent):
+            other: int = 1
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Parent):
+                name: ClassVar[str] = "child"
+
+    def test_classvar_cannot_override_field_with_multiple_inheritance(self):
+        class A(Struct):
+            x: int = 1
+
+        class B(A):
+            pass
+
+        class C(A):
+            pass
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'x' with a `ClassVar` "
+                "annotation in struct 'D'"
+            ),
+        ):
+
+            class D(B, C):
+                x: ClassVar[int] = 2
+
+    def test_classvar_cannot_override_renamed_field(self):
+        class Base(Struct):
+            name: str = field(name="Name", default="base_name")
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Base):
+                name: ClassVar[str] = "overridden"
+
+    def test_classvar_cannot_override_required_field(self):
+        class Base(Struct):
+            name: str
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Base):
+                name: ClassVar[str] = "overridden"
+
+    def test_classvar_cannot_override_kw_only_field(self):
+        class Base(Struct, kw_only=True):
+            name: str = "base_name"
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Base):
+                name: ClassVar[str] = "overridden"
+
+    @pytest.mark.parametrize("future_annotations", [True, False])
+    def test_classvar_cannot_override_field_string_annotations(
+        self, future_annotations
+    ):
+        source = """
+        from typing import ClassVar
+        from msgspec import Struct
+
+        class Base(Struct):
+            name: str = "base_name"
+
+        class Child(Base):
+            name: ClassVar[str] = "overridden"
+        """
+        if future_annotations:
+            source = "from __future__ import annotations\n" + textwrap.dedent(source)
+        with pytest.raises(
+            TypeError,
+            match="Cannot override inherited field",
+        ):
+            temp_module(source).__enter__()
+
+    def test_classvar_cannot_override_field_without_default(self):
+        class Base(Struct):
+            name: str = "base_name"
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "Cannot override inherited field 'name' with a `ClassVar` "
+                "annotation in struct 'Child'"
+            ),
+        ):
+
+            class Child(Base):
+                name: ClassVar[str]
+
+    def test_classvar_not_overriding_field_is_allowed(self):
+        class Base(Struct):
+            name: str = "base_name"
+
+        class Child(Base):
+            other: ClassVar[int] = 2
+
+        assert Child.__struct_fields__ == ("name",)
+        assert Child.other == 2
+        assert Child().name == "base_name"
+
+    def test_field_can_override_field(self):
+        class Base(Struct):
+            name: str = "base_name"
+
+        class Child(Base):
+            name: str = "overridden"
+
+        assert Child.__struct_fields__ == ("name",)
+        assert Child().name == "overridden"
+
+    def test_field_can_override_classvar_of_non_struct_base(self):
+        class Mixin:
+            name: ClassVar[str] = "mixin"
+
+        class Sub(Mixin, Struct):
+            name: str = "sub"
+
+        assert Sub.__struct_fields__ == ("name",)
+        assert Sub().name == "sub"
 
 
 class TestPostInit:
