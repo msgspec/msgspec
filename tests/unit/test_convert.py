@@ -429,6 +429,17 @@ class TestFloat:
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
 
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_float_from_int_out_of_range(self, strict):
+        # A python int too large to represent as a C double must raise a
+        # ValidationError, matching json.decode, rather than leaking the
+        # OverflowError PyLong_AsDouble sets as a SystemError.
+        big = 10**400
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(big, float, strict=strict)
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert({"x": big}, dict[str, float], strict=strict)
+
     @pytest.mark.parametrize(
         "meta, good, bad",
         [
@@ -2769,3 +2780,42 @@ class TestRaw:
 
         sol = Ex(x=raw)
         assert convert({"x": raw}, type=Ex) == sol
+
+    @pytest.mark.parametrize(
+        "value", [1, "a", [1, 2], {"a": 1}], ids=["int", "str", "array", "object"]
+    )
+    def test_raw_mismatch_error_message(self, value):
+        """Regression test for gh#1136 -- convert() only accepts an already
+        `Raw` instance for a `Raw`-typed field (e.g. via `yaml.decode`,
+        `toml.decode`, or `convert` on already-parsed data). The mismatch
+        error previously claimed `any` was acceptable, which contradicted
+        the `ValidationError` being raised."""
+
+        class Ex(Struct):
+            x: msgspec.Raw
+
+        with pytest.raises(ValidationError, match=r"^Expected `raw`, got `\w+`"):
+            convert({"x": value}, type=Ex)
+
+    @pytest.mark.parametrize("total", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_typeddict_error_message(self, total, value, kind):
+        class Ex(TypedDict, total=total):
+            x: msgspec.Raw
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"
+
+    @pytest.mark.parametrize("default_factory", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_dataclass_error_message(self, default_factory, value, kind):
+        @dataclass
+        class Ex:
+            x: msgspec.Raw = (
+                field(default_factory=msgspec.Raw) if default_factory else field()
+            )
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"
