@@ -69,7 +69,7 @@ bench = [
   "orjson==3.12.0",
   "ormsgpack==1.12.2",
   "pydantic==2.13.5",
-  "python-rapidjson==1.22",
+  "python-rapidjson==1.25",
   "pysimdjson==7.0.2",
   "requests",
   "ujson==6.0.0",
