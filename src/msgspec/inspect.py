@@ -513,6 +513,10 @@ class Field(msgspec.Struct):
     default_factory: Any, optional
         A callable that creates a default value for the field. Will be
         `NODEFAULT` if no ``default_factory`` is set.
+    int_key: int or None, optional
+        The integer key used in place of ``encode_name`` when encoding the
+        field, if the field is listed in a struct's ``int_keys`` mapping. Only
+        set for `StructType` fields; ``None`` otherwise.
     """
 
     name: str
@@ -521,6 +525,7 @@ class Field(msgspec.Struct):
     required: bool = True
     default: Any = msgspec.field(default_factory=lambda: NODEFAULT)
     default_factory: Any = msgspec.field(default_factory=lambda: NODEFAULT)
+    int_key: Union[int, None] = None
 
 
 class TypedDictType(Type):
@@ -941,11 +946,15 @@ class _Translator:
 
             hints = self._get_class_annotations(cls)
             npos = len(t.__struct_fields__) - len(t.__struct_defaults__)
+            int_keys = t.__struct_encode_int_keys__ or (None,) * len(
+                t.__struct_fields__
+            )
             fields = []
-            for name, encode_name, default_obj in zip(
+            for name, encode_name, default_obj, int_key in zip(
                 t.__struct_fields__,
                 t.__struct_encode_fields__,
                 (NODEFAULT,) * npos + t.__struct_defaults__,
+                int_keys,
             ):
                 if default_obj is NODEFAULT:
                     required = True
@@ -966,6 +975,7 @@ class _Translator:
                     required=required,
                     default=default,
                     default_factory=default_factory,
+                    int_key=int_key,
                 )
                 fields.append(field)
 
