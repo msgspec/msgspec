@@ -3086,6 +3086,57 @@ class TestTypedDict:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    def test_inherited_generic_typeddict(self, proto, module):
+        if module == "typing" and sys.version_info < (3, 11):
+            pytest.skip("typing.TypedDict supports generics on Python 3.11+")
+        TypedDict = pytest.importorskip(module).TypedDict
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+            xs: list[T]
+
+        class Sub(Base[int]):
+            y: str
+
+        value = {"x": 1, "xs": [2], "y": "ok"}
+        assert proto.decode(proto.encode(value), type=Sub) == value
+        for invalid in [{**value, "x": "bad"}, {**value, "xs": ["bad"]}]:
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                proto.decode(proto.encode(invalid), type=Sub)
+
+    def test_inherited_generic_typeddict_scopes(self, proto):
+        source = """
+        from typing import Generic, TypeVar
+        from typing_extensions import TypedDict
+        T = TypeVar("T")
+        U = TypeVar("U")
+        class Left(TypedDict, Generic[T]):
+            x: T
+        class Right(TypedDict, Generic[T]):
+            y: T
+        class Middle(Left[int], Right[str], Generic[U]):
+            z: U
+        class Final(Middle[float]):
+            pass
+        class Override(Left[int]):
+            x: str
+        """
+        with temp_module(source) as mod:
+            value = {"x": 1, "y": "ok", "z": 2.5}
+            for schema in (mod.Middle[float], mod.Final):
+                assert proto.decode(proto.encode(value), type=schema) == value
+                for invalid in (
+                    {**value, "x": "bad"},
+                    {**value, "y": 1},
+                    {**value, "z": "bad"},
+                ):
+                    with pytest.raises(ValidationError):
+                        proto.decode(proto.encode(invalid), type=schema)
+            assert proto.decode(proto.encode({"x": "ok"}), type=mod.Override) == {
+                "x": "ok"
+            }
+
     def test_recursive_generic_typeddict(self, proto):
         pytest.importorskip("typing_extensions")
 
