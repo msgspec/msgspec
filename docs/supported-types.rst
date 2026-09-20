@@ -1278,23 +1278,19 @@ Generic types may be useful for reusing common message structures.
 
 To define a generic type:
 
-- Declare one or more type parameters for your type.
-- When annotating the field types, use the relevant type parameters instead of
+- Define one or more type variables (`typing.TypeVar`) to parametrize your type with.
+- Add `typing.Generic` as a base class when defining your type, parametrizing
+  it by the relevant type variables.
+- When annotating the field types, use the relevant type variables instead of
   "concrete" types anywhere you want to be generic.
 
-``msgspec`` supports the following equivalent forms for declaring the type
-parameters:
+On Python 3.12+ the type parameters may instead be declared with the type
+parameter syntax, which covers the first two steps on its own:
 
 .. code-block:: python
 
-    # Using a `TypeVar` and `Generic` as a base class
-    T = TypeVar("T")
-
-    class Paginated(msgspec.Struct, Generic[T]):
-        ...
-
     # Using Python 3.12's type parameter syntax. This only works on Python 3.12+
-    class Paginated[T](msgspec.Struct):
+    class Paginated[ItemT](msgspec.Struct):
         ...
 
 For example, here we define a generic ``Paginated`` struct type for storing
