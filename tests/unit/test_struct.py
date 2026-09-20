@@ -946,6 +946,46 @@ def test_struct_reference_counting():
     assert sys.getrefcount(data) <= 4
 
 
+def test_struct_definition_does_not_leak_annotations():
+    """Defining a struct type must not retain its `__annotations__` dict"""
+
+    class Annotation:
+        pass
+
+    ref = weakref.ref(Annotation)
+
+    cls = defstruct("Temp", [("x", Annotation)])
+    del cls, Annotation
+    gc.collect()
+
+    assert ref() is None
+
+
+def test_struct_definition_does_not_leak_module_namespace():
+    """A string `ClassVar` annotation must not retain the module namespace"""
+
+    class Sentinel:
+        pass
+
+    def define_in_temp_module():
+        with temp_module("from typing import ClassVar\nimport msgspec\n") as mod:
+            sentinel = Sentinel()
+            mod.__dict__["sentinel"] = sentinel
+            exec(
+                "from __future__ import annotations\n"
+                "class Ex(msgspec.Struct):\n"
+                "    a: ClassVar[int] = 1\n"
+                "    x: int = 0\n",
+                mod.__dict__,
+            )
+            return weakref.ref(sentinel)
+
+    refs = [define_in_temp_module() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
 def test_struct_gc_not_added_if_not_needed():
     """Structs aren't tracked by GC until/unless they reference a container type"""
 
