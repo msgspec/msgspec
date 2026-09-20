@@ -8209,7 +8209,7 @@ cleanup:
 }
 
 PyDoc_STRVAR(struct_replace__doc__,
-"replace(struct, / **changes)\n"
+"replace(struct, /, **changes)\n"
 "--\n"
 "\n"
 "Create a new struct instance of the same type as ``struct``, replacing fields\n"

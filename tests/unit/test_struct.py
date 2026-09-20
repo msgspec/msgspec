@@ -2313,6 +2313,12 @@ def replace(request):
 
 
 class TestReplace:
+    def test_replace_text_signature(self):
+        sig = Signature.from_callable(msgspec.structs.replace)
+        assert list(sig.parameters) == ["struct", "changes"]
+        assert sig.parameters["struct"].kind is Parameter.POSITIONAL_ONLY
+        assert sig.parameters["changes"].kind is Parameter.VAR_KEYWORD
+
     def test_replace_not_a_struct(self):
         with pytest.raises(TypeError, match="`struct` must be a `msgspec.Struct`"):
             msgspec.structs.replace(1, x=2)
