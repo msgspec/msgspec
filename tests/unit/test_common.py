@@ -6,6 +6,7 @@ import datetime
 import decimal
 import enum
 import gc
+import inspect
 import sys
 import textwrap
 import types
@@ -5627,3 +5628,57 @@ class TestFrozendict:
         msg = proto.encode(frozendict({"abc": "xyz"}))
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             dec.decode(msg)
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(msgspec.Raw, id="Raw"),
+        pytest.param(msgspec.msgpack.Ext, id="Ext"),
+        pytest.param(msgspec.structs.replace, id="replace"),
+        pytest.param(msgspec.structs.asdict, id="asdict"),
+        pytest.param(msgspec.structs.astuple, id="astuple"),
+        pytest.param(msgspec.structs.force_setattr, id="force_setattr"),
+        pytest.param(msgspec.Raw(b"1").copy, id="Raw.copy"),
+    ],
+)
+def test_reported_signature_is_positional_only(func):
+    """These callables accept no keyword arguments, and must say so"""
+    sig = inspect.signature(func)
+    kinds = {param.kind for param in sig.parameters.values()}
+    assert inspect.Parameter.POSITIONAL_OR_KEYWORD not in kinds
+    assert inspect.Parameter.KEYWORD_ONLY not in kinds
+
+
+def test_structmeta_text_signature_is_valid():
+    """`StructMeta` has a `__signature__` getset, so only the text form is checkable"""
+    text_signature = msgspec.StructMeta.__text_signature__
+    exec(compile(f"def _f{text_signature}: pass", "<signature>", "exec"), {})
+
+
+@pytest.mark.parametrize(
+    "obj, method",
+    [
+        pytest.param(msgspec.json.Encoder(), "encode", id="json.Encoder.encode"),
+        pytest.param(
+            msgspec.json.Encoder(), "encode_into", id="json.Encoder.encode_into"
+        ),
+        pytest.param(
+            msgspec.json.Encoder(), "encode_lines", id="json.Encoder.encode_lines"
+        ),
+        pytest.param(msgspec.json.Decoder(), "decode", id="json.Decoder.decode"),
+        pytest.param(
+            msgspec.json.Decoder(), "decode_lines", id="json.Decoder.decode_lines"
+        ),
+        pytest.param(msgspec.msgpack.Encoder(), "encode", id="msgpack.Encoder.encode"),
+        pytest.param(
+            msgspec.msgpack.Encoder(), "encode_into", id="msgpack.Encoder.encode_into"
+        ),
+        pytest.param(msgspec.msgpack.Decoder(), "decode", id="msgpack.Decoder.decode"),
+        pytest.param(msgspec.Raw(b"1"), "copy", id="Raw.copy"),
+    ],
+)
+def test_bound_method_signature_omits_self(obj, method):
+    """A bound method must not report the instance as a parameter"""
+    sig = inspect.signature(getattr(obj, method))
+    assert "self" not in sig.parameters

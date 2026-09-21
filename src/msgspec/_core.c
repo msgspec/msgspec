@@ -1476,7 +1476,7 @@ Raw_New(PyObject *msg) {
 }
 
 PyDoc_STRVAR(Raw__doc__,
-"Raw(msg="", /)\n"
+"Raw(msg=b'', /)\n"
 "--\n"
 "\n"
 "A buffer containing an encoded message.\n"
@@ -1621,7 +1621,7 @@ Raw_reduce(Raw *self, PyObject *unused)
 }
 
 PyDoc_STRVAR(Raw_copy__doc__,
-"copy(self)\n"
+"copy($self, /)\n"
 "--\n"
 "\n"
 "Copy a Raw object.\n"
@@ -7513,7 +7513,7 @@ static PyGetSetDef StructMeta_getset[] = {
 };
 
 PyDoc_STRVAR(StructMeta__doc__,
-"StructMeta(name, bases, namespace, /, *, **struct_config)\n"
+"StructMeta(name, bases, namespace, /, **struct_config)\n"
 "--\n"
 "\n"
 "The metaclass for creating `Struct` types. See its documentation for the\n"
@@ -8209,7 +8209,7 @@ cleanup:
 }
 
 PyDoc_STRVAR(struct_replace__doc__,
-"replace(struct, / **changes)\n"
+"replace(struct, /, **changes)\n"
 "--\n"
 "\n"
 "Create a new struct instance of the same type as ``struct``, replacing fields\n"
@@ -8255,7 +8255,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 }
 
 PyDoc_STRVAR(struct_asdict__doc__,
-"asdict(struct)\n"
+"asdict(struct, /)\n"
 "--\n"
 "\n"
 "Convert a struct to a dict.\n"
@@ -8323,7 +8323,7 @@ error:
 }
 
 PyDoc_STRVAR(struct_astuple__doc__,
-"astuple(struct)\n"
+"astuple(struct, /)\n"
 "--\n"
 "\n"
 "Convert a struct to a tuple.\n"
@@ -8390,7 +8390,7 @@ error:
 }
 
 PyDoc_STRVAR(struct_force_setattr__doc__,
-"force_setattr(struct, name, value)\n"
+"force_setattr(struct, name, value, /)\n"
 "--\n"
 "\n"
 "Set an attribute on a struct, even if the struct is frozen.\n"
@@ -9257,7 +9257,7 @@ Ext_New(long code, PyObject *data) {
 }
 
 PyDoc_STRVAR(Ext__doc__,
-"Ext(code, data)\n"
+"Ext(code, data, /)\n"
 "--\n"
 "\n"
 "A record representing a MessagePack Extension Type.\n"
@@ -9848,7 +9848,7 @@ Encoder_dealloc(Encoder *self)
 }
 
 PyDoc_STRVAR(Encoder_encode_into__doc__,
-"encode_into(self, obj, buffer, offset=0, /)\n"
+"encode_into($self, obj, buffer, offset=0, /)\n"
 "--\n"
 "\n"
 "Serialize an object into an existing bytearray buffer.\n"
@@ -9930,7 +9930,7 @@ encoder_encode_into_common(
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
-"encode(self, obj, /)\n"
+"encode($self, obj, /)\n"
 "--\n"
 "\n"
 "Serialize an object to bytes.\n"
@@ -14911,7 +14911,7 @@ JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
-"encode_lines(self, items, /)\n"
+"encode_lines($self, items, /)\n"
 "--\n"
 "\n"
 "Encode an iterable of items as newline-delimited JSON, one item per line.\n"
@@ -16782,7 +16782,7 @@ mpack_decode(
 }
 
 PyDoc_STRVAR(Decoder_decode__doc__,
-"decode(self, buf, /)\n"
+"decode($self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from MessagePack.\n"
@@ -19754,7 +19754,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
 
 
 PyDoc_STRVAR(JSONDecoder_decode__doc__,
-"decode(self, buf, /)\n"
+"decode($self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from JSON.\n"
@@ -19811,7 +19811,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONDecoder_decode_lines__doc__,
-"decode_lines(self, buf, /)\n"
+"decode_lines($self, buf, /)\n"
 "--\n"
 "\n"
 "Decode a list of items from newline-delimited JSON.\n"
