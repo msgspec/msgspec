@@ -946,6 +946,50 @@ def test_struct_reference_counting():
     assert sys.getrefcount(data) <= 4
 
 
+def test_struct_definition_does_not_leak_non_struct_base_dict():
+    """Defining a struct must not retain the type dict of a non-struct base"""
+
+    class Sentinel:
+        pass
+
+    def define_struct_type():
+        sentinel = Sentinel()
+        Mixin = type("Mixin", (), {"sentinel": sentinel})
+
+        class Example(Mixin, Struct):
+            x: int
+
+        return weakref.ref(sentinel)
+
+    refs = [define_struct_type() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
+def test_rejected_struct_base_does_not_leak_its_dict():
+    """A rejected non-struct base must not retain its type dict either"""
+
+    class Sentinel:
+        pass
+
+    def define_struct_type():
+        sentinel = Sentinel()
+        Mixin = type("Mixin", (), {"sentinel": sentinel, "__init__": lambda self: None})
+
+        with pytest.raises(TypeError, match="cannot define __init__"):
+
+            class Example(Mixin, Struct):
+                x: int
+
+        return weakref.ref(sentinel)
+
+    refs = [define_struct_type() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
 def test_struct_gc_not_added_if_not_needed():
     """Structs aren't tracked by GC until/unless they reference a container type"""
 
