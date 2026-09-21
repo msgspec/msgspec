@@ -47,9 +47,6 @@
 - Report the leading argument of the `encode` and `decode` functions and
   methods as positional-only in `inspect.signature` and the rendered docs,
   matching runtime behavior ({pr}`1116`).
-- Fix the reported signature of `msgspec.structs.replace`, which could not be
-  read by `inspect.signature` and rendered without parameters in the docs
-  ({pr}`1195`).
 - Fix reference leaks when defining a `Struct` type: the annotations dict, and
   the module namespace for a string `ClassVar` annotation ({pr}`1194`).
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
