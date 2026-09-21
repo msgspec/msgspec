@@ -3086,6 +3086,25 @@ class TestTypedDict:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
+    def test_generic_typeddict_subclass(self, proto):
+        # Subclassing a parametrized generic TypedDict flattens the inherited
+        # field onto the subclass and drops the base from ``__mro__``. The type
+        # argument must still be applied so invalid values are rejected.
+        # https://github.com/jcrist/msgspec/issues/1191
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+
+        class Sub(Base[int]):
+            y: str
+
+        sol = Sub(x=1, y="a")
+        assert proto.decode(proto.encode(sol), type=Sub) == sol
+
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode(Sub(x="nope", y="a")), type=Sub)
+
     def test_recursive_generic_typeddict(self, proto):
         pytest.importorskip("typing_extensions")
 
