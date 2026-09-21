@@ -961,23 +961,46 @@ def test_struct_definition_does_not_leak_annotations():
     assert ref() is None
 
 
-def test_struct_definition_does_not_leak_module_namespace():
+def test_struct_definition_does_not_leak_class_body_annotations():
+    """A class body must not retain the annotations built for it"""
+
+    def define_struct_type():
+        class Annotation:
+            pass
+
+        class Example(Struct):
+            x: Annotation
+
+        return weakref.ref(Annotation)
+
+    refs = [define_struct_type() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
+@pytest.mark.parametrize("spelling", ["ClassVar", "typing.ClassVar"])
+def test_struct_definition_does_not_leak_module_namespace(spelling):
     """A string `ClassVar` annotation must not retain the module namespace"""
 
     class Sentinel:
         pass
 
     def define_in_temp_module():
-        with temp_module("from typing import ClassVar\nimport msgspec\n") as mod:
+        with temp_module(
+            "import typing\nfrom typing import ClassVar\nimport msgspec\n"
+        ) as mod:
             sentinel = Sentinel()
             mod.__dict__["sentinel"] = sentinel
             exec(
                 "from __future__ import annotations\n"
                 "class Ex(msgspec.Struct):\n"
-                "    a: ClassVar[int] = 1\n"
+                f"    a: {spelling}[int] = 1\n"
                 "    x: int = 0\n",
                 mod.__dict__,
             )
+            # The leak only exists while the annotations are strings
+            assert mod.Ex.__annotations__["x"] == "int"
             return weakref.ref(sentinel)
 
     refs = [define_in_temp_module() for _ in range(3)]
