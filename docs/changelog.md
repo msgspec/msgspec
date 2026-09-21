@@ -50,6 +50,8 @@
 - Fix the reported signature of `msgspec.structs.replace`, which could not be
   read by `inspect.signature` and rendered without parameters in the docs
   ({pr}`1195`).
+- Fix reference leaks when defining a `Struct` type: the annotations dict, and
+  the module namespace for a string `ClassVar` annotation ({pr}`1194`).
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
   with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
