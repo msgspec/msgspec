@@ -3106,6 +3106,8 @@ class TestTypedDict:
                 proto.decode(proto.encode(invalid), type=Sub)
 
     def test_inherited_generic_typeddict_scopes(self, proto):
+        pytest.importorskip("typing_extensions")
+
         source = """
         from typing import Generic, TypeVar
         from typing_extensions import TypedDict
