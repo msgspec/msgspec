@@ -1,31 +1,8 @@
 # Changelog
 
-## Version 0.22.0 (2026-09-20)
+## Unreleased
 
-- Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
-- Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
-  `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
-- Support `Literal[True]` and `Literal[False]` types ({pr}`1004`).
-- Publish Linux `riscv64` wheels ({pr}`987`).
 - Publish CPython 3.15 wheels, including freethreaded builds ({pr}`1152`).
-- Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
-- Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
-  `types.GenericAlias` instances in type annotations ({pr}`962`).
-- Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
-- Fix an `AttributeError` when converting to a `Struct` type defined in a
-  namespace without a `__name__` ({pr}`1072`).
-- Fix a reference leak when decoding msgpack `Ext` payloads ({pr}`1109`).
-- Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
-  `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
-  {pr}`1023`, {pr}`1040`).
-- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
-- Place `null` last in the `anyOf` generated for optional unions in JSON
-  schemas ({pr}`1028`).
-- Fix `msgspec.json.encode` raising `TypeError` for a `dict` keyed by a plain
-  `enum.Enum` with `str` values ({pr}`1118`).
-- Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
-- Ensure an exception is always set on allocation failures ({pr}`1044`).
-- Fix compilation warnings on Python 3.15 ({pr}`1077`).
 - Raise `ValidationError` instead of `SystemError` when `convert` receives an
   out-of-range `int` for a `float` target ({pr}`1162`).
 - Fix overriding an inherited field alias back to the field's own name
@@ -47,12 +24,41 @@
 - Report the leading argument of the `encode` and `decode` functions and
   methods as positional-only in `inspect.signature` and the rendered docs,
   matching runtime behavior ({pr}`1116`).
+- Many type stub improvements and fixes ({pr}`1116`, {pr}`1163`, {pr}`1173`,
+  {pr}`1179`).
+- Fix `NameError` when creating a `Struct` with an unquoted forward
+  reference on Python 3.14 ({issue}`1165`).
+
+## Version 0.22.0 (2026-08-11)
+
+- Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
+- Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
+  `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
+- Support `Literal[True]` and `Literal[False]` types ({pr}`1004`).
+- Publish Linux `riscv64` wheels ({pr}`987`).
+- Support the PyEmscripten (Pyodide) platform ({pr}`1083`).
+- Fix handling of PEP 695 type parameter syntax (`class Foo[T]`) and of
+  `types.GenericAlias` instances in type annotations ({pr}`962`).
+- Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
+- Fix an `AttributeError` when converting to a `Struct` type defined in a
+  namespace without a `__name__` ({pr}`1072`).
+- Fix a reference leak when decoding msgpack `Ext` payloads ({pr}`1109`).
+- Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
+  `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
+  {pr}`1023`, {pr}`1040`).
+- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
+- Place `null` last in the `anyOf` generated for optional unions in JSON
+  schemas ({pr}`1028`).
+- Fix `msgspec.json.encode` raising `TypeError` for a `dict` keyed by a plain
+  `enum.Enum` with `str` values ({pr}`1118`).
+- Fix missing GC traversal and clearing of some module state members ({pr}`1060`).
+- Ensure an exception is always set on allocation failures ({pr}`1044`).
+- Fix compilation warnings on Python 3.15 ({pr}`1077`).
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
   with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
   {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1063`, {pr}`1064`, {pr}`1065`,
-  {pr}`1074`, {pr}`1093`, {pr}`1114`, {pr}`1116`, {pr}`1163`, {pr}`1173`,
-  {pr}`1179`).
+  {pr}`1074`, {pr}`1093`, {pr}`1114`).
 - Document the differences between `msgspec.structs.asdict`/`astuple` and
   `msgspec.to_builtins` ({pr}`1025`).
 - Document that `omit_defaults` ignores fields with a custom
@@ -60,8 +66,6 @@
 - Fix the `msgspec.json.decode` docstring to say `dec_hook` should raise
   `NotImplementedError` for unsupported types, not `TypeError` ({issue}`774`).
 - Fix backing type declaration of `Ext.code` ({pr}`1135`).
-- Fix `NameError` when creating a `Struct` with an unquoted forward
-  reference on Python 3.14 ({issue}`1165`).
 - msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
   documentation now lives at [msgspec.dev](https://msgspec.dev) (repository
   references updated in {pr}`1045`).
