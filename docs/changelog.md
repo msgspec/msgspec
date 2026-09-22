@@ -47,13 +47,6 @@
 - Report the leading argument of the `encode` and `decode` functions and
   methods as positional-only in `inspect.signature` and the rendered docs,
   matching runtime behavior ({pr}`1116`).
-- Fix reference leaks when defining a `Struct` type: the annotations dict, and
-  the module namespace for a string `ClassVar` annotation ({pr}`1194`).
-- Fix a reference leak when defining a `Struct` with a non-`Struct` base on
-  Python 3.12+: the base's type dict was never released, keeping the base
-  class alive on 3.12 through 3.14 ({pr}`1199`).
-- Correct the reported signatures of several public callables, including two
-  that `inspect.signature` could not read at all ({pr}`1197`).
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
   with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
