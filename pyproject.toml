@@ -86,7 +86,7 @@ doc = [
   "sphinx-design",
 ]
 hooks = [
-  "codespell==2.4.1",
+  "codespell==2.4.3",
   "prek>=0.2.13",
   "ruff==0.16.2",
 ]
