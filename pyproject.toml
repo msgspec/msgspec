@@ -88,7 +88,7 @@ doc = [
 hooks = [
   "codespell==2.4.3",
   "prek>=0.2.13",
-  "ruff==0.16.2",
+  "ruff==0.16.7",
 ]
 test-base = [
   "pytest>=9",
