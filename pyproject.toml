@@ -103,7 +103,7 @@ test-prof = [
 test-typing = [
   { include-group = "test-base" },
   "mypy==2.3.1",
-  "pyright==1.1.411",
+  "pyright==1.1.414",
   "pyrefly==1.3.1",
 ]
 test-unit = [
