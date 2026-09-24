@@ -6206,6 +6206,8 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
 
         if (structmeta_process_default(info, field) < 0) goto error;
     }
+    Py_DECREF(annotations);
+    Py_XDECREF(module_ns);
     return 0;
 error:
     Py_DECREF(annotations);
