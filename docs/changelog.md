@@ -11,10 +11,10 @@
   non-`Raw` value is given for a `Raw` field in `convert`, and therefore in
   `yaml.decode` and `toml.decode` ({pr}`1169`).
 - Fix an empty expected-type name in validation errors for a required `Raw`
-  field in a `TypedDict`, or a `Raw` field with a `default_factory`
-  ({pr}`1176`).
-- Fix a reference leak in `msgspec.to_builtins` for `array_like=True` structs
-  ({pr}`1177`).
+  field in a `TypedDict`, or a `Raw` field with a `default_factory` on a
+  `dataclass` or an `attrs` class ({pr}`1176`).
+- Fix a reference leak in `msgspec.to_builtins`, and therefore in
+  `yaml.encode`, for `array_like=True` structs ({pr}`1177`).
 - Fix `minItems` in the JSON schema for `array_like=True` structs whose fields
   are all optional ({pr}`1124`).
 - Correct the error messages for out-of-range `Meta` length bounds
