@@ -54,12 +54,16 @@ ms_popcount(uint64_t i) {                            \
 }
 #endif
 
-/* In Python 3.12+, tp_dict is NULL for some core types, PyType_GetDict returns
- * a borrowed reference to the interpreter or cls mapping */
+/* In Python 3.12+, tp_dict is NULL for some core types, so PyType_GetDict is
+ * used instead. It returns a new reference, which must be released; before
+ * 3.12 the tp_dict slot is read directly and is borrowed, so there is nothing
+ * to release. */
 #if PY312_PLUS
 #define MS_GET_TYPE_DICT(a) PyType_GetDict(a)
+#define MS_RELEASE_TYPE_DICT(d) Py_XDECREF(d)
 #else
 #define MS_GET_TYPE_DICT(a) ((a)->tp_dict)
+#define MS_RELEASE_TYPE_DICT(d) ((void)(d))
 #endif
 
 #if PY313_PLUS
@@ -5838,9 +5842,11 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         for (Py_ssize_t i = 0; i < nattrs; i++) {
             if (PyDict_GetItemString(tp_dict, attrs[i]) != NULL) {
                 PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
+                MS_RELEASE_TYPE_DICT(tp_dict);
                 return -1;
             }
         }
+        MS_RELEASE_TYPE_DICT(tp_dict);
         return 0;
     }
 
