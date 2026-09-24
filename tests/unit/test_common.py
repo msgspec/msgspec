@@ -2789,6 +2789,21 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    def test_postponed_annotations(self, proto):
+        # Regression test for Python 3.12.0-3.12.3, where the fourth argument
+        # to typing._eval_type is recursive_guard rather than type_params.
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict
+
+        class Ex(TypedDict):
+            x: int
+        """
+
+        with temp_module(source) as mod:
+            msg = proto.encode({"x": 1})
+            assert proto.decode(msg, type=mod.Ex) == {"x": 1}
+
     def test_types_generic_alias_non_generic_errors(self):
         # mostly a smoke test to weed out some bogus stuff that may get passed to us.
         # parametrising a non-generic TypedDict via a manually-built
@@ -3085,6 +3100,37 @@ class TestTypedDict:
 
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
+
+    @py312_plus
+    def test_generic_with_typevar_syntax(self, proto):
+        # `from __future__ import annotations` is load-bearing: it triggers the
+        # module-bound ForwardRefs that previously failed to resolve `T`.
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict
+        class Ex[T](TypedDict):
+            x: T
+            y: list[T]
+        """
+
+        with temp_module(source) as mod:
+            sol = mod.Ex(x=1, y=[1, 2])
+            msg = proto.encode(sol)
+
+            res = proto.decode(msg, type=mod.Ex)
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[int])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[Union[int, str]])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[float])
+            assert type(res["x"]) is float
+
+            with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+                proto.decode(msg, type=mod.Ex[str])
 
     def test_recursive_generic_typeddict(self, proto):
         pytest.importorskip("typing_extensions")
