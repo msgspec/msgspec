@@ -185,9 +185,23 @@ def get_class_annotations(obj):
             cls_globals = getattr(sys.modules.get(cls_module, None), "__dict__", {})
 
         ann = _get_class_annotations(cls)
+        inherited = {}
+        if hasattr(cls, "__required_keys__"):
+            # TypedDict flattens base annotations and omits its bases from the
+            # MRO. Resolve each original base in its own generic scope first.
+            for base in cls.__dict__.get("__orig_bases__", ()):
+                origin = typing.get_origin(base) or base
+                if not hasattr(origin, "__required_keys__"):
+                    continue
+                base_ann = _get_class_annotations(origin)
+                base_hints = get_class_annotations(base)
+                for name, value in base_ann.items():
+                    inherited[name] = (value, base_hints[name])
         for name, value in ann.items():
             if name in hints:
                 continue
+            if name in inherited and value == inherited[name][0]:
+                value = inherited[name][1]
             if isinstance(value, str):
                 value = _forward_ref(value)
             value = _eval_type(value, cls_locals, cls_globals)
