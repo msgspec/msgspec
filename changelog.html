@@ -312,8 +312,32 @@
 <section id="unreleased">
 <h2>Unreleased<a class="headerlink" href="#unreleased" title="Link to this heading">¶</a></h2>
 <ul class="simple">
+<li><p>Publish CPython 3.15 wheels, including freethreaded builds (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1152">PR #1152</a>).</p></li>
+<li><p>Raise <code class="docutils literal notranslate"><span class="pre">ValidationError</span></code> instead of <code class="docutils literal notranslate"><span class="pre">SystemError</span></code> when <code class="docutils literal notranslate"><span class="pre">convert</span></code> receives an
+out-of-range <code class="docutils literal notranslate"><span class="pre">int</span></code> for a <code class="docutils literal notranslate"><span class="pre">float</span></code> target (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1162">PR #1162</a>).</p></li>
+<li><p>Fix overriding an inherited field alias back to the field’s own name
+(<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1133">PR #1133</a>).</p></li>
+<li><p>Report <code class="docutils literal notranslate"><span class="pre">raw</span></code> rather than the misleading <code class="docutils literal notranslate"><span class="pre">any</span></code> as the expected type when a
+non-<code class="docutils literal notranslate"><span class="pre">Raw</span></code> value is given for a <code class="docutils literal notranslate"><span class="pre">Raw</span></code> field in <code class="docutils literal notranslate"><span class="pre">convert</span></code>, and therefore in
+<code class="docutils literal notranslate"><span class="pre">yaml.decode</span></code> and <code class="docutils literal notranslate"><span class="pre">toml.decode</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1169">PR #1169</a>).</p></li>
+<li><p>Fix an empty expected-type name in validation errors for a required <code class="docutils literal notranslate"><span class="pre">Raw</span></code>
+field in a <code class="docutils literal notranslate"><span class="pre">TypedDict</span></code>, or a <code class="docutils literal notranslate"><span class="pre">Raw</span></code> field with a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> on a
+<code class="docutils literal notranslate"><span class="pre">dataclass</span></code> or an <code class="docutils literal notranslate"><span class="pre">attrs</span></code> class (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1176">PR #1176</a>).</p></li>
+<li><p>Fix a reference leak in <code class="docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code>, and therefore in
+<code class="docutils literal notranslate"><span class="pre">yaml.encode</span></code>, for <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> structs (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1177">PR #1177</a>).</p></li>
+<li><p>Fix <code class="docutils literal notranslate"><span class="pre">minItems</span></code> in the JSON schema for <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> structs whose fields
+are all optional (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1124">PR #1124</a>).</p></li>
+<li><p>Correct the error messages for out-of-range <code class="docutils literal notranslate"><span class="pre">Meta</span></code> length bounds
+(<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1172">PR #1172</a>).</p></li>
 <li><p>Preserve JSON Schema metadata and string constraints in <code class="docutils literal notranslate"><span class="pre">propertyNames</span></code> for
 annotated dictionary key types (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/866">Issue #866</a>).</p></li>
+<li><p>Report the leading argument of the <code class="docutils literal notranslate"><span class="pre">encode</span></code> and <code class="docutils literal notranslate"><span class="pre">decode</span></code> functions and
+methods as positional-only in <code class="docutils literal notranslate"><span class="pre">inspect.signature</span></code> and the rendered docs,
+matching runtime behavior (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1116">PR #1116</a>).</p></li>
+<li><p>Many type stub improvements and fixes (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1116">PR #1116</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1163">PR #1163</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1173">PR #1173</a>,
+<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1179">PR #1179</a>).</p></li>
+<li><p>Fix <code class="docutils literal notranslate"><span class="pre">NameError</span></code> when creating a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> with an unquoted forward
+reference on Python 3.14 (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/1165">Issue #1165</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-22-0-2026-08-11">
@@ -345,8 +369,8 @@ schemas (<a class="extlink-pr reference external" href="https://github.com/msgsp
 <li><p>Add overloads to the <code class="docutils literal notranslate"><span class="pre">Meta</span></code> type stub, so type checkers reject mixing <code class="docutils literal notranslate"><span class="pre">gt</span></code>
 with <code class="docutils literal notranslate"><span class="pre">ge</span></code> or <code class="docutils literal notranslate"><span class="pre">lt</span></code> with <code class="docutils literal notranslate"><span class="pre">le</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/700">PR #700</a>).</p></li>
 <li><p>Many type stub improvements and fixes (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1014">PR #1014</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1043">PR #1043</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1053">PR #1053</a>,
-<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1055">PR #1055</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1057">PR #1057</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1062">PR #1062</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1065">PR #1065</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1074">PR #1074</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1093">PR #1093</a>,
-<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1114">PR #1114</a>).</p></li>
+<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1055">PR #1055</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1057">PR #1057</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1062">PR #1062</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1063">PR #1063</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1064">PR #1064</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1065">PR #1065</a>,
+<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1074">PR #1074</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1093">PR #1093</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1114">PR #1114</a>).</p></li>
 <li><p>Document the differences between <code class="docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code>/<code class="docutils literal notranslate"><span class="pre">astuple</span></code> and
 <code class="docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1025">PR #1025</a>).</p></li>
 <li><p>Document that <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> ignores fields with a custom
@@ -354,8 +378,6 @@ with <code class="docutils literal notranslate"><span class="pre">ge</span></cod
 <li><p>Fix the <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code> docstring to say <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> should raise
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> for unsupported types, not <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/774">Issue #774</a>).</p></li>
 <li><p>Fix backing type declaration of <code class="docutils literal notranslate"><span class="pre">Ext.code</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1135">PR #1135</a>).</p></li>
-<li><p>Fix <code class="docutils literal notranslate"><span class="pre">NameError</span></code> when creating a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> with an unquoted forward
-reference on Python 3.14 (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/1165">Issue #1165</a>).</p></li>
 <li><p>msgspec moved to the <a class="reference external" href="https://github.com/msgspec/msgspec">msgspec GitHub organization</a>;
 documentation now lives at <a class="reference external" href="https://msgspec.dev">msgspec.dev</a> (repository
 references updated in <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1045">PR #1045</a>).</p></li>
