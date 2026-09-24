@@ -990,6 +990,36 @@ def test_rejected_struct_base_does_not_leak_its_dict():
     assert [ref() for ref in refs] == [None, None, None]
 
 
+@pytest.mark.parametrize("rejected", [False, True])
+def test_non_struct_base_type_dict_gains_no_references(rejected):
+    """The type dict of a non-struct base must not gain a reference
+
+    The two checks above rely on the base's contents being released. On Python
+    3.15 the dict of an unreachable heap type is emptied independently of this
+    leak, so there the reference count is the only observable difference.
+    """
+    namespace = {"__init__": lambda self: None} if rejected else {}
+    Mixin = type("Mixin", (), namespace)
+    (tp_dict,) = [o for o in gc.get_referents(Mixin) if isinstance(o, dict)]
+
+    def define_struct_type():
+        class Example(Mixin, Struct):
+            x: int
+
+    before = sys.getrefcount(tp_dict)
+
+    for _ in range(3):
+        if rejected:
+            with pytest.raises(TypeError, match="cannot define __init__"):
+                define_struct_type()
+        else:
+            define_struct_type()
+
+    gc.collect()
+
+    assert sys.getrefcount(tp_dict) == before
+
+
 def test_struct_gc_not_added_if_not_needed():
     """Structs aren't tracked by GC until/unless they reference a container type"""
 
