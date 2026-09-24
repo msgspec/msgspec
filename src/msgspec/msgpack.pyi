@@ -27,7 +27,7 @@ _DecimalFormatSig: TypeAlias = (
 class Ext:
     code: int
     data: Buffer
-    def __init__(self, code: int, data: Buffer) -> None: ...
+    def __init__(self, code: int, data: Buffer, /) -> None: ...
 
 @final
 class Decoder(Generic[_T]):

@@ -478,6 +478,8 @@ def check_asdict() -> None:
     assert_type(o, dict[str, Any])
     assert_type(o["foo"], Any)
 
+    msgspec.structs.asdict(struct=x)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
+
 
 def check_astuple() -> None:
     class Test(msgspec.Struct):
@@ -489,6 +491,8 @@ def check_astuple() -> None:
     assert_type(o, tuple[Any, ...])
     assert_type(o[0], Any)
 
+    msgspec.structs.astuple(struct=x)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
+
 
 def check_force_setattr() -> None:
     class Point(msgspec.Struct, frozen=True):
@@ -497,6 +501,8 @@ def check_force_setattr() -> None:
 
     obj = Point(1, 2)
     msgspec.structs.force_setattr(obj, "x", 3)
+
+    msgspec.structs.force_setattr(struct=obj, name="x", value=3)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
 
 
 def check_fields() -> None:
@@ -615,6 +621,8 @@ def check_raw_constructor() -> None:
     r3 = msgspec.Raw(bytearray(b"test"))
     r4 = msgspec.Raw(memoryview(b"test"))
     r2 = msgspec.Raw("test")
+
+    msgspec.Raw(msg=b"test")  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
 
 
 def check_raw_copy() -> None:
@@ -789,6 +797,8 @@ def check_msgpack_Ext() -> None:
     assert_type(msgspec.msgpack.Ext(1, bytearray()), msgspec.msgpack.Ext)
     assert_type(msgspec.msgpack.Ext(1, memoryview(b'')), msgspec.msgpack.Ext)
     assert_type(msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3])), msgspec.msgpack.Ext)
+
+    msgspec.msgpack.Ext(code=1, data=b"test")  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
 
     # Non buffers:
     msgspec.msgpack.Ext(1, {})  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
