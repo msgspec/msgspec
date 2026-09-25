@@ -996,84 +996,6 @@ class Attrs:
         self.x = x
 
 
-@pytest.mark.parametrize("has_weakref", [False, True])
-@pytest.mark.parametrize("array_like", [False, True])
-def test_struct_gc_false_never_tracks(has_weakref, array_like):
-    """`gc=False` structs are never tracked, including weakrefable ones"""
-
-    class Test(Struct, gc=False, weakref=has_weakref, array_like=array_like):
-        x: object
-
-    class Control(Struct, weakref=has_weakref, array_like=array_like):
-        x: object
-
-    msg = msgspec.json.encode(Control([1, 2, 3]))
-    packed = msgspec.msgpack.encode(Control([1, 2, 3]))
-    builtins = msgspec.to_builtins(Control([1, 2, 3]))
-
-    def built(cls):
-        """Every way a struct can be built, plus post-construction mutation"""
-        yield cls([1, 2, 3])
-        yield msgspec.json.decode(msg, type=cls)
-        yield msgspec.msgpack.decode(packed, type=cls)
-        yield msgspec.convert(builtins, cls)
-        yield msgspec.convert(Attrs([1, 2, 3]), cls, from_attributes=True)
-        yield msgspec.structs.replace(cls(1), x=[1, 2, 3])
-        yield copy.copy(cls([1, 2, 3]))
-        mutated = cls(1)
-        mutated.x = [1, 2, 3]
-        yield mutated
-
-    for obj in built(Test):
-        assert not gc.is_tracked(obj)
-    # The same struct without `gc=False` is tracked in every one of those cases
-    for obj in built(Control):
-        assert gc.is_tracked(obj)
-
-
-def test_struct_gc_false_weakref_layout():
-    """A weakref slot in the GC pre-header requires the type to stay GC enabled.
-
-    Clearing `Py_TPFLAGS_HAVE_GC` drops `sizeof(PyGC_Head)` from the pre-header,
-    which can leave the slot before the start of the allocation. Asserting the
-    invariant turns that into a test failure rather than a segfault.
-    """
-    Py_TPFLAGS_HAVE_GC = 1 << 14
-
-    class WeakrefBase(Struct, weakref=True):
-        pass
-
-    class NoGCBase(Struct, gc=False):
-        pass
-
-    class SlotsMixin:
-        __slots__ = ("__weakref__",)
-
-    class Direct(Struct, gc=False, weakref=True):
-        x: int
-
-    class FromWeakrefBase(WeakrefBase, gc=False):
-        x: int
-
-    class FromNoGCBase(NoGCBase, weakref=True):
-        x: int
-
-    class FromMixin(Struct, SlotsMixin, gc=False):
-        x: int
-
-    Defstruct = msgspec.defstruct("Defstruct", [("x", int)], gc=False, weakref=True)
-
-    for cls in (Direct, FromWeakrefBase, FromNoGCBase, FromMixin, Defstruct):
-        if cls.__weakrefoffset__ < 0:
-            assert cls.__flags__ & Py_TPFLAGS_HAVE_GC
-        t = cls(1)
-        assert not gc.is_tracked(t)
-        ref = weakref.ref(t)
-        assert ref() is t
-        del t
-        assert ref() is None
-
-
 class TestStructGC:
     @pytest.mark.skipif(
         hasattr(sys.flags, "gil") and not sys.flags.gil,
@@ -1093,6 +1015,139 @@ class TestStructGC:
         # but that's a cpython implementation detail. This test is mainly to
         # check that the smaller layout is being actually used.
         assert sizes[False] < sizes[True]
+
+    def test_gc_false_weakref_layout(self):
+        """A weakref slot in the pre-header requires the type to stay GC enabled.
+
+        Clearing `Py_TPFLAGS_HAVE_GC` releases the instance from the wrong
+        address, and outside free-threaded builds it also leaves the slot
+        before the start of the allocation. Asserting the invariant turns that
+        into a test failure rather than a segfault.
+        """
+        Py_TPFLAGS_HAVE_GC = 1 << 14
+
+        class WeakrefBase(Struct, weakref=True):
+            pass
+
+        class NoGCBase(Struct, gc=False):
+            pass
+
+        class SlotsMixin:
+            __slots__ = ("__weakref__",)
+
+        class Direct(Struct, gc=False, weakref=True):
+            x: object
+
+        class FromWeakrefBase(WeakrefBase, gc=False):
+            x: object
+
+        class FromNoGCBase(NoGCBase, weakref=True):
+            x: object
+
+        class FromMixin(Struct, SlotsMixin, gc=False):
+            x: object
+
+        Defstruct = msgspec.defstruct(
+            "Defstruct", [("x", object)], gc=False, weakref=True
+        )
+
+        class NoSlot(Struct, gc=False):
+            x: object
+
+        for cls in (
+            Direct,
+            FromWeakrefBase,
+            FromNoGCBase,
+            FromMixin,
+            Defstruct,
+            NoSlot,
+        ):
+            if cls.__weakrefoffset__ < 0:
+                assert cls.__flags__ & Py_TPFLAGS_HAVE_GC
+            else:
+                assert not cls.__flags__ & Py_TPFLAGS_HAVE_GC
+            t = cls([1, 2, 3])
+            assert not gc.is_tracked(t)
+            if cls is not NoSlot:
+                ref = weakref.ref(t)
+                assert ref() is t
+                del t
+                assert ref() is None
+
+    def test_gc_false_weakref_dealloc(self):
+        """Such a type is released through the GC allocator as well.
+
+        Its instances are allocated with the GC pre-header, so releasing them
+        with `PyObject_Free` frees the block from the wrong address and leaves
+        the young generation counter climbing.
+        """
+
+        class Test(Struct, gc=False, weakref=True):
+            x: object
+
+        gc.collect()
+        with nogc():
+            before = gc.get_count()[0]
+            for _ in range(1000):
+                ref = weakref.ref(Test(1))
+                assert ref() is None
+            grew = gc.get_count()[0] - before
+        assert grew < 100
+
+    @pytest.mark.parametrize("has_weakref", [False, True])
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_gc_false_never_tracks(self, has_weakref, array_like):
+        """`gc=False` structs are never tracked, including weakrefable ones"""
+
+        class Test(Struct, gc=False, weakref=has_weakref, array_like=array_like):
+            x: object
+
+        class Control(Struct, weakref=has_weakref, array_like=array_like):
+            x: object
+
+        msg = msgspec.json.encode(Control([1, 2, 3]))
+        packed = msgspec.msgpack.encode(Control([1, 2, 3]))
+        builtins = msgspec.to_builtins(Control([1, 2, 3]))
+
+        def built(cls):
+            """Every way a struct can be built, plus post-construction mutation"""
+            yield cls([1, 2, 3])
+            yield msgspec.json.decode(msg, type=cls)
+            yield msgspec.msgpack.decode(packed, type=cls)
+            yield msgspec.convert(builtins, cls)
+            yield msgspec.convert(Attrs([1, 2, 3]), cls, from_attributes=True)
+            yield msgspec.structs.replace(cls(1), x=[1, 2, 3])
+            yield copy.copy(cls([1, 2, 3]))
+            mutated = cls(1)
+            mutated.x = [1, 2, 3]
+            yield mutated
+
+        for obj in built(Test):
+            assert not gc.is_tracked(obj)
+        # The same struct without `gc=False` is tracked in every one of those cases
+        for obj in built(Control):
+            assert gc.is_tracked(obj)
+
+    @pytest.mark.parametrize("has_weakref", [False, True])
+    def test_gc_false_copy_in_post_init(self, has_weakref):
+        """A copy taken from `__post_init__` is untracked as well.
+
+        A `gc=False` type that keeps GC for its weakref slot is allocated
+        tracked, so the untracking has to happen at allocation, before any user
+        code can take a copy.
+        """
+        copies = []
+
+        class Test(Struct, gc=False, weakref=has_weakref):
+            x: object
+
+            def __post_init__(self):
+                copies.append(copy.copy(self))
+
+        msgspec.structs.replace(Test(1), x=[1, 2, 3])
+        assert copies
+        for obj in copies:
+            assert not gc.is_tracked(obj)
 
     def test_init(self):
         class Test(Struct, gc=False):

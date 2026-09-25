@@ -3060,10 +3060,11 @@ typedef struct {
     int8_t forbid_unknown_fields;
 } StructMetaObject;
 
-/* Instances of struct types created with `gc=False` are never tracked. Such a
- * type is usually not GC-enabled at all, but one whose weakref slot lives in the
- * GC pre-header has to stay GC-enabled so that offset stays valid, see
- * `StructMeta_new_inner`. */
+/* Instances of struct types created with `gc=False` are untracked. Such a type
+ * is usually not GC-enabled at all, but one whose weakref slot lives in the GC
+ * pre-header has to stay GC-enabled so that offset stays valid, see
+ * `StructMeta_new_inner`. CPython still tracks an instance of such a type
+ * around `tp_finalize`, so one resurrected from `__del__` comes back tracked. */
 #define MS_STRUCT_NEVER_TRACKS(t) (((StructMetaObject *)(t))->gc == OPT_FALSE)
 
 typedef struct StructInfo {
@@ -5489,7 +5490,14 @@ static PyTypeObject StructMixinType;
 
 static PyObject *
 Struct_alloc(PyTypeObject *type) {
-    return type->tp_alloc(type, type->tp_itemsize);
+    PyObject *obj = type->tp_alloc(type, type->tp_itemsize);
+    /* A `gc=False` type stays GC enabled when its weakref slot is in the
+     * pre-header, see `StructMeta_new_inner`. Untrack at allocation rather
+     * than at the end of each construction path, so the instance is already
+     * untracked when `__post_init__` runs. */
+    if (obj != NULL && MS_STRUCT_NEVER_TRACKS(type) && MS_TYPE_IS_GC(type))
+        PyObject_GC_UnTrack(obj);
+    return obj;
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -6688,12 +6696,13 @@ StructMeta_new_inner(
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
     /* A `__weakref__` slot at a negative offset lives in the pre-header, as on
      * CPython 3.12+ and on free-threaded builds. Such an instance is allocated
-     * with that pre-header, and clearing Py_TPFLAGS_HAVE_GC both changes its
-     * size and switches deallocation to `PyObject_Free` on the object itself,
-     * so the slot can fall outside the allocation and the block is released
-     * from the wrong address. Keep the type GC-enabled whenever the slot is
-     * there. Instances are still never tracked, see `MS_STRUCT_NEVER_TRACKS`.
-     * An in-object slot, as on older CPythons, is unaffected. */
+     * with that pre-header, and clearing Py_TPFLAGS_HAVE_GC switches
+     * deallocation to `PyObject_Free` on the object itself, so the block is
+     * released from the wrong address. Outside free-threaded builds it also
+     * shrinks the pre-header, leaving the slot before the start of the
+     * allocation. Keep the type GC-enabled whenever the slot is there.
+     * Instances are still untracked, see `MS_STRUCT_NEVER_TRACKS`. An
+     * in-object slot, as on older CPythons, is unaffected. */
     if (info.gc == OPT_FALSE && ((PyTypeObject *)cls)->tp_weaklistoffset >= 0) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_dealloc = &Struct_dealloc_nogc;
@@ -7665,7 +7674,6 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
     nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     is_gc = MS_TYPE_IS_GC(st_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(st_type);
     should_untrack = is_gc;
 
     for (i = 0; i < nfields; i++) {
@@ -7685,7 +7693,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
         }
     }
 
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(obj))
+    if (is_gc && should_untrack && MS_IS_TRACKED(obj))
         PyObject_GC_UnTrack(obj);
 
     if (Struct_decode_post_init(st_type, obj, path) < 0) return -1;
@@ -7773,7 +7781,6 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
     }
 
     bool is_gc = MS_TYPE_IS_GC(cls);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(cls);
     bool should_untrack = is_gc;
 
     PyObject *self = Struct_alloc(cls);
@@ -7863,7 +7870,7 @@ kw_found:
         }
     }
 
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(self))
+    if (is_gc && should_untrack && MS_IS_TRACKED(self))
         PyObject_GC_UnTrack(self);
 
     if (Struct_post_init(st_type, self) < 0) goto error;
@@ -8122,7 +8129,6 @@ Struct_replace(
     PyObject *fields = struct_type->struct_fields;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(struct_type);
     bool should_untrack = is_gc;
 
     PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
@@ -8174,7 +8180,7 @@ Struct_replace(
 
     if (Struct_post_init(struct_type, out) < 0) goto error;
 
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(out))
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
         PyObject_GC_UnTrack(out);
     return out;
 
@@ -16094,7 +16100,6 @@ mpack_decode_struct_array_inner(
     if (res == NULL) goto error;
 
     is_gc = MS_TYPE_IS_GC(st_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(st_type);
     should_untrack = is_gc;
 
     for (i = 0; i < nfields; i++) {
@@ -16137,7 +16142,7 @@ mpack_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, res, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(res))
+    if (is_gc && should_untrack && MS_IS_TRACKED(res))
         PyObject_GC_UnTrack(res);
     return res;
 error:
@@ -18360,7 +18365,6 @@ json_decode_struct_array_inner(
     nrequired = nfields - st_type->n_trailing_defaults;
     npos = nfields - ndefaults;
     is_gc = MS_TYPE_IS_GC(st_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(st_type);
     should_untrack = is_gc;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
@@ -18442,7 +18446,7 @@ json_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(out))
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
         PyObject_GC_UnTrack(out);
     return out;
 error:
@@ -21631,7 +21635,6 @@ convert_seq_to_struct_array_inner(
     if (out == NULL) goto error;
 
     bool is_gc = MS_TYPE_IS_GC(st_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(st_type);
     bool should_untrack = is_gc;
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
@@ -21668,7 +21671,7 @@ convert_seq_to_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(out))
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
         PyObject_GC_UnTrack(out);
     return out;
 error:
@@ -22103,7 +22106,6 @@ convert_object_to_struct(
     if (out == NULL) goto error;
 
     bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool never_track = is_gc && MS_STRUCT_NEVER_TRACKS(struct_type);
     bool should_untrack = is_gc;
 
     /* If no fields are renamed we only have one fields tuple to choose from */
@@ -22177,7 +22179,7 @@ convert_object_to_struct(
     if (Struct_decode_post_init(struct_type, out, path) < 0) goto error;
 
     Py_LeaveRecursiveCall();
-    if (is_gc && (should_untrack || never_track) && MS_IS_TRACKED(out))
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
         PyObject_GC_UnTrack(out);
     return out;
 
