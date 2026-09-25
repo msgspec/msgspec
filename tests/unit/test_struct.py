@@ -4,7 +4,6 @@ import enum
 import gc
 import operator
 import pickle
-import struct
 import sys
 import textwrap
 import weakref
@@ -1040,8 +1039,6 @@ def test_struct_gc_false_weakref_layout():
     invariant turns that into a test failure rather than a segfault.
     """
     Py_TPFLAGS_HAVE_GC = 1 << 14
-    # The part of the pre-header that survives clearing the flag
-    preheader = -2 * struct.calcsize("P")
 
     class WeakrefBase(Struct, weakref=True):
         pass
@@ -1067,7 +1064,7 @@ def test_struct_gc_false_weakref_layout():
     Defstruct = msgspec.defstruct("Defstruct", [("x", int)], gc=False, weakref=True)
 
     for cls in (Direct, FromWeakrefBase, FromNoGCBase, FromMixin, Defstruct):
-        if cls.__weakrefoffset__ < preheader:
+        if cls.__weakrefoffset__ < 0:
             assert cls.__flags__ & Py_TPFLAGS_HAVE_GC
         t = cls(1)
         assert not gc.is_tracked(t)

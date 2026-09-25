@@ -1111,8 +1111,7 @@ collection, so such a type has to keep taking part. Its instances use as much
 memory as with ``weakref=True`` alone, and they still count toward the next GC
 pass, so passes happen as often as without ``gc=False``. The instances are
 still untracked once built, so collections of later generations still have
-less to do. On Python 3.10 and 3.11, and on builds without the GIL, the
-optimization applies in full.
+less to do. On Python 3.10 and 3.11, the optimization applies in full.
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement

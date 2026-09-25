@@ -6686,18 +6686,15 @@ StructMeta_new_inner(
 
     /* Fill in type methods */
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
-    /* On CPython 3.12+ a `__weakref__` slot is stored in the pre-header, at a
-     * negative offset. Clearing Py_TPFLAGS_HAVE_GC drops `sizeof(PyGC_Head)`
-     * from that pre-header, which can leave the slot before the start of the
-     * allocation. The part of the pre-header that remains is
-     * `2 * sizeof(PyObject *)`, so only a slot below that is a problem; keep
-     * the type GC-enabled in that case. Instances are still never tracked, see
-     * `MS_STRUCT_NEVER_TRACKS`. An in-object slot, as on older CPythons, and
-     * the narrower pre-header of free-threaded builds are both unaffected. */
-    if (
-        info.gc == OPT_FALSE
-        && ((PyTypeObject *)cls)->tp_weaklistoffset >= -2 * (Py_ssize_t)sizeof(PyObject *)
-    ) {
+    /* A `__weakref__` slot at a negative offset lives in the pre-header, as on
+     * CPython 3.12+ and on free-threaded builds. Such an instance is allocated
+     * with that pre-header, and clearing Py_TPFLAGS_HAVE_GC both changes its
+     * size and switches deallocation to `PyObject_Free` on the object itself,
+     * so the slot can fall outside the allocation and the block is released
+     * from the wrong address. Keep the type GC-enabled whenever the slot is
+     * there. Instances are still never tracked, see `MS_STRUCT_NEVER_TRACKS`.
+     * An in-object slot, as on older CPythons, is unaffected. */
+    if (info.gc == OPT_FALSE && ((PyTypeObject *)cls)->tp_weaklistoffset >= 0) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_dealloc = &Struct_dealloc_nogc;
         ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
