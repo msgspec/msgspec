@@ -3521,6 +3521,18 @@ class TestDataclass:
         sol = proto.encode(msg)
         assert res == sol
 
+    def test_encode_non_dataclass_skips_instance_getattr(self, proto):
+        calls = []
+
+        class Ex:
+            def __getattr__(self, key):
+                calls.append(key)
+                raise AttributeError(key)
+
+        res = proto.encode([Ex()], enc_hook=lambda x: "hook")
+        assert res == proto.encode(["hook"])
+        assert calls == []
+
     @pytest.mark.parametrize("field", "xyz")
     def test_encode_dataclass_invalid_field_errors(self, proto, field):
         @dataclass

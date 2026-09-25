@@ -9407,6 +9407,33 @@ typedef struct {
     bool standard_getattr;
 } DataclassIter;
 
+static MS_INLINE PyObject *
+ms_type_lookup_ref(PyTypeObject *type, PyObject *name) {
+#if PY313_PLUS
+    return _PyType_LookupRef(type, name);
+#else
+    PyObject *out = _PyType_Lookup(type, name);
+    Py_XINCREF(out);
+    return out;
+#endif
+}
+
+static PyObject *
+ms_get_dataclass_fields(MsgspecState *mod, PyTypeObject *type, PyObject *obj) {
+    PyObject *fields = ms_type_lookup_ref(type, mod->str___dataclass_fields__);
+    if (fields == NULL) return NULL;
+    if (MS_LIKELY(
+        PyDict_CheckExact(fields) &&
+        type->tp_getattro == PyObject_GenericGetAttr
+    )) {
+        return fields;
+    }
+    Py_DECREF(fields);
+    fields = PyObject_GetAttr(obj, mod->str___dataclass_fields__);
+    if (fields == NULL) PyErr_Clear();
+    return fields;
+}
+
 static bool
 dataclass_iter_setup(DataclassIter *iter, PyObject *obj, PyObject *fields) {
     iter->dict = NULL;
@@ -13694,14 +13721,11 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
         return mpack_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             int status = mpack_encode_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return status;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return mpack_encode_object(self, obj);
@@ -14833,14 +14857,11 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
         return json_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             int status = json_encode_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return status;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return json_encode_object(self, obj);
@@ -20634,14 +20655,11 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return to_builtins_set(self, obj, is_key);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             PyObject *out = to_builtins_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return out;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return to_builtins_object(self, obj);
