@@ -4,6 +4,7 @@ import enum
 import gc
 import operator
 import pickle
+import struct
 import sys
 import textwrap
 import weakref
@@ -989,6 +990,93 @@ def test_struct_gc_not_added_if_not_needed():
     assert not gc.is_tracked(t)
 
 
+class Attrs:
+    """A plain object to convert from with `from_attributes=True`"""
+
+    def __init__(self, x):
+        self.x = x
+
+
+@pytest.mark.parametrize("has_weakref", [False, True])
+@pytest.mark.parametrize("array_like", [False, True])
+def test_struct_gc_false_never_tracks(has_weakref, array_like):
+    """`gc=False` structs are never tracked, including weakrefable ones"""
+
+    class Test(Struct, gc=False, weakref=has_weakref, array_like=array_like):
+        x: object
+
+    class Control(Struct, weakref=has_weakref, array_like=array_like):
+        x: object
+
+    msg = msgspec.json.encode(Control([1, 2, 3]))
+    packed = msgspec.msgpack.encode(Control([1, 2, 3]))
+    builtins = msgspec.to_builtins(Control([1, 2, 3]))
+
+    def built(cls):
+        """Every way a struct can be built, plus post-construction mutation"""
+        yield cls([1, 2, 3])
+        yield msgspec.json.decode(msg, type=cls)
+        yield msgspec.msgpack.decode(packed, type=cls)
+        yield msgspec.convert(builtins, cls)
+        yield msgspec.convert(Attrs([1, 2, 3]), cls, from_attributes=True)
+        yield msgspec.structs.replace(cls(1), x=[1, 2, 3])
+        yield copy.copy(cls([1, 2, 3]))
+        mutated = cls(1)
+        mutated.x = [1, 2, 3]
+        yield mutated
+
+    for obj in built(Test):
+        assert not gc.is_tracked(obj)
+    # The same struct without `gc=False` is tracked in every one of those cases
+    for obj in built(Control):
+        assert gc.is_tracked(obj)
+
+
+def test_struct_gc_false_weakref_layout():
+    """A weakref slot in the GC pre-header requires the type to stay GC enabled.
+
+    Clearing `Py_TPFLAGS_HAVE_GC` drops `sizeof(PyGC_Head)` from the pre-header,
+    which can leave the slot before the start of the allocation. Asserting the
+    invariant turns that into a test failure rather than a segfault.
+    """
+    Py_TPFLAGS_HAVE_GC = 1 << 14
+    # The part of the pre-header that survives clearing the flag
+    preheader = -2 * struct.calcsize("P")
+
+    class WeakrefBase(Struct, weakref=True):
+        pass
+
+    class NoGCBase(Struct, gc=False):
+        pass
+
+    class SlotsMixin:
+        __slots__ = ("__weakref__",)
+
+    class Direct(Struct, gc=False, weakref=True):
+        x: int
+
+    class FromWeakrefBase(WeakrefBase, gc=False):
+        x: int
+
+    class FromNoGCBase(NoGCBase, weakref=True):
+        x: int
+
+    class FromMixin(Struct, SlotsMixin, gc=False):
+        x: int
+
+    Defstruct = msgspec.defstruct("Defstruct", [("x", int)], gc=False, weakref=True)
+
+    for cls in (Direct, FromWeakrefBase, FromNoGCBase, FromMixin, Defstruct):
+        if cls.__weakrefoffset__ < preheader:
+            assert cls.__flags__ & Py_TPFLAGS_HAVE_GC
+        t = cls(1)
+        assert not gc.is_tracked(t)
+        ref = weakref.ref(t)
+        assert ref() is t
+        del t
+        assert ref() is None
+
+
 class TestStructGC:
     @pytest.mark.skipif(
         hasattr(sys.flags, "gil") and not sys.flags.gil,
@@ -1249,8 +1337,9 @@ class TestStructDealloc:
         del t
         assert called
 
-    def test_struct_dealloc_weakref(self):
-        class Test(Struct, weakref=True):
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_weakref(self, has_gc):
+        class Test(Struct, weakref=True, gc=has_gc):
             x: int
 
         t = Test(1)
