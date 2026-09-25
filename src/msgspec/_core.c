@@ -3060,6 +3060,13 @@ typedef struct {
     int8_t forbid_unknown_fields;
 } StructMetaObject;
 
+/* Instances of struct types created with `gc=False` are untracked. Such a type
+ * is usually not GC-enabled at all, but one whose weakref slot lives in the GC
+ * pre-header has to stay GC-enabled so that offset stays valid, see
+ * `StructMeta_new_inner`. CPython still tracks an instance of such a type
+ * around `tp_finalize`, so one resurrected from `__del__` comes back tracked. */
+#define MS_STRUCT_NEVER_TRACKS(t) (((StructMetaObject *)(t))->gc == OPT_FALSE)
+
 typedef struct StructInfo {
     PyObject_VAR_HEAD
     StructMetaObject *class;
@@ -5483,7 +5490,14 @@ static PyTypeObject StructMixinType;
 
 static PyObject *
 Struct_alloc(PyTypeObject *type) {
-    return type->tp_alloc(type, type->tp_itemsize);
+    PyObject *obj = type->tp_alloc(type, type->tp_itemsize);
+    /* A `gc=False` type stays GC enabled when its weakref slot is in the
+     * pre-header, see `StructMeta_new_inner`. Untrack at allocation rather
+     * than at the end of each construction path, so the instance is already
+     * untracked when `__post_init__` runs. */
+    if (obj != NULL && MS_STRUCT_NEVER_TRACKS(type) && MS_TYPE_IS_GC(type))
+        PyObject_GC_UnTrack(obj);
+    return obj;
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -5607,6 +5621,7 @@ Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
     if (
         value != NULL &&
         MS_OBJECT_IS_GC(self) &&
+        !MS_STRUCT_NEVER_TRACKS(Py_TYPE(self)) &&
         !MS_IS_TRACKED(self) &&
         MS_MAYBE_TRACKED(value)
     )
@@ -6679,7 +6694,16 @@ StructMeta_new_inner(
 
     /* Fill in type methods */
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
-    if (info.gc == OPT_FALSE) {
+    /* A `__weakref__` slot at a negative offset lives in the pre-header, as on
+     * CPython 3.12+ and on free-threaded builds. Such an instance is allocated
+     * with that pre-header, and clearing Py_TPFLAGS_HAVE_GC switches
+     * deallocation to `PyObject_Free` on the object itself, so the block is
+     * released from the wrong address. Outside free-threaded builds it also
+     * shrinks the pre-header, leaving the slot before the start of the
+     * allocation. Keep the type GC-enabled whenever the slot is there.
+     * Instances are still untracked, see `MS_STRUCT_NEVER_TRACKS`. An
+     * in-object slot, as on older CPythons, is unaffected. */
+    if (info.gc == OPT_FALSE && ((PyTypeObject *)cls)->tp_weaklistoffset >= 0) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_dealloc = &Struct_dealloc_nogc;
         ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
