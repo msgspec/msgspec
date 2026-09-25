@@ -166,11 +166,28 @@ def get_class_annotations(obj):
     hints = {}
     mro, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
 
+    # Some types (notably ``TypedDict``) copy inherited annotations onto the
+    # subclass instead of keeping the parametrized base in ``__mro__``. In that
+    # case the base holding the ``TypeVar`` mapping isn't visited by the loop
+    # below, so its bindings would be lost and the flattened annotations left
+    # unresolved. Fold any such out-of-mro mappings into a fallback that's
+    # applied alongside each class's own mapping. For classes that use normal
+    # inheritance every parametrized base is already in ``mro``, so this
+    # fallback stays empty and their handling is unchanged.
+    mro_set = set(mro)
+    flattened_mapping = {}
+    for cls, cls_mapping in typevar_mappings.items():
+        if cls not in mro_set:
+            flattened_mapping.update(cls_mapping)
+
     for cls in mro:
         if cls in (typing.Generic, object):
             continue
 
         mapping = typevar_mappings.get(cls)
+        if flattened_mapping:
+            # Class-specific bindings take precedence over the fallback.
+            mapping = {**flattened_mapping, **(mapping or {})}
         cls_locals = dict(vars(cls))
 
         if PY_312PLUS:
