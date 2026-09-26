@@ -16282,8 +16282,17 @@ mpack_decode_dict(
         val = mpack_decode(self, val_type, &val_path, false);
         if (MS_UNLIKELY(val == NULL))
             goto error;
-        if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0))
+        if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0)) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear();
+                PyErr_Format(
+                    msgspec_get_global_state()->DecodeError,
+                    "MessagePack data is malformed: map keys must be hashable (byte %zd)",
+                    (Py_ssize_t)(self->input_pos - self->input_start)
+                );
+            }
             goto error;
+        }
         Py_CLEAR(key);
         Py_CLEAR(val);
     }
