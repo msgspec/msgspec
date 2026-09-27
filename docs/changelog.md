@@ -2,8 +2,32 @@
 
 ## Unreleased
 
+- Publish CPython 3.15 wheels, including freethreaded builds ({pr}`1152`).
+- Raise `ValidationError` instead of `SystemError` when `convert` receives an
+  out-of-range `int` for a `float` target ({pr}`1162`).
+- Fix overriding an inherited field alias back to the field's own name
+  ({pr}`1133`).
+- Report `raw` rather than the misleading `any` as the expected type when a
+  non-`Raw` value is given for a `Raw` field in `convert`, and therefore in
+  `yaml.decode` and `toml.decode` ({pr}`1169`).
+- Fix an empty expected-type name in validation errors for a required `Raw`
+  field in a `TypedDict`, or a `Raw` field with a `default_factory` on a
+  `dataclass` or an `attrs` class ({pr}`1176`).
+- Fix a reference leak in `msgspec.to_builtins`, and therefore in
+  `yaml.encode`, for `array_like=True` structs ({pr}`1177`).
+- Fix `minItems` in the JSON schema for `array_like=True` structs whose fields
+  are all optional ({pr}`1124`).
+- Correct the error messages for out-of-range `Meta` length bounds
+  ({pr}`1172`).
 - Preserve JSON Schema metadata and string constraints in `propertyNames` for
   annotated dictionary key types ({issue}`866`).
+- Report the leading argument of the `encode` and `decode` functions and
+  methods as positional-only in `inspect.signature` and the rendered docs,
+  matching runtime behavior ({pr}`1116`).
+- Many type stub improvements and fixes ({pr}`1116`, {pr}`1163`, {pr}`1173`,
+  {pr}`1179`).
+- Fix `NameError` when creating a `Struct` with an unquoted forward
+  reference on Python 3.14 ({issue}`1165`).
 
 ## Version 0.22.0 (2026-08-11)
 
@@ -33,8 +57,8 @@
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
   with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
-  {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1065`, {pr}`1074`, {pr}`1093`,
-  {pr}`1114`).
+  {pr}`1055`, {pr}`1057`, {pr}`1062`, {pr}`1063`, {pr}`1064`, {pr}`1065`,
+  {pr}`1074`, {pr}`1093`, {pr}`1114`).
 - Document the differences between `msgspec.structs.asdict`/`astuple` and
   `msgspec.to_builtins` ({pr}`1025`).
 - Document that `omit_defaults` ignores fields with a custom
@@ -42,8 +66,6 @@
 - Fix the `msgspec.json.decode` docstring to say `dec_hook` should raise
   `NotImplementedError` for unsupported types, not `TypeError` ({issue}`774`).
 - Fix backing type declaration of `Ext.code` ({pr}`1135`).
-- Fix `NameError` when creating a `Struct` with an unquoted forward
-  reference on Python 3.14 ({issue}`1165`).
 - msgspec moved to the [msgspec GitHub organization](https://github.com/msgspec/msgspec);
   documentation now lives at [msgspec.dev](https://msgspec.dev) (repository
   references updated in {pr}`1045`).
