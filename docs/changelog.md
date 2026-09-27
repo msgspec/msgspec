@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **BREAKING**: Setting `gc=False` on a struct type that has a weakref slot,
+  whether from `weakref=True` or from a base class, now raises `ValueError`.
+  On CPython 3.12 and later the weakref slot is stored in the garbage
+  collector's pre-header, so releasing such an instance corrupted memory, in
+  most builds crashing the interpreter outright. The combination worked on
+  3.10 and 3.11, and the restriction applies there as well, so that the same
+  class definition behaves the same way on every supported version
+  ({pr}`1207`).
 - Publish CPython 3.15 wheels, including freethreaded builds ({pr}`1152`).
 - Raise `ValidationError` instead of `SystemError` when `convert` receives an
   out-of-range `int` for a `float` target ({pr}`1162`).
