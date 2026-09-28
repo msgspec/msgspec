@@ -1115,51 +1115,52 @@ class TestStructGC:
             class Test(Base, **opts):
                 pass
 
-    @pytest.mark.parametrize(
-        "case", ["base-weakref", "base-nogc", "nobase", "slots-base", "grandparent"]
-    )
-    def test_struct_gc_false_forbids_weakref_true(self, case):
-        if case == "base-weakref":
+    @staticmethod
+    def assert_gc_false_with_weakref_rejected(base, **opts):
+        with pytest.raises(
+            ValueError, match="Cannot set `gc=False` and `weakref=True`"
+        ):
 
-            class Base(Struct, weakref=True):
+            class Test(base, **opts):
                 pass
 
-            opts = {"gc": False}
-        elif case == "base-nogc":
+    def test_struct_gc_false_forbids_weakref_true(self):
+        self.assert_gc_false_with_weakref_rejected(Struct, gc=False, weakref=True)
 
-            class Base(Struct, gc=False):
-                pass
+    def test_struct_gc_false_forbids_weakref_base(self):
+        class Base(Struct, weakref=True):
+            pass
 
-            opts = {"weakref": True}
-        elif case == "nobase":
-            Base = Struct
-            opts = {"gc": False, "weakref": True}
-        elif case == "slots-base":
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
 
-            class Mixin:
-                __slots__ = ("__weakref__",)
+    def test_struct_gc_false_base_forbids_weakref_true(self):
+        class Base(Struct, gc=False):
+            pass
 
-            class Base(Mixin, Struct):
-                pass
+        self.assert_gc_false_with_weakref_rejected(Base, weakref=True)
 
-            opts = {"gc": False}
-        elif case == "grandparent":
+    def test_struct_gc_false_forbids_weakref_grandparent(self):
+        class Grandparent(Struct, weakref=True):
+            pass
 
-            class Grandparent(Struct, weakref=True):
-                pass
+        class Base(Grandparent):
+            pass
 
-            class Base(Grandparent):
-                pass
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
 
-            opts = {"gc": False}
+    def test_struct_gc_false_forbids_weakref_slot_from_mixin(self):
+        class Mixin:
+            __slots__ = ("__weakref__",)
 
-        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+        class Base(Mixin, Struct):
+            pass
 
-            class Test(Base, **opts):
-                pass
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
 
     def test_struct_gc_false_forbids_weakref_true_defstruct(self):
-        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+        with pytest.raises(
+            ValueError, match="Cannot set `gc=False` and `weakref=True`"
+        ):
             defstruct("Test", ["x"], gc=False, weakref=True)
 
     def test_struct_gc_false_and_weakref_still_allowed_apart(self):
