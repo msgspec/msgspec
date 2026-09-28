@@ -38,6 +38,7 @@ from .utils import (
     max_call_depth,
     py315_or_later_only,
     temp_module,
+    win_arm64_py312_stack_limited,
 )
 
 try:
@@ -4746,6 +4747,7 @@ class TestTypeAlias:
         ],
     )
     @emscripten_stack_limited
+    @win_arm64_py312_stack_limited
     def test_recursive_typealias_errors(self, src):
         """Eventually we should support this, but for now just test that it
         errors cleanly"""
