@@ -23,7 +23,7 @@ def main():
         {
             "title": f"Version {version}",
             "tag": version,
-            "body": re.sub(r"\{pr\}`(\d+)`", r"#\1", notes),
+            "body": re.sub(r"\{(?:pr|issue)\}`(\d+)`", r"#\1", notes),
         }
     )
 

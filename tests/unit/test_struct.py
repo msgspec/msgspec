@@ -1115,6 +1115,67 @@ class TestStructGC:
             class Test(Base, **opts):
                 pass
 
+    @staticmethod
+    def assert_gc_false_with_weakref_rejected(base, **opts):
+        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+
+            class Test(base, **opts):
+                pass
+
+    def test_struct_gc_false_forbids_weakref_true(self):
+        self.assert_gc_false_with_weakref_rejected(Struct, gc=False, weakref=True)
+
+    def test_struct_gc_false_forbids_weakref_base(self):
+        class Base(Struct, weakref=True):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_base_forbids_weakref_true(self):
+        class Base(Struct, gc=False):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, weakref=True)
+
+    def test_struct_gc_false_forbids_weakref_grandparent(self):
+        class Grandparent(Struct, weakref=True):
+            pass
+
+        class Base(Grandparent):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_forbids_weakref_slot_from_mixin(self):
+        class Mixin:
+            __slots__ = ("__weakref__",)
+
+        class Base(Mixin, Struct):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_forbids_weakref_true_defstruct(self):
+        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+            defstruct("Test", ["x"], gc=False, weakref=True)
+
+    def test_struct_gc_false_and_weakref_still_allowed_apart(self):
+        class NoGC(Struct, gc=False):
+            x: list
+
+        class SubNoGC(NoGC, gc=False):
+            y: list
+
+        class WithWeakRef(Struct, weakref=True):
+            x: list
+
+        assert not gc.is_tracked(NoGC([1]))
+        assert not gc.is_tracked(SubNoGC([1], [2]))
+
+        obj = WithWeakRef([1])
+        assert gc.is_tracked(obj)
+        assert weakref.ref(obj)() is obj
+
 
 class TestStructDealloc:
     @pytest.mark.parametrize("has_gc", [False, True])

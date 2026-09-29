@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import enum
+import json
 import sys
 import typing
 import uuid
@@ -371,6 +372,24 @@ def test_struct_object():
             },
         },
     }
+
+
+@pytest.mark.parametrize(
+    "factory, default",
+    [
+        (list, []),
+        (dict, {}),
+        (set, []),
+        (bytearray, ""),
+    ],
+)
+def test_struct_default_factory_default(factory, default):
+    class Example(msgspec.Struct):
+        x: factory = msgspec.field(default_factory=factory)
+
+    schema = msgspec.json.schema(Example)["$defs"]["Example"]
+    assert schema["properties"]["x"]["default"] == default
+    json.dumps(schema)
 
 
 @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
