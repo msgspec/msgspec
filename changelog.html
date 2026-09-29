@@ -330,6 +330,14 @@ that slot corrupted memory, in most builds crashing the interpreter
 outright. The combination worked on 3.10 and 3.11, and the restriction
 applies there as well, so that the same class definition behaves the same
 way on every supported version (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1207">PR #1207</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Encode an object as a dataclass only when its type defines
+<code class="docutils literal notranslate"><span class="pre">__dataclass_fields__</span></code>, as <code class="docutils literal notranslate"><span class="pre">dataclasses.is_dataclass</span></code> does. Objects that
+expose it only through instance attribute access, such as proxies wrapping
+a dataclass instance, are now passed to <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code>, and encoding them raises
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> when no <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> is given. An <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> can return the wrapped
+instance, which is then encoded as a dataclass. Objects with a Python-level
+<code class="docutils literal notranslate"><span class="pre">__getattr__</span></code>, such as pydantic models, now reach <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> without that
+<code class="docutils literal notranslate"><span class="pre">__getattr__</span></code> being called (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1196">PR #1196</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">frozendict</span></code> support on Python 3.15+ (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1052">PR #1052</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1105">PR #1105</a>).</p></li>
 <li><p>Support passing a callable as <code class="docutils literal notranslate"><span class="pre">decimal_format</span></code> to <code class="docutils literal notranslate"><span class="pre">msgspec.json.Encoder</span></code> and
 <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.Encoder</span></code> for custom <code class="docutils literal notranslate"><span class="pre">Decimal</span></code> encoding (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/978">PR #978</a>).</p></li>
@@ -342,6 +350,9 @@ way on every supported version (<a class="extlink-pr reference external" href="h
 <li><p>Fix <code class="docutils literal notranslate"><span class="pre">NameError</span></code> when creating a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> with an unquoted forward
 reference on Python 3.14 (<a class="extlink-issue reference external" href="https://github.com/msgspec/msgspec/issues/1165">Issue #1165</a>).</p></li>
 <li><p>Fix a crash on incorrect <code class="docutils literal notranslate"><span class="pre">typing.ClassVar</span></code> annotations (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1097">PR #1097</a>).</p></li>
+<li><p>Raise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> instead of crashing when a base class of a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type is
+a C extension type that has not been initialized with <code class="docutils literal notranslate"><span class="pre">PyType_Ready</span></code> yet
+(<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1199">PR #1199</a>).</p></li>
 <li><p>Fix an <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code> when converting to a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type defined in a
 namespace without a <code class="docutils literal notranslate"><span class="pre">__name__</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1072">PR #1072</a>).</p></li>
 <li><p>Fix overriding an inherited field alias back to the field’s own name
@@ -358,11 +369,20 @@ field in a <code class="docutils literal notranslate"><span class="pre">TypedDic
 (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1172">PR #1172</a>).</p></li>
 <li><p>Fix a reference leak when decoding msgpack <code class="docutils literal notranslate"><span class="pre">Ext</span></code> payloads (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1109">PR #1109</a>).</p></li>
 <li><p>Fix backing type declaration of <code class="docutils literal notranslate"><span class="pre">Ext.code</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1135">PR #1135</a>).</p></li>
+<li><p>Raise <code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> instead of <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> when a decoded msgpack map key is
+unhashable, such as a map or an <code class="docutils literal notranslate"><span class="pre">Ext</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1209">PR #1209</a>).</p></li>
 <li><p>Fix a reference leak in <code class="docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code>, and therefore in
 <code class="docutils literal notranslate"><span class="pre">yaml.encode</span></code>, for <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> structs (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1177">PR #1177</a>).</p></li>
 <li><p>Fix reference leaks in <code class="docutils literal notranslate"><span class="pre">typenode_collect_literal</span></code>, <code class="docutils literal notranslate"><span class="pre">Meta.__rich_repr__</span></code>,
 <code class="docutils literal notranslate"><span class="pre">ms_decode_bigint</span></code>, and <code class="docutils literal notranslate"><span class="pre">Encoder.__init__</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1021">PR #1021</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1022">PR #1022</a>,
 <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1023">PR #1023</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1040">PR #1040</a>).</p></li>
+<li><p>Fix a reference leak of the annotations dict, and of the module namespace
+when a string <code class="docutils literal notranslate"><span class="pre">ClassVar</span></code> annotation is present, on every definition of a
+<code class="docutils literal notranslate"><span class="pre">Struct</span></code> type with annotations (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1194">PR #1194</a>).</p></li>
+<li><p>Fix a reference leak of the type dict of a non-<code class="docutils literal notranslate"><span class="pre">Struct</span></code> base, including
+<code class="docutils literal notranslate"><span class="pre">typing.Generic</span></code>, on every definition of a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type with such a base on
+Python 3.12+. The leaked dict could also keep the base class and the objects
+in its namespace alive (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1199">PR #1199</a>).</p></li>
 <li><p>Fix <code class="docutils literal notranslate"><span class="pre">msgspec.inspect.type_info</span></code> and <code class="docutils literal notranslate"><span class="pre">msgspec.json.schema</span></code> crashing on mixed-type <code class="docutils literal notranslate"><span class="pre">Literal</span></code>s such as <code class="docutils literal notranslate"><span class="pre">Literal[1,</span> <span class="pre">None]</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1080">PR #1080</a>).</p></li>
 <li><p>Place <code class="docutils literal notranslate"><span class="pre">null</span></code> last in the <code class="docutils literal notranslate"><span class="pre">anyOf</span></code> generated for optional unions in JSON
 schemas (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1028">PR #1028</a>).</p></li>
@@ -381,6 +401,10 @@ annotated dictionary key types (<a class="extlink-issue reference external" href
 <li><p>Report the leading argument of the <code class="docutils literal notranslate"><span class="pre">encode</span></code> and <code class="docutils literal notranslate"><span class="pre">decode</span></code> functions and
 methods as positional-only in <code class="docutils literal notranslate"><span class="pre">inspect.signature</span></code> and the rendered docs,
 matching runtime behavior (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1116">PR #1116</a>).</p></li>
+<li><p>Correct the signatures of several public callables in <code class="docutils literal notranslate"><span class="pre">inspect.signature</span></code>
+and <code class="docutils literal notranslate"><span class="pre">help()</span></code> output, the rendered docs and the type stubs, including
+<code class="docutils literal notranslate"><span class="pre">msgspec.Raw</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code>, several <code class="docutils literal notranslate"><span class="pre">msgspec.structs</span></code> functions
+and the <code class="docutils literal notranslate"><span class="pre">encode</span></code> and <code class="docutils literal notranslate"><span class="pre">decode</span></code> methods of encoders and decoders (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1197">PR #1197</a>).</p></li>
 <li><p>Add overloads to the <code class="docutils literal notranslate"><span class="pre">Meta</span></code> type stub, so type checkers reject mixing <code class="docutils literal notranslate"><span class="pre">gt</span></code>
 with <code class="docutils literal notranslate"><span class="pre">ge</span></code> or <code class="docutils literal notranslate"><span class="pre">lt</span></code> with <code class="docutils literal notranslate"><span class="pre">le</span></code> (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/700">PR #700</a>).</p></li>
 <li><p>Many type stub improvements and fixes (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1014">PR #1014</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1043">PR #1043</a>, <a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1053">PR #1053</a>,

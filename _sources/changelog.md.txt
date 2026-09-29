@@ -18,6 +18,14 @@
   outright. The combination worked on 3.10 and 3.11, and the restriction
   applies there as well, so that the same class definition behaves the same
   way on every supported version ({pr}`1207`).
+- **BREAKING**: Encode an object as a dataclass only when its type defines
+  `__dataclass_fields__`, as `dataclasses.is_dataclass` does. Objects that
+  expose it only through instance attribute access, such as proxies wrapping
+  a dataclass instance, are now passed to `enc_hook`, and encoding them raises
+  `TypeError` when no `enc_hook` is given. An `enc_hook` can return the wrapped
+  instance, which is then encoded as a dataclass. Objects with a Python-level
+  `__getattr__`, such as pydantic models, now reach `enc_hook` without that
+  `__getattr__` being called ({pr}`1196`).
 - Add `frozendict` support on Python 3.15+ ({pr}`1052`, {pr}`1105`).
 - Support passing a callable as `decimal_format` to `msgspec.json.Encoder` and
   `msgspec.msgpack.Encoder` for custom `Decimal` encoding ({pr}`978`).
@@ -30,6 +38,9 @@
 - Fix `NameError` when creating a `Struct` with an unquoted forward
   reference on Python 3.14 ({issue}`1165`).
 - Fix a crash on incorrect `typing.ClassVar` annotations ({pr}`1097`).
+- Raise `TypeError` instead of crashing when a base class of a `Struct` type is
+  a C extension type that has not been initialized with `PyType_Ready` yet
+  ({pr}`1199`).
 - Fix an `AttributeError` when converting to a `Struct` type defined in a
   namespace without a `__name__` ({pr}`1072`).
 - Fix overriding an inherited field alias back to the field's own name
@@ -46,11 +57,20 @@
   ({pr}`1172`).
 - Fix a reference leak when decoding msgpack `Ext` payloads ({pr}`1109`).
 - Fix backing type declaration of `Ext.code` ({pr}`1135`).
+- Raise `DecodeError` instead of `TypeError` when a decoded msgpack map key is
+  unhashable, such as a map or an `Ext` ({pr}`1209`).
 - Fix a reference leak in `msgspec.to_builtins`, and therefore in
   `yaml.encode`, for `array_like=True` structs ({pr}`1177`).
 - Fix reference leaks in `typenode_collect_literal`, `Meta.__rich_repr__`,
   `ms_decode_bigint`, and `Encoder.__init__` ({pr}`1021`, {pr}`1022`,
   {pr}`1023`, {pr}`1040`).
+- Fix a reference leak of the annotations dict, and of the module namespace
+  when a string `ClassVar` annotation is present, on every definition of a
+  `Struct` type with annotations ({pr}`1194`).
+- Fix a reference leak of the type dict of a non-`Struct` base, including
+  `typing.Generic`, on every definition of a `Struct` type with such a base on
+  Python 3.12+. The leaked dict could also keep the base class and the objects
+  in its namespace alive ({pr}`1199`).
 - Fix `msgspec.inspect.type_info` and `msgspec.json.schema` crashing on mixed-type `Literal`s such as `Literal[1, None]` ({pr}`1080`).
 - Place `null` last in the `anyOf` generated for optional unions in JSON
   schemas ({pr}`1028`).
@@ -69,6 +89,10 @@
 - Report the leading argument of the `encode` and `decode` functions and
   methods as positional-only in `inspect.signature` and the rendered docs,
   matching runtime behavior ({pr}`1116`).
+- Correct the signatures of several public callables in `inspect.signature`
+  and `help()` output, the rendered docs and the type stubs, including
+  `msgspec.Raw`, `msgspec.msgpack.Ext`, several `msgspec.structs` functions
+  and the `encode` and `decode` methods of encoders and decoders ({pr}`1197`).
 - Add overloads to the `Meta` type stub, so type checkers reject mixing `gt`
   with `ge` or `lt` with `le` ({pr}`700`).
 - Many type stub improvements and fixes ({pr}`1014`, {pr}`1043`, {pr}`1053`,
