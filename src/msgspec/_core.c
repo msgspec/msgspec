@@ -10884,7 +10884,7 @@ datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
 
 /* Python datetimes bounded between (inclusive)
  * [0001-01-01T00:00:00.000000, 9999-12-31T23:59:59.999999] UTC */
-#define MS_EPOCH_SECS_MAX 253402300800
+#define MS_EPOCH_SECS_MAX 253402300799
 #define MS_EPOCH_SECS_MIN -62135596800
 #define MS_DAYS_PER_400Y (365*400 + 97)
 #define MS_DAYS_PER_100Y (365*100 + 24)
@@ -10914,6 +10914,9 @@ datetime_from_epoch(
     if (micros == 1000000) {
         micros = 0;
         epoch_secs++;
+        if (epoch_secs > MS_EPOCH_SECS_MAX) {
+            return ms_error_with_path("Timestamp is out of range %U", path);
+        }
     }
 
     /* Start in Mar not Jan, so leap day is on end */

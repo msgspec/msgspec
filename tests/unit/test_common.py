@@ -5482,7 +5482,7 @@ class TestLax:
             with pytest.raises(ValidationError, match="Invalid epoch timestamp"):
                 proto.decode(msg, type=datetime.datetime, strict=False)
 
-    @pytest.mark.parametrize("val", [-62135596801, 253402300801])
+    @pytest.mark.parametrize("val", [-62135596801, 253402300800, 253402300801])
     @pytest.mark.parametrize("type", [int, float, str])
     def test_lax_datetime_out_of_range(self, val, type, proto):
         msg = proto.encode(type(val))
