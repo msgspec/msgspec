@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import Generic, TypedDict, TypeVar
 
 import pytest
 
@@ -191,6 +191,42 @@ class TestGetClassAnnotations:
             z: str
 
         assert get_class_annotations(Sub2) == {"x": int, "y": float, "z": str}
+
+    def test_generic_typeddict_sub(self):
+        # ``TypedDict`` flattens inherited annotations onto the subclass and
+        # drops the parametrized base from ``__mro__``. The type argument must
+        # still be applied to the inherited field.
+        class TDBase(TypedDict, Generic[T]):
+            x: T
+
+        class Sub(TDBase[int]):
+            y: str
+
+        assert get_class_annotations(TDBase) == {"x": T}
+        assert get_class_annotations(TDBase[int]) == {"x": int}
+        assert get_class_annotations(Sub) == {"x": int, "y": str}
+
+    def test_generic_typeddict_sub_own_typevar(self):
+        class TDBase(TypedDict, Generic[T]):
+            x: T
+
+        class Sub(TDBase[S], Generic[S]):
+            y: S
+
+        assert get_class_annotations(Sub) == {"x": S, "y": S}
+        assert get_class_annotations(Sub[int]) == {"x": int, "y": int}
+
+    def test_generic_typeddict_sub_multilevel(self):
+        class TDBase(TypedDict, Generic[T]):
+            x: T
+
+        class Mid(TDBase[int]):
+            y: str
+
+        class Sub(Mid):
+            z: float
+
+        assert get_class_annotations(Sub) == {"x": int, "y": str, "z": float}
 
     def test_generic_invalid_parameters(self):
         class Invalid:
