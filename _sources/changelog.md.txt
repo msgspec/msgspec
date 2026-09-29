@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
+  type parameter syntax (`class Foo[T](TypedDict)`) under
+  `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
+  same-named module-level `TypeVar` from shadowing the PEP 695 type parameter,
+  which could silently affect decoding on Python 3.12+ ({pr}`1130`).
+
 ## Version 0.22.0 (2026-09-29)
 
 - **BREAKING**: Setting `gc=False` on a struct type that has a weakref slot,

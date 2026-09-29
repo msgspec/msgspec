@@ -309,6 +309,16 @@
         <article role="main" id="furo-main-content">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<section id="unreleased">
+<h2>Unreleased<a class="headerlink" href="#unreleased" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Fix a <code class="docutils literal notranslate"><span class="pre">NameError</span></code> when resolving a generic <code class="docutils literal notranslate"><span class="pre">TypedDict</span></code> defined with PEP 695
+type parameter syntax (<code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">Foo[T](TypedDict)</span></code>) under
+<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">__future__</span> <span class="pre">import</span> <span class="pre">annotations</span></code> on Python 3.12/3.13. Also prevent a
+same-named module-level <code class="docutils literal notranslate"><span class="pre">TypeVar</span></code> from shadowing the PEP 695 type parameter,
+which could silently affect decoding on Python 3.12+ (<a class="extlink-pr reference external" href="https://github.com/msgspec/msgspec/pull/1130">PR #1130</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-22-0-2026-09-29">
 <h2>Version 0.22.0 (2026-09-29)<a class="headerlink" href="#version-0-22-0-2026-09-29" title="Link to this heading">¶</a></h2>
 <ul class="simple">
@@ -1066,6 +1076,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#unreleased">Unreleased</a></li>
 <li><a class="reference internal" href="#version-0-22-0-2026-09-29">Version 0.22.0 (2026-09-29)</a></li>
 <li><a class="reference internal" href="#version-0-21-1-2026-04-13">Version 0.21.1 (2026-04-13)</a></li>
 <li><a class="reference internal" href="#version-0-21-0-2026-04-08">Version 0.21.0 (2026-04-08)</a></li>
