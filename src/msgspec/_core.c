@@ -6649,9 +6649,8 @@ StructMeta_new_inner(
         else if (info.weakref == OPT_TRUE || info.already_has_weakref) {
             PyErr_SetString(
                 PyExc_ValueError,
-                "Cannot set `gc=False` and `weakref=True`: on Python 3.12+ the "
-                "weakref slot is stored in a pre-header in front of the instance, "
-                "and releasing a `gc=False` instance with that slot corrupts memory"
+                "Cannot set gc=False and weakref=True at the same time, due to "
+                "possible memory corruption"
             );
             goto cleanup;
         }
