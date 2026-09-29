@@ -5,6 +5,6 @@ test-command = "pytest {project}/tests/unit"
 test-groups = ["test-unit"]
 
 [tool.cibuildwheel.pyodide]
-build = "cp314-*"
+build = "cp314-* cp315-*"
 # https://cibuildwheel.pypa.io/en/stable/platforms/#pyodide
 test-command = "python -m pytest {project}/tests/unit"
