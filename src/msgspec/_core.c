@@ -5813,8 +5813,6 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
 
 static int
 structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base) {
-    if ((PyTypeObject *)base == &StructMixinType) return 0;
-
     if (!PyType_Check(base)) {
         /* CPython's metaclass conflict check will catch this issue earlier on,
          * but it's still good to have this check in place in case that's ever
@@ -5823,11 +5821,15 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         return -1;
     }
 
+    if ((PyTypeObject *)base == &StructMixinType) return 0;
+
     /* A base that has not been readied yet, which a C extension can expose,
-     * has neither its type dict nor its inherited slots filled in. Ready it
-     * before reading them, as type creation does for its bases. */
+     * has neither its type dict nor its inherited slots filled in. Readying
+     * a type owned by another extension can have side effects, so such a
+     * base is rejected instead. */
     if (!PyType_HasFeature((PyTypeObject *)base, Py_TPFLAGS_READY)) {
-        if (PyType_Ready((PyTypeObject *)base) < 0) return -1;
+        PyErr_Format(PyExc_TypeError, "Base class %R is not ready", base);
+        return -1;
     }
 
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
