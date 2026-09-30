@@ -14440,6 +14440,33 @@ json_encode_dict_key(EncoderState *self, PyObject *key) {
     return json_encode_dict_key_noinline(self, key);
 }
 
+/* JSON object keys must be strings, so a `decimal.Decimal` key is always
+ * written as a string. `decimal_format='number'` only applies to values; a
+ * `decimal_format` callable's result is encoded as a key. */
+static int
+json_encode_decimal_key(EncoderState *self, PyObject *obj) {
+    PyObject *temp;
+    int status;
+
+    if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallOneArg(self->decimal_callable, obj);
+        if (temp == NULL) return -1;
+        self->in_decimal_callable = true;
+        status = json_encode_dict_key(self, temp);
+        self->in_decimal_callable = false;
+    }
+    else {
+        temp = PyObject_Str(obj);
+        if (temp == NULL) return -1;
+        status = json_encode_str(self, temp);
+    }
+    Py_DECREF(temp);
+    return status;
+}
+
 static MS_NOINLINE int
 json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
@@ -14469,7 +14496,7 @@ json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
         return json_encode_bytes(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
-        return json_encode_decimal(self, obj);
+        return json_encode_decimal_key(self, obj);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         return json_encode_uuid(self, obj);

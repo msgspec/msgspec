@@ -1701,6 +1701,16 @@ class TestDecimal:
         msg = enc.encode(Decimal("1.3000"))
         assert msg == b"1.3000"
 
+    @pytest.mark.parametrize("decimal_format", ["string", "number", str, float])
+    def test_decimal_dict_keys_encoded_as_strings(self, decimal_format):
+        """JSON object keys must be strings, whatever `decimal_format` says
+        about values"""
+        enc = msgspec.json.Encoder(decimal_format=decimal_format)
+        msg = enc.encode({Decimal("1.5"): 1})
+        assert msg == b'{"1.5":1}'
+        res = msgspec.json.decode(msg, type=dict[Decimal, int])
+        assert res == {Decimal("1.5"): 1}
+
     @pytest.mark.parametrize(
         "msg",
         [
