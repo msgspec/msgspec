@@ -7,3 +7,5 @@ prune scripts
 exclude lychee.toml
 exclude .*
 include .cibuildwheel.toml
+include src/msgspec/msgspec.h
+include src/msgspec/_testcapi.c
