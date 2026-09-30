@@ -305,6 +305,22 @@ class TestToBuiltins:
         assert to_builtins({FruitInt.BANANA: 1}, str_keys=True) == {"2": 1}
         assert to_builtins({2: 1}, str_keys=True) == {"2": 1}
 
+    def test_dict_str_keys_builtin_types(self):
+        """With `str_keys`, keys of a type in `builtin_types` still become strings"""
+        builtin_types = (datetime.datetime, datetime.date, datetime.time)
+        msg = {
+            datetime.datetime(2022, 1, 2, 3, 4, 5): 1,
+            datetime.date(2022, 1, 2): 2,
+            datetime.time(12, 34): 3,
+        }
+        res = to_builtins(msg, builtin_types=builtin_types, str_keys=True)
+        assert res == {"2022-01-02T03:04:05": 1, "2022-01-02": 2, "12:34:00": 3}
+
+        # Values are still passed through unchanged
+        dt = datetime.datetime(2022, 1, 2, 3, 4, 5)
+        res = to_builtins({"x": dt}, builtin_types=builtin_types, str_keys=True)
+        assert res["x"] is dt
+
     def test_dict_sequence_keys(self):
         msg = {frozenset([1, 2]): 1}
         assert to_builtins(msg) == {(1, 2): 1}
