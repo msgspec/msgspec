@@ -6132,8 +6132,9 @@ structmeta_is_classvar(
             PyObject *temp = PyDict_GetItemString(*module_ns, "typing");
             if (temp == NULL) return 0;
             temp = PyObject_GetAttrString(temp, "ClassVar");
+            if (temp == NULL) return -1;
             int status = temp == mod->typing_classvar;
-            Py_XDECREF(temp);
+            Py_DECREF(temp);
             return status;
         }
     }
