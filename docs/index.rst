@@ -127,7 +127,7 @@ few:
     .. grid-item-card:: `Pioreactor <https://github.com/Pioreactor/pioreactor/blob/5e13e709cc76b88661a650882fb02b7e1d30c62e/requirements/requirements.txt#L5>`_
 
         .. image:: _static/pioreactor.png
-            :target: https://pioreactor.com/
+            :target: https://github.com/Pioreactor/pioreactor
 
     .. grid-item-card:: `Zero <https://github.com/Ananto30/zero/blob/f2a1f10d8c65c1df7358a16fb70dac7d47e28dc4/README.md#default-serializer>`_
 
