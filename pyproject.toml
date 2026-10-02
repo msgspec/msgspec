@@ -63,7 +63,7 @@ Source = "https://github.com/msgspec/msgspec"
 
 [dependency-groups]
 bench = [
-  "cattrs==26.1.0",
+  "cattrs==26.2.0",
   "mashumaro==3.22",
   "msgpack==1.2.2",
   "orjson==3.12.0",
