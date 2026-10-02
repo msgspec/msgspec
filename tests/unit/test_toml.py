@@ -127,6 +127,12 @@ def test_roundtrip_any(val):
         (("one", 2), tuple[str, int]),
         ({"one": 2}, dict[str, int]),
         ({1: "two"}, dict[int, str]),
+        ({datetime.date(2022, 1, 2): 1}, dict[datetime.date, int]),
+        (
+            {datetime.datetime(2022, 1, 2, 3, 4, 5, 6, UTC): 1},
+            dict[datetime.datetime, int],
+        ),
+        ({datetime.time(12, 34): 1}, dict[datetime.time, int]),
         (ExStruct(1, "two"), ExStruct),
         (ExDataclass(1, "two"), ExDataclass),
     ],

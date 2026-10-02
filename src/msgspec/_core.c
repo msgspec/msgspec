@@ -20615,6 +20615,11 @@ cleanup:
 static PyObject *
 to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     PyTypeObject *type = Py_TYPE(obj);
+    /* With `str_keys`, a key has to become a str, so a type listed in
+     * `builtin_types` is still converted when used as a dict key. */
+    uint32_t builtin_types = (
+        (is_key && self->str_keys) ? 0 : self->builtin_types
+    );
 
     if (
         obj == Py_None ||
@@ -20626,19 +20631,19 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         goto builtin;
     }
     else if (type == &PyBytes_Type) {
-        if (self->builtin_types & MS_BUILTIN_BYTES) goto builtin;
+        if (builtin_types & MS_BUILTIN_BYTES) goto builtin;
         return to_builtins_binary(
             self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
         );
     }
     else if (type == &PyByteArray_Type) {
-        if (self->builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
+        if (builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
         return to_builtins_binary(
             self, PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj)
         );
     }
     else if (type == &PyMemoryView_Type) {
-        if (self->builtin_types & MS_BUILTIN_MEMORYVIEW) goto builtin;
+        if (builtin_types & MS_BUILTIN_MEMORYVIEW) goto builtin;
         PyObject *out;
         Py_buffer buffer;
         if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return NULL;
@@ -20647,23 +20652,23 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return out;
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
-        if (self->builtin_types & MS_BUILTIN_DATETIME) goto builtin;
+        if (builtin_types & MS_BUILTIN_DATETIME) goto builtin;
         return to_builtins_datetime(self, obj);
     }
     else if (type == PyDateTimeAPI->DateType) {
-        if (self->builtin_types & MS_BUILTIN_DATE) goto builtin;
+        if (builtin_types & MS_BUILTIN_DATE) goto builtin;
         return to_builtins_date(self, obj);
     }
     else if (type == PyDateTimeAPI->TimeType) {
-        if (self->builtin_types & MS_BUILTIN_TIME) goto builtin;
+        if (builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
     }
     else if (type == PyDateTimeAPI->DeltaType) {
-        if (self->builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
+        if (builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
         return to_builtins_timedelta(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
-        if (self->builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
+        if (builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
         return to_builtins_decimal(self, obj);
     }
     else if (PyList_Check(obj)) {
@@ -20690,7 +20695,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return PyObject_Str(obj);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
-        if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
+        if (builtin_types & MS_BUILTIN_UUID) goto builtin;
         return to_builtins_uuid(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
@@ -21107,6 +21112,12 @@ convert_str_uncommon(
     ConvertState *self, PyObject *obj, const char *view, Py_ssize_t size,
     bool is_key, TypeNode *type, PathNode *path
 ) {
+    /* With `str_keys`, keys only ever arrive as strings, so a type listed in
+     * `builtin_types` must still be parsed from a str key. */
+    uint32_t builtin_types = (
+        (is_key && self->str_keys) ? 0 : self->builtin_types
+    );
+
     if (is_key && self->str_keys && (
             type->types & (
                 MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
@@ -21126,55 +21137,55 @@ convert_str_uncommon(
     }
     else if (
         (type->types & MS_TYPE_DATETIME)
-        && !(self->builtin_types & MS_BUILTIN_DATETIME)
+        && !(builtin_types & MS_BUILTIN_DATETIME)
     ) {
         return ms_decode_datetime_from_str(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_DATE)
-        && !(self->builtin_types & MS_BUILTIN_DATE)
+        && !(builtin_types & MS_BUILTIN_DATE)
     ) {
         return ms_decode_date(view, size, path);
     }
     else if (
         (type->types & MS_TYPE_TIME)
-        && !(self->builtin_types & MS_BUILTIN_TIME)
+        && !(builtin_types & MS_BUILTIN_TIME)
     ) {
         return ms_decode_time(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_TIMEDELTA)
-        && !(self->builtin_types & MS_BUILTIN_TIMEDELTA)
+        && !(builtin_types & MS_BUILTIN_TIMEDELTA)
     ) {
         return ms_decode_timedelta(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_UUID)
-        && !(self->builtin_types & MS_BUILTIN_UUID)
+        && !(builtin_types & MS_BUILTIN_UUID)
     ) {
         return ms_decode_uuid_from_str(view, size, path);
     }
     else if (
         (type->types & MS_TYPE_DECIMAL)
-        && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+        && !(builtin_types & MS_BUILTIN_DECIMAL)
     ) {
         return ms_decode_decimal_from_pystr(obj, path, self->mod);
     }
     else if (
         (type->types & MS_TYPE_BYTES)
-        && !(self->builtin_types & MS_BUILTIN_BYTES)
+        && !(builtin_types & MS_BUILTIN_BYTES)
     ) {
         return json_decode_binary(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_BYTEARRAY)
-        && !(self->builtin_types & MS_BUILTIN_BYTEARRAY)
+        && !(builtin_types & MS_BUILTIN_BYTEARRAY)
     ) {
         return json_decode_binary(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_MEMORYVIEW)
-        && !(self->builtin_types & MS_BUILTIN_MEMORYVIEW)
+        && !(builtin_types & MS_BUILTIN_MEMORYVIEW)
     ) {
         return json_decode_binary(view, size, type, path);
     }
