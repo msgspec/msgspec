@@ -3103,6 +3103,119 @@ class TestTypedDict:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    def test_inherited_generic_typeddict(self, proto, module):
+        if module == "typing" and sys.version_info < (3, 11):
+            pytest.skip("typing.TypedDict supports generics on Python 3.11+")
+        TypedDict = pytest.importorskip(module).TypedDict
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+            xs: list[T]
+
+        class Sub(Base[int]):
+            y: str
+
+        value = {"x": 1, "xs": [2], "y": "ok"}
+        assert proto.decode(proto.encode(value), type=Sub) == value
+        for invalid in [{**value, "x": "bad"}, {**value, "xs": ["bad"]}]:
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                proto.decode(proto.encode(invalid), type=Sub)
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    def test_typeddict_shared_ancestors(self, proto, module, monkeypatch):
+        TypedDict = pytest.importorskip(module).TypedDict
+        root = TypedDict("Root", {"x": int})
+        bases = (root,)
+        classes = [root]
+        for depth in range(12):
+            left = types.new_class(f"Left{depth}", bases)
+            right = types.new_class(f"Right{depth}", bases)
+            classes.extend((left, right))
+            bases = (left, right)
+        schema = types.new_class("Final", bases)
+        classes.append(schema)
+        if "__orig_bases__" not in vars(schema):
+            pytest.skip("TypedDict implementation doesn't retain original bases")
+
+        utils = msgspec._utils
+        original = utils._get_class_mro_and_typevar_mappings
+        calls = collections.Counter()
+
+        def count(obj):
+            calls[obj] += 1
+            return original(obj)
+
+        monkeypatch.setattr(utils, "_get_class_mro_and_typevar_mappings", count)
+        decoder = proto.Decoder(schema)
+        assert calls == {cls: 1 for cls in classes}
+        assert decoder.decode(proto.encode({"x": 1})) == {"x": 1}
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            decoder.decode(proto.encode({"x": "bad"}))
+        calls.clear()
+        schema.__annotations__["x"] = str
+        assert utils.get_class_annotations(schema) == {"x": str}
+        assert calls == {cls: 1 for cls in classes}
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    def test_typeddict_shared_generic_origin(self, proto, module):
+        if module == "typing" and sys.version_info < (3, 11):
+            pytest.skip("typing.TypedDict supports generics on Python 3.11+")
+        TypedDict = pytest.importorskip(module).TypedDict
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+
+        class Left(Base[int]):
+            pass
+
+        class Right(Base[str]):
+            pass
+
+        class Final(Left, Right):
+            pass
+
+        if "__orig_bases__" not in vars(Final):
+            pytest.skip("TypedDict implementation doesn't retain original bases")
+        decoder = proto.Decoder(Final)
+        assert decoder.decode(proto.encode({"x": "ok"})) == {"x": "ok"}
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+            decoder.decode(proto.encode({"x": 1}))
+
+    def test_inherited_generic_typeddict_scopes(self, proto):
+        pytest.importorskip("typing_extensions")
+
+        source = """
+        from typing import Generic, TypeVar
+        from typing_extensions import TypedDict
+        T = TypeVar("T")
+        U = TypeVar("U")
+        class Left(TypedDict, Generic[T]):
+            x: T
+        class Right(TypedDict, Generic[T]):
+            y: T
+        class Middle(Left[int], Right[str], Generic[U]):
+            z: U
+        class Final(Middle[float]):
+            pass
+        class Override(Left[int]):
+            x: str
+        """
+        with temp_module(source) as mod:
+            value = {"x": 1, "y": "ok", "z": 2.5}
+            for schema in (mod.Middle[float], mod.Final):
+                assert proto.decode(proto.encode(value), type=schema) == value
+                for invalid in (
+                    {**value, "x": "bad"},
+                    {**value, "y": 1},
+                    {**value, "z": "bad"},
+                ):
+                    with pytest.raises(ValidationError):
+                        proto.decode(proto.encode(invalid), type=schema)
+            assert proto.decode(proto.encode({"x": "ok"}), type=mod.Override) == {
+                "x": "ok"
+            }
+
     @py312_plus
     def test_generic_with_typevar_syntax(self, proto):
         # `from __future__ import annotations` is load-bearing: it triggers the
