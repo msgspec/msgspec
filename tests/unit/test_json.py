@@ -1702,6 +1702,19 @@ class TestDecimal:
         assert msg == b"1.3000"
 
     @pytest.mark.parametrize(
+        "value",
+        ["Infinity", "-Infinity", "NaN", "-NaN", "sNaN", "-sNaN", "NaN123", "-sNaN123"],
+    )
+    @pytest.mark.parametrize("decimal_format", ["number", "string"])
+    def test_nonfinite_decimal(self, value, decimal_format):
+        enc = msgspec.json.Encoder(decimal_format=decimal_format)
+        msg = enc.encode({"value": Decimal(value)})
+        expected = None if decimal_format == "number" else value
+        assert msgspec.json.decode(msg) == {"value": expected}
+        if decimal_format == "number":
+            assert msg == b'{"value":null}'
+
+    @pytest.mark.parametrize(
         "msg",
         [
             "123",
