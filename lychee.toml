@@ -2,8 +2,8 @@ require_https = true
 include_fragments = true
 cache = true
 remap = [
-  # TODO: remove when this is fixed https://github.com/lycheeverse/lychee/issues/1729
-  "https://github.com/(.*?)/(.*?)/blob/(.*?)/(.*#.*)$ https://raw.githubusercontent.com/$1/$2/$3/$4"
+  # Check file contents directly to avoid failures from GitHub's HTML file pages.
+  '^https://github\.com/([^/]+)/([^/]+)/blob/(.+)$ https://raw.githubusercontent.com/$1/$2/$3'
 ]
 exclude = [
   # This is way too flaky https://github.com/lycheeverse/lychee/issues/1884
