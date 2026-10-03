@@ -14287,6 +14287,13 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
     const char* buf = unicode_str_and_size_nocheck(temp, &size);
     bool decimal_as_string = (self->decimal_format == DECIMAL_FORMAT_STRING);
 
+    /* Finite Decimal representations start with a digit after an optional sign. */
+    char first = buf[buf[0] == '-'];
+    if (!decimal_as_string && MS_UNLIKELY(first < '0' || first > '9')) {
+        Py_DECREF(temp);
+        return ms_write(self, "null", 4);
+    }
+
     Py_ssize_t required = size + (2 * decimal_as_string);
     if (ms_ensure_space(self, size + 2) < 0) {
         Py_DECREF(temp);
