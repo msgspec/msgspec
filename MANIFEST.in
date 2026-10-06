@@ -7,3 +7,4 @@ prune scripts
 exclude lychee.toml
 exclude .*
 include .cibuildwheel.toml
+include src/msgspec/_json_syntax_impl.h
