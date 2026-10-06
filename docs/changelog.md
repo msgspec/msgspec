@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix generic `TypedDict` subclasses dropping the base type argument, so
+  `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
+  PEP 695 annotations on those subclasses resolve instead of raising
+  `NameError` ({issue}`1191`).
 - Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
   type parameter syntax (`class Foo[T](TypedDict)`) under
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
