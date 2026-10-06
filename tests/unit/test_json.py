@@ -704,6 +704,77 @@ class TestDecoderMisc:
             msgspec.json.format(buf, indent=2)
 
 
+class TestJSONCCommentBoundaries:
+    @pytest.fixture(params=["decode", "Decoder.decode", "Decoder.decode_lines"])
+    def decode(self, request):
+        def decode(buf, **kwargs):
+            if request.param == "decode":
+                return msgspec.json.decode(buf, **kwargs)
+            decoder = msgspec.json.Decoder(**kwargs)
+            if request.param == "Decoder.decode":
+                return decoder.decode(buf)
+            [result] = decoder.decode_lines(buf)
+            return result
+
+        return decode
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("type", [Any, msgspec.Raw])
+    @pytest.mark.parametrize(
+        "buf, offset",
+        [(b"/1", 0), (b"[/1]", 1), (b"[1,/2]", 3), (b'{"x":/1}', 5), (b'{"x"/:1}', 4)],
+    )
+    def test_non_comment_slash(self, decode, allow_trailing_commas, type, buf, offset):
+        with pytest.raises(msgspec.DecodeError, match=rf"\(byte {offset}\)$"):
+            decode(
+                buf,
+                type=type,
+                allow_comments=True,
+                allow_trailing_commas=allow_trailing_commas,
+            )
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("raw_field", [False, True])
+    @pytest.mark.parametrize(
+        "buf", [b"/1", b"[/1]", b"[1,/2]", b'{"x":/1}', b'{"x"/:1}']
+    )
+    def test_non_comment_slash_in_field(
+        self, decode, allow_trailing_commas, raw_field, buf
+    ):
+        class RawField(msgspec.Struct):
+            x: msgspec.Raw
+
+        class UnknownField(msgspec.Struct):
+            pass
+
+        with pytest.raises(msgspec.DecodeError):
+            decode(
+                b'{"x":' + buf + b"}",
+                type=RawField if raw_field else UnknownField,
+                allow_comments=True,
+                allow_trailing_commas=allow_trailing_commas,
+            )
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("comment", [b"/* c */", b"// c\n", b"// c\r", b"// c\r\n"])
+    def test_valid_comments(self, decode, allow_trailing_commas, comment):
+        class RawField(msgspec.Struct):
+            x: msgspec.Raw
+
+        class UnknownField(msgspec.Struct):
+            pass
+
+        kwargs = dict(allow_comments=True, allow_trailing_commas=allow_trailing_commas)
+        comma = b"," if allow_trailing_commas else b""
+        raw = b"[" + comment + b"1," + comment + b"2" + comma + comment + b"]"
+        buf = comment + raw + comment
+        assert decode(buf, **kwargs) == [1, 2]
+        assert bytes(decode(buf, type=msgspec.Raw, **kwargs)) == raw
+        buf = comment + b'{"x":' + comment + raw + comma + comment + b"}" + comment
+        assert bytes(decode(buf, type=RawField, **kwargs).x) == raw
+        assert decode(buf, type=UnknownField, **kwargs) == UnknownField()
+
+
 class TestBoolAndNone:
     def test_encode_none(self):
         assert msgspec.json.encode(None) == b"null"

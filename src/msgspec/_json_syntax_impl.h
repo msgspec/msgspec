@@ -75,10 +75,9 @@ J(_peek_skip_ws)(JSONDecoderState *self, unsigned char *s)
             int status = J(_consume_comment)(self);
             if (status < 0) return false;
             if (status > 0) continue;
-#else
+#endif
             *s = c;
             return true;
-#endif
         }
         self->input_pos++;
     }
