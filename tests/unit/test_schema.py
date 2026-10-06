@@ -338,6 +338,35 @@ def test_enum_single_flag_member(enum_type, value):
     }
 
 
+@pytest.mark.parametrize("value_type,values", [(int, [1, 2]), (str, ["a", "b"])])
+def test_enum_unhashable_scalar_values(value_type, values):
+    class Value(value_type):
+        __hash__ = None
+
+    class Example(enum.Enum):
+        A = values[0]
+        B = Value(values[1])
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+def test_enum_unhashable_members():
+    class Example(enum.Enum):
+        __hash__ = None
+        A = 1
+        B = 2
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2]}},
+    }
+
+
 def test_int_literal():
     assert msgspec.json.schema(Literal[3, 1, 2]) == {"enum": [1, 2, 3]}
 
