@@ -2779,8 +2779,9 @@ class TestClassVar:
             assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
 
-    def test_wrong_classvar(self):
-        # See https://github.com/msgspec/msgspec/issues/1096
+    @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])
+    def test_wrong_classvar(self, annotation):
+        # See https://github.com/msgspec/msgspec/issues/1096 and #1221
         source = """
         from __future__ import annotations
         from msgspec import Struct
@@ -2792,11 +2793,32 @@ class TestClassVar:
             a: typing.ClassVar
         """
 
+        source = source.replace("a: typing.ClassVar", f"a: {annotation}")
         with pytest.raises(
             AttributeError,
             match="'typing' has no attribute 'ClassVar'",
         ):
-            temp_module(source).__enter__()  # It used to crash, but must not!
+            with temp_module(source):
+                pass  # Class creation must raise, not abort the interpreter.
+
+    def test_classvar_attribute_lookup_error(self):
+        source = """
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace:
+            @property
+            def ClassVar(self):
+                raise RuntimeError("classvar lookup failed")
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]
+        """
+        with pytest.raises(RuntimeError, match="classvar lookup failed"):
+            with temp_module(source):
+                pass
 
 
 class TestPostInit:
