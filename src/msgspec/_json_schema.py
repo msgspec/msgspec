@@ -383,7 +383,10 @@ class _SchemaGenerator:
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):
                 schema.setdefault("description", doc)
-            schema["enum"] = sorted(e.value for e in t.cls)
+            # Flag iteration omits zero and composite members. Deduplicate aliases
+            # by identity so enum values need not be hashable.
+            members = {id(e): e for e in t.cls.__members__.values()}
+            schema["enum"] = sorted(e.value for e in members.values())
         elif isinstance(t, mi.StructType):
             schema.setdefault("title", _get_class_name(t.cls))
             if doc := _get_doc(t):

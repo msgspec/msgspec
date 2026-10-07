@@ -296,6 +296,7 @@ def test_enum():
         C = "x"
         B = "z"
         A = "y"
+        ALIAS = "x"
 
     assert msgspec.json.schema(Example) == {
         "$ref": "#/$defs/Example",
@@ -306,6 +307,63 @@ def test_enum():
                 "enum": ["x", "y", "z"],
             }
         },
+    }
+
+
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+def test_enum_zero_composite_and_alias_members(enum_type):
+    class Example(enum_type):
+        NONE = 0
+        READ = 1
+        WRITE = 2
+        BOTH = 3
+        BOTH_ALIAS = 3
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [0, 1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("value", [0, 3])
+def test_enum_single_flag_member(enum_type, value):
+    Example = enum_type("Example", {"MEMBER": value})
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("value_type,values", [(int, [1, 2]), (str, ["a", "b"])])
+def test_enum_unhashable_scalar_values(value_type, values):
+    class Value(value_type):
+        __hash__ = None
+
+    class Example(enum.Enum):
+        A = values[0]
+        B = Value(values[1])
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+def test_enum_unhashable_members():
+    class Example(enum.Enum):
+        __hash__ = None
+        A = 1
+        B = 2
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2]}},
     }
 
 
