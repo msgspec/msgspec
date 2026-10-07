@@ -76,6 +76,25 @@ create a ``Decoder`` once and use the ``Decoder.decode`` method instead.
     ... decoder.decode(b'{"hello":"world"}')
     {'hello': 'world'}
 
+JSON configuration files sometimes use JSONC comments and trailing commas.
+These extensions are disabled by default, but can be enabled independently
+when decoding JSON:
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(
+    ...     b'{// comment\n"items": [1, 2,],}',
+    ...     allow_comments=True,
+    ...     allow_trailing_commas=True,
+    ... )
+    {'items': [1, 2]}
+
+``allow_comments`` accepts ``//`` comments ending at a line ending or the end
+of the input, and non-nested ``/* ... */`` comments in JSON whitespace
+positions. ``allow_trailing_commas`` accepts a single comma before the closing
+delimiter of a non-empty array or object. These options affect decoding only;
+JSON encoding remains strict.
+
 
 .. _typed-decoding:
 

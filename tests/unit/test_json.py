@@ -534,6 +534,246 @@ class TestDecoderMisc:
         with pytest.raises(TypeError):
             dec = msgspec.json.Decoder(float_hook=1)
 
+    @pytest.mark.parametrize(
+        "decoder", [msgspec.json.decode, msgspec.json.Decoder().decode]
+    )
+    def test_decode_jsonc_comments_and_trailing_commas(self, decoder):
+        buf = b"""{
+            // a line comment
+            "items": [1, /* inline */ 2,],
+            "text": "// not a comment /* or this */",
+        } // trailing comment"""
+        if decoder is msgspec.json.decode:
+            assert decoder(buf, allow_comments=True, allow_trailing_commas=True) == {
+                "items": [1, 2],
+                "text": "// not a comment /* or this */",
+            }
+        else:
+            dec = msgspec.json.Decoder(allow_comments=True, allow_trailing_commas=True)
+            assert dec.decode(buf) == {
+                "items": [1, 2],
+                "text": "// not a comment /* or this */",
+            }
+
+    def test_decode_jsonc_decode_lines(self):
+        dec = msgspec.json.Decoder(allow_comments=True, allow_trailing_commas=True)
+        assert dec.decode_lines(b'// header\n[1,]\n{"x": 2,}// footer') == [
+            [1],
+            {"x": 2},
+        ]
+
+    def test_decode_jsonc_is_opt_in(self):
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.decode(b"[1, // comment\n 2]")
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.decode(b"[1,]")
+
+        assert msgspec.json.decode(b"[1, // comment\n 2]", allow_comments=True) == [
+            1,
+            2,
+        ]
+        assert msgspec.json.decode(b"[1,]", allow_trailing_commas=True) == [1]
+
+    @pytest.mark.parametrize(
+        "buf",
+        [b"/*", b"/* unterminated", b"[1, /* unterminated ]"],
+    )
+    def test_decode_jsonc_truncated_comments(self, buf):
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            msgspec.json.decode(buf, allow_comments=True)
+
+    def test_decode_jsonc_token_concatenation(self):
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.decode(b"1/* comment */2", allow_comments=True)
+
+    def test_decoder_jsonc_attributes(self):
+        dec = msgspec.json.Decoder(allow_comments=True, allow_trailing_commas=True)
+        assert dec.allow_comments is True
+        assert dec.allow_trailing_commas is True
+
+    def test_jsonc_options_are_separate_from_strict_coercion(self):
+        assert (
+            msgspec.json.decode(b'"1"', type=int, strict=False, allow_comments=True)
+            == 1
+        )
+        with pytest.raises(msgspec.ValidationError):
+            msgspec.json.decode(b'"1"', type=int, strict=True, allow_comments=True)
+
+    @pytest.mark.parametrize(
+        "kwargs", [{}, {"allow_comments": False}, {"allow_comments": True}]
+    )
+    @pytest.mark.parametrize(
+        "buf, offset", [(b"1x", 2), (b"{}x", 3), (b"truex", 5), (b"[1]x", 4)]
+    )
+    def test_jsonc_trailing_character_offsets_are_stable(self, kwargs, buf, offset):
+        with pytest.raises(msgspec.DecodeError, match=rf"byte {offset}\)$"):
+            msgspec.json.decode(buf, **kwargs)
+
+    @pytest.mark.parametrize("carrier", [str, bytes, bytearray, memoryview])
+    @pytest.mark.parametrize(
+        "allow_comments, allow_trailing_commas",
+        [(False, False), (True, False), (False, True), (True, True)],
+    )
+    def test_jsonc_option_matrix_and_carriers(
+        self, carrier, allow_comments, allow_trailing_commas
+    ):
+        text = '{\n// c\n"items": [1, 2,],\n}'
+        buf = text if carrier is str else carrier(text.encode())
+        kwargs = {
+            "allow_comments": allow_comments,
+            "allow_trailing_commas": allow_trailing_commas,
+        }
+        if allow_comments and allow_trailing_commas:
+            assert msgspec.json.decode(buf, **kwargs) == {"items": [1, 2]}
+        else:
+            with pytest.raises(msgspec.DecodeError):
+                msgspec.json.decode(buf, **kwargs)
+
+    def test_jsonc_typed_container_matrix(self):
+        class TD(TypedDict):
+            x: int
+
+        class NT(NamedTuple):
+            x: int
+
+        @dataclass
+        class DC:
+            x: int
+
+        class Tagged(msgspec.Struct, tag="kind"):
+            x: int
+
+        class Array(msgspec.Struct, array_like=True):
+            x: int
+
+        kw = {"allow_trailing_commas": True}
+        assert msgspec.json.decode(b"[1, 2,]", type=list[int], **kw) == [1, 2]
+        assert msgspec.json.decode(b"[1, 2,]", type=set[int], **kw) == {1, 2}
+        assert msgspec.json.decode(b"[1, 2,]", type=frozenset[int], **kw) == frozenset(
+            {1, 2}
+        )
+        assert msgspec.json.decode(b"[1, 2,]", type=tuple[int, ...], **kw) == (1, 2)
+        assert msgspec.json.decode(b"[1, 2,]", type=tuple[int, int], **kw) == (1, 2)
+        assert msgspec.json.decode(b"[1,]", type=NT, **kw) == NT(1)
+        assert msgspec.json.decode(b'{"x": 1,}', type=TD, **kw) == {"x": 1}
+        assert msgspec.json.decode(b'{"x": 1,}', type=DC, **kw) == DC(1)
+        assert msgspec.json.decode(
+            b'{"kind": "Tagged", "x": 1,}', type=Tagged, **kw
+        ) == Tagged(1)
+        assert msgspec.json.decode(b"[1,]", type=Array, **kw) == Array(1)
+
+        class Wrapped:
+            def __init__(self, x):
+                self.x = x
+
+        assert (
+            msgspec.json.decode(
+                b'{"x": 1,}',
+                type=Wrapped,
+                dec_hook=lambda typ, obj: Wrapped(obj["x"]),
+                **kw,
+            ).x
+            == 1
+        )
+
+    @pytest.mark.parametrize("suffix", [b"\n", b"\r", b"\r\n", b""])
+    def test_jsonc_comment_boundaries(self, suffix):
+        assert msgspec.json.decode(
+            b"[/* before */1 /* middle */]// after" + suffix,
+            allow_comments=True,
+        ) == [1]
+
+    @pytest.mark.parametrize(
+        "text",
+        [b"[1 2]", b"[1,,]", b'{"x":1 "y":2}', b'{"x":1,,}'],
+    )
+    def test_jsonc_malformed_delimiters_remain_errors(self, text):
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.decode(text, allow_comments=True, allow_trailing_commas=True)
+
+    @pytest.mark.parametrize("text", [b"{unquoted: 1}", b"{'x': 1}", b"[0x1]"])
+    def test_jsonc_does_not_enable_json5(self, text):
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.decode(text, allow_comments=True, allow_trailing_commas=True)
+
+    @pytest.mark.parametrize("carrier", [str, bytes, bytearray, memoryview])
+    @pytest.mark.parametrize("text", ["// before\n[1]", "[1] // after", "[1,]"])
+    def test_jsonc_format_remains_strict(self, carrier, text):
+        buf = text if carrier is str else carrier(text.encode())
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.json.format(buf, indent=2)
+
+
+class TestJSONCCommentBoundaries:
+    @pytest.fixture(params=["decode", "Decoder.decode", "Decoder.decode_lines"])
+    def decode(self, request):
+        def decode(buf, **kwargs):
+            if request.param == "decode":
+                return msgspec.json.decode(buf, **kwargs)
+            decoder = msgspec.json.Decoder(**kwargs)
+            if request.param == "Decoder.decode":
+                return decoder.decode(buf)
+            [result] = decoder.decode_lines(buf)
+            return result
+
+        return decode
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("type", [Any, msgspec.Raw])
+    @pytest.mark.parametrize(
+        "buf, offset",
+        [(b"/1", 0), (b"[/1]", 1), (b"[1,/2]", 3), (b'{"x":/1}', 5), (b'{"x"/:1}', 4)],
+    )
+    def test_non_comment_slash(self, decode, allow_trailing_commas, type, buf, offset):
+        with pytest.raises(msgspec.DecodeError, match=rf"\(byte {offset}\)$"):
+            decode(
+                buf,
+                type=type,
+                allow_comments=True,
+                allow_trailing_commas=allow_trailing_commas,
+            )
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("raw_field", [False, True])
+    @pytest.mark.parametrize(
+        "buf", [b"/1", b"[/1]", b"[1,/2]", b'{"x":/1}', b'{"x"/:1}']
+    )
+    def test_non_comment_slash_in_field(
+        self, decode, allow_trailing_commas, raw_field, buf
+    ):
+        class RawField(msgspec.Struct):
+            x: msgspec.Raw
+
+        class UnknownField(msgspec.Struct):
+            pass
+
+        with pytest.raises(msgspec.DecodeError):
+            decode(
+                b'{"x":' + buf + b"}",
+                type=RawField if raw_field else UnknownField,
+                allow_comments=True,
+                allow_trailing_commas=allow_trailing_commas,
+            )
+
+    @pytest.mark.parametrize("allow_trailing_commas", [False, True])
+    @pytest.mark.parametrize("comment", [b"/* c */", b"// c\n", b"// c\r", b"// c\r\n"])
+    def test_valid_comments(self, decode, allow_trailing_commas, comment):
+        class RawField(msgspec.Struct):
+            x: msgspec.Raw
+
+        class UnknownField(msgspec.Struct):
+            pass
+
+        kwargs = dict(allow_comments=True, allow_trailing_commas=allow_trailing_commas)
+        comma = b"," if allow_trailing_commas else b""
+        raw = b"[" + comment + b"1," + comment + b"2" + comma + comment + b"]"
+        buf = comment + raw + comment
+        assert decode(buf, **kwargs) == [1, 2]
+        assert bytes(decode(buf, type=msgspec.Raw, **kwargs)) == raw
+        buf = comment + b'{"x":' + comment + raw + comma + comment + b"}" + comment
+        assert bytes(decode(buf, type=RawField, **kwargs).x) == raw
+        assert decode(buf, type=UnknownField, **kwargs) == UnknownField()
+
 
 class TestBoolAndNone:
     def test_encode_none(self):

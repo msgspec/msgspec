@@ -49,6 +49,8 @@ class Decoder(Generic[_T]):
     strict: bool
     dec_hook: _DecHookSig
     float_hook: _FloatHookSig
+    allow_comments: bool
+    allow_trailing_commas: bool
 
     @overload
     def __init__(
@@ -58,6 +60,8 @@ class Decoder(Generic[_T]):
         strict: bool = True,
         dec_hook: _DecHookSig = None,
         float_hook: _FloatHookSig = None,
+        allow_comments: bool = False,
+        allow_trailing_commas: bool = False,
     ) -> None: ...
     @overload
     def __init__(
@@ -67,6 +71,8 @@ class Decoder(Generic[_T]):
         strict: bool = True,
         dec_hook: _DecHookSig = None,
         float_hook: _FloatHookSig = None,
+        allow_comments: bool = False,
+        allow_trailing_commas: bool = False,
     ) -> None: ...
     def decode(self, buf: Buffer | str, /) -> _T: ...
     def decode_lines(self, buf: Buffer | str, /) -> list[_T]: ...
@@ -80,6 +86,8 @@ def decode(
     type: type[_T],
     strict: bool = True,
     dec_hook: _DecHookSig = None,
+    allow_comments: bool = False,
+    allow_trailing_commas: bool = False,
 ) -> _T: ...
 @overload
 def decode(
@@ -89,6 +97,8 @@ def decode(
     type: Any = ...,
     strict: bool = True,
     dec_hook: _DecHookSig = None,
+    allow_comments: bool = False,
+    allow_trailing_commas: bool = False,
 ) -> Any: ...
 def encode(
     obj: Any,

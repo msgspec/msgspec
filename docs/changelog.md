@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add opt-in JSONC decoding support via ``allow_comments`` and
+  ``allow_trailing_commas`` options on ``json.decode`` and ``json.Decoder``.
+  Comments and trailing commas are disabled by default and apply only to
+  decoding ({issue}`1078`).
+
 - Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
   type parameter syntax (`class Foo[T](TypedDict)`) under
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
