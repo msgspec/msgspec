@@ -58,7 +58,7 @@ def gen_row(e):
     return "{0x%s, 0x%s},  // 1e%-04d" % (h[16:], h[:16], e)
 
 
-table_rows = [gen_row(e) for e in range(-307, 289)]
+table_rows = [gen_row(e) for e in range(-342, 289)]
 
 f64_powers = [f"1e{i}" for i in range(23)]
 

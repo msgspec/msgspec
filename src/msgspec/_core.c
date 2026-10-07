@@ -12607,7 +12607,7 @@ end_parsing:
         return json_float_hook((char *)start, p - start, path, float_hook);
     }
     else {
-        if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
+        if (MS_UNLIKELY(exponent > 288 || exponent < -342)) {
             /* Exponent is out of bounds */
             goto fallback;
         }

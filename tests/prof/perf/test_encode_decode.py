@@ -14,6 +14,16 @@ from benchmarks.bench_encodings import Directory
 from benchmarks.generate_data import make_filesystem_data
 
 
+@pytest.mark.parametrize(
+    "value", [5e-324, 1e-320, 2.225073858507201e-308, 1e-300, 1.23456789]
+)
+def test_decode_small_floats(benchmark: BenchmarkFixture, value):
+    values = [value] * 65_536
+    data = msgspec.json.encode(values)
+    result = benchmark(msgspec.json.decode, data)
+    assert result == values
+
+
 @pytest.fixture()
 def file_system_data():
     return make_filesystem_data(1000)
