@@ -444,6 +444,31 @@ def test_struct_array_like_all_fields_optional(tag, min_items, payload):
     assert schema["minItems"] == min_items
 
 
+@pytest.mark.parametrize("tag", [False, True])
+@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+def test_struct_array_like_no_fields(tag, forbid_unknown_fields):
+    class Example(
+        msgspec.Struct,
+        array_like=True,
+        tag=tag,
+        forbid_unknown_fields=forbid_unknown_fields,
+    ):
+        pass
+
+    expected = {"title": "Example", "type": "array", "minItems": int(tag)}
+    if tag:
+        expected["prefixItems"] = [{"enum": ["Example"]}]
+    if forbid_unknown_fields:
+        expected["maxItems"] = int(tag)
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    payload = b'["Example"]' if tag else b"[]"
+    assert msgspec.json.decode(payload, type=Example) == Example()
+
+
 def test_struct_no_fields():
     class Example(msgspec.Struct):
         pass
@@ -605,6 +630,24 @@ def test_collections_namedtuple():
             }
         },
     }
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_namedtuple_no_fields(typed):
+    if typed:
+
+        class Example(NamedTuple):
+            pass
+
+    else:
+        Example = namedtuple("Example", [])
+
+    expected = {"title": "Example", "type": "array", "minItems": 0, "maxItems": 0}
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    assert msgspec.json.decode(b"[]", type=Example) == Example()
 
 
 def test_generic_namedtuple():
