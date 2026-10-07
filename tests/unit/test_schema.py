@@ -483,6 +483,103 @@ def test_struct_object_tagged():
     }
 
 
+def test_struct_object_int_keys():
+    class Point(msgspec.Struct, int_keys={"x": 1, "y": 2}, rename={"z": "zed"}):
+        """An example docstring"""
+
+        x: int
+        y: int = 0
+        z: int = 0
+
+    # The schema describes the wire form: int-keyed fields appear under the
+    # decimal string of their key, not their field name (which is only
+    # accepted as a decoding alias). Other fields keep their encoded name.
+    assert msgspec.json.schema(Point) == {
+        "$ref": "#/$defs/Point",
+        "$defs": {
+            "Point": {
+                "title": "Point",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "1": {"type": "integer"},
+                    "2": {"type": "integer", "default": 0},
+                    "zed": {"type": "integer", "default": 0},
+                },
+                "required": ["1"],
+            }
+        },
+    }
+    # Encoded output uses exactly the keys the schema declares
+    msg = msgspec.json.decode(msgspec.json.encode(Point(1, 2, 3)))
+    assert msg == {"1": 1, "2": 2, "zed": 3}
+
+
+def test_struct_object_int_keys_tagged():
+    class Point(msgspec.Struct, tag=True, int_keys={"x": 1, "y": 2}):
+        x: int
+        y: int
+
+    assert msgspec.json.schema(Point) == {
+        "$ref": "#/$defs/Point",
+        "$defs": {
+            "Point": {
+                "title": "Point",
+                "type": "object",
+                "properties": {
+                    "type": {"enum": ["Point"]},
+                    "1": {"type": "integer"},
+                    "2": {"type": "integer"},
+                },
+                "required": ["type", "1", "2"],
+            }
+        },
+    }
+
+
+def test_struct_object_int_keys_nested_default():
+    """Defaults are rendered in their encoded form, so a default that is itself
+    an int-keyed struct uses the same integer-string keys as its own schema and
+    therefore validates against it."""
+
+    class Child(msgspec.Struct, frozen=True, int_keys={"x": 1}):
+        x: int
+
+    class Parent(msgspec.Struct):
+        c: Child = Child(5)
+
+    schema = msgspec.json.schema(Parent)
+    assert schema["$defs"]["Child"] == {
+        "title": "Child",
+        "type": "object",
+        "properties": {"1": {"type": "integer"}},
+        "required": ["1"],
+    }
+    assert schema["$defs"]["Parent"]["properties"]["c"] == {
+        "$ref": "#/$defs/Child",
+        "default": {"1": 5},
+    }
+    # The default is exactly what the encoder emits for that field
+    encoded = msgspec.json.decode(msgspec.json.encode(Parent()))
+    assert encoded["c"] == schema["$defs"]["Parent"]["properties"]["c"]["default"]
+
+
+def test_dataclass_int_keys_nested_default():
+    class Child(msgspec.Struct, frozen=True, int_keys={"x": 1}):
+        x: int
+
+    @dataclass
+    class Parent:
+        c: Child = Child(5)
+
+    schema = msgspec.json.schema(Parent)
+    assert schema["$defs"]["Parent"]["properties"]["c"] == {
+        "$ref": "#/$defs/Child",
+        "default": {"1": 5},
+    }
+    assert msgspec.json.decode(msgspec.json.encode(Parent()))["c"] == {"1": 5}
+
+
 def test_struct_array_tagged():
     class Point(msgspec.Struct, tag=True, array_like=True):
         x: int

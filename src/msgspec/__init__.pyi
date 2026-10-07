@@ -37,6 +37,7 @@ class StructMeta(type):
     __struct_fields__: ClassVar[tuple[str, ...]]
     __struct_defaults__: ClassVar[tuple[Any, ...]]
     __struct_encode_fields__: ClassVar[tuple[str, ...]]
+    __struct_encode_int_keys__: ClassVar[tuple[int | None, ...] | None]
     __match_args__: ClassVar[tuple[str, ...]]
     @property
     def __signature__(self) -> Signature: ...
@@ -57,6 +58,7 @@ class StructMeta(type):
             | Callable[[str], str | None]
             | Mapping[str, str]
         ) = None,
+        int_keys: Mapping[str, int] | None = None,
         omit_defaults: bool = False,
         forbid_unknown_fields: bool = False,
         frozen: bool = False,
@@ -113,6 +115,7 @@ class Struct(metaclass=StructMeta):
             | Callable[[str], str | None]
             | Mapping[str, str]
         ) = None,
+        int_keys: Mapping[str, int] | None = None,
         omit_defaults: bool = False,
         forbid_unknown_fields: bool = False,
         frozen: bool = False,
@@ -144,6 +147,7 @@ def defstruct(
         | Callable[[str], str | None]
         | Mapping[str, str]
     ) = None,
+    int_keys: Mapping[str, int] | None = None,
     omit_defaults: bool = False,
     forbid_unknown_fields: bool = False,
     frozen: bool = False,

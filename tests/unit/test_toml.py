@@ -44,6 +44,11 @@ class ExStruct(msgspec.Struct):
     y: str
 
 
+class ExIntKeysStruct(msgspec.Struct, int_keys={"a": 1, "b": 2}):
+    a: int
+    b: str
+
+
 @dataclasses.dataclass
 class ExDataclass:
     x: int
@@ -128,6 +133,7 @@ def test_roundtrip_any(val):
         ({"one": 2}, dict[str, int]),
         ({1: "two"}, dict[int, str]),
         (ExStruct(1, "two"), ExStruct),
+        (ExIntKeysStruct(1, "two"), ExIntKeysStruct),
         (ExDataclass(1, "two"), ExDataclass),
     ],
 )
@@ -137,6 +143,17 @@ def test_roundtrip_typed(val, type):
     msg = msgspec.toml.encode({"x": val})
     res = msgspec.toml.decode(msg, type=dict[str, type])["x"]
     assert res == val
+
+
+@needs_encode
+@needs_decode
+def test_roundtrip_struct_int_keys():
+    """`int_keys` structs are written with decimal-string keys (TOML keys must be strings)
+    and decoded back through the same keys."""
+    val = ExIntKeysStruct(1, "two")
+    msg = msgspec.toml.encode(val)
+    assert msgspec.toml.decode(msg) == {"1": 1, "2": "two"}
+    assert msgspec.toml.decode(msg, type=ExIntKeysStruct) == val
 
 
 @py315_or_later_only

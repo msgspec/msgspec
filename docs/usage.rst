@@ -174,8 +174,9 @@ representation.
   Python types as the output rather than an encoded byte string. This
   includes:
 
-  - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``array_like``,
-    and ``tag`` for :ref:`tagged unions <struct-tagged-unions>`.
+  - Struct-level settings: ``rename``, :ref:`int_keys <struct-int-keys>`,
+    :ref:`omit_defaults`, ``array_like``, and ``tag`` for
+    :ref:`tagged unions <struct-tagged-unions>`.
   - Omission of :ref:`UNSET <unset-type>` fields.
   - Recursive expansion of nested `msgspec.Struct`, `dataclasses.dataclass`,
     attrs_, `typing.TypedDict`, and `typing.NamedTuple` values.
