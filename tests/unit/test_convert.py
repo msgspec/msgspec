@@ -1252,6 +1252,34 @@ class TestDict:
         ):
             convert(str_msg, dict[Key, str])
 
+    @pytest.mark.parametrize(
+        "key, sol",
+        [
+            ("2022-01-02T03:04:05", datetime.datetime(2022, 1, 2, 3, 4, 5)),
+            ("2022-01-02", datetime.date(2022, 1, 2)),
+            ("12:34:00", datetime.time(12, 34)),
+        ],
+    )
+    def test_str_keys_builtin_types(self, dictcls, key, sol):
+        """With `str_keys`, keys only arrive as strings, so they are parsed even
+        when their type is listed in `builtin_types`"""
+        res = convert(
+            dictcls({key: 1}),
+            dict[type(sol), int],
+            builtin_types=(datetime.datetime, datetime.date, datetime.time),
+            str_keys=True,
+        )
+        assert res == {sol: 1}
+
+        # Values of a type in `builtin_types` are still not parsed from str
+        with pytest.raises(ValidationError, match="got `str`"):
+            convert(
+                dictcls({"x": key}),
+                dict[str, type(sol)],
+                builtin_types=(datetime.datetime, datetime.date, datetime.time),
+                str_keys=True,
+            )
+
     def test_non_str_keys(self, dictcls):
         convert(dictcls({1.5: 1}), dict[float, int]) == {1.5: 1}
 
