@@ -1468,12 +1468,18 @@ class TestTimestampExt:
             (b"\xd7\xff\x00\x00\x07\xcc\x00\x00\x00\x00", 0, 0),
             (b"\xd7\xff\xeek 0\x00\x00\x00\x00", 1, 0),
             (b"\xd7\xff\xeek ,\x00\x00\x00\x00", 0, 999999),
+            (b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A~", 59, 0),
         ],
     )
     def test_timestamp_rounds_nanos(self, msg, secs, micros):
         res = msgspec.msgpack.decode(msg)
         assert res.second == secs
         assert res.microsecond == micros
+
+    def test_timestamp_rounds_nanos_out_of_range(self):
+        msg = b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A\x7f"
+        with pytest.raises(msgspec.ValidationError, match="out of range"):
+            msgspec.msgpack.decode(msg)
 
 
 class CommonTypeTestBase:
