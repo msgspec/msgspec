@@ -800,6 +800,7 @@ def test_dataclass_or_attrs(module):
                     "metadata": {
                         "type": "object",
                         "additionalProperties": {"type": "string"},
+                        "default": {},
                     },
                 },
                 "required": ["vertices"],
