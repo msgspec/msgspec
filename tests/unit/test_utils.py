@@ -256,6 +256,49 @@ class TestGetClassAnnotations:
             assert get_class_annotations(Ex) == {"x": tvar, "y": list[tvar]}
             assert get_class_annotations(Ex[int]) == {"x": int, "y": list[int]}
 
+    def test_generic_typeddict_subclass_keeps_type_argument(self):
+        # TypedDict copies base annotations onto the subclass and drops the
+        # base from the MRO, so Base[int] used to leave the field as a TypeVar.
+        source = """
+        from typing import Generic, TypedDict, TypeVar
+        L = TypeVar("L")
+
+        class Base(TypedDict, Generic[L]):
+            b: L
+            items: list[L]
+
+        class Sub(Base[int]):
+            n: str
+
+        class Override(Base[int]):
+            b: str
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {
+                "b": int,
+                "items": list[int],
+                "n": str,
+            }
+            assert get_class_annotations(mod.Override) == {
+                "b": str,
+                "items": list[int],
+            }
+
+    @py312_plus
+    def test_pep695_typeddict_subclass_resolves_type_argument(self):
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict
+
+        class Base[Q](TypedDict):
+            b: Q
+
+        class Sub(Base[int]):
+            n: str
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {"b": int, "n": str}
+
     @py312_plus
     def test_pep695_generic_subclass(self):
         source = """

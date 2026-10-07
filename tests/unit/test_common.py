@@ -2806,6 +2806,28 @@ class TestTypedDict:
             msg = proto.encode({"x": 1})
             assert proto.decode(msg, type=mod.Ex) == {"x": 1}
 
+    def test_generic_subclass_keeps_type_argument(self, proto):
+        # TypedDict drops a parametrized base from the MRO and copies its
+        # annotations unchanged, so Sub(Base[int]) used to accept any value
+        # for the inherited field.
+        source = """
+        from typing import Generic, TypedDict, TypeVar
+
+        L = TypeVar("L")
+
+        class Base(TypedDict, Generic[L]):
+            b: L
+
+        class Sub(Base[int]):
+            n: str
+        """
+        with temp_module(source) as mod:
+            msg = proto.encode({"b": 1, "n": "a"})
+            assert proto.decode(msg, type=mod.Sub) == {"b": 1, "n": "a"}
+            bad = proto.encode({"b": "not an int", "n": "a"})
+            with pytest.raises(ValidationError):
+                proto.decode(bad, type=mod.Sub)
+
     def test_types_generic_alias_non_generic_errors(self):
         # mostly a smoke test to weed out some bogus stuff that may get passed to us.
         # parametrising a non-generic TypedDict via a manually-built
