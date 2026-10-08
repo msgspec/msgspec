@@ -2746,6 +2746,99 @@ class TestLax:
 
 
 class TestCustom:
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_custom_dict_keys(self, dictcls, strict, str_keys):
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            calls.append(x)
+            return complex(x)
+
+        msg = dictcls({"1+2j": True, "3+4j": False})
+        res = convert(
+            msg,
+            dict[complex, bool],
+            strict=strict,
+            str_keys=str_keys,
+            dec_hook=dec_hook,
+        )
+        assert res == {complex(1, 2): True, complex(3, 4): False}
+        assert calls == ["1+2j", "3+4j"]
+        assert dict(msg) == {"1+2j": True, "3+4j": False}
+
+    def test_generic_custom_dict_keys(self, dictcls):
+        class Custom(Generic[T]):
+            def __init__(self, value):
+                self.value = value
+
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ == Custom[str]
+            calls.append(x)
+            return Custom(x)
+
+        res = convert(dictcls({"x": 1}), dict[Custom[str], int], dec_hook=dec_hook)
+        (key,) = res
+        assert type(key) is Custom
+        assert key.value == "x"
+        assert res[key] == 1
+        assert calls == ["x"]
+
+    def test_custom_dict_str_subclass_keys(self, dictcls):
+        class Str(str):
+            pass
+
+        key = Str("1+2j")
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            assert x is key
+            calls.append(x)
+            return complex(x)
+
+        assert convert(dictcls({key: 1}), dict[complex, int], dec_hook=dec_hook) == {
+            complex(1, 2): 1
+        }
+        assert calls == [key]
+
+    def test_custom_dict_existing_keys(self, dictcls):
+        key = complex(1, 2)
+        res = convert(dictcls({key: 1}), dict[complex, int])
+        assert res == {key: 1}
+        assert next(iter(res)) is key
+
+    @pytest.mark.parametrize("with_hook", [False, True])
+    def test_custom_dict_keys_wrong_type(self, dictcls, with_hook):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        hook = (lambda typ, x: x) if with_hook else None
+        with pytest.raises(ValidationError) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=hook)
+        assert str(rec.value) == "Expected `complex`, got `str` - at `key` in `$.value`"
+
+    @pytest.mark.parametrize("err_cls", [TypeError, ValueError, RuntimeError])
+    def test_custom_dict_keys_hook_errors(self, dictcls, err_cls):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            raise err_cls("Oops!")
+
+        expected = ValidationError if err_cls in (TypeError, ValueError) else err_cls
+        with pytest.raises(expected) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=dec_hook)
+        if expected is ValidationError:
+            assert str(rec.value) == "Oops! - at `key` in `$.value`"
+            assert type(rec.value.__cause__) is err_cls
+        else:
+            assert str(rec.value) == "Oops!"
+
     def test_custom(self):
         def dec_hook(typ, x):
             assert typ is complex
