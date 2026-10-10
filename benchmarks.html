@@ -386,7 +386,7 @@ is slower for two reasons:</p>
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
 <li><p>It may require converting some python objects to their desired output types
-(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> model), resulting in
+(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> model), resulting in
 allocating many temporary python objects.</p></li>
 </ul>
 <p>In contrast, libraries like <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> that validate during decoding have none
@@ -401,7 +401,7 @@ in-memory state means it uses a fraction of the memory of other tools.</p>
 <section id="json-serialization">
 <span id="json-benchmark"></span><h2>JSON Serialization<a class="headerlink" href="#json-serialization" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance JSON library, which may be used
-by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
+by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
 functions. Here we compare msgspec’s JSON implementation against several other
 popular Python JSON libraries.</p>
 <ul class="simple">

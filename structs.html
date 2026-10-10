@@ -328,10 +328,10 @@ required field and two optional fields.</p>
 </pre></div>
 </div>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code> is a <em>required</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">email</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> or <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, defaulting to
-<a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> if no value is provided.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">groups</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#set" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> of <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>. If no value is
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code> is a <em>required</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">email</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> or <a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, defaulting to
+<a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> if no value is provided.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">groups</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#set" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> of <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>. If no value is
 provided, it defaults to the empty set.</p></li>
 </ul>
 <p>Struct types automatically generate a few methods based on the provided type
@@ -428,7 +428,7 @@ These are mainly useful for occasions where you need dynamic defaults, or
 when a default value is a mutable object that you don’t want to share between
 all instances of the struct (a <a class="reference external" href="https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments">common gotcha</a>
 in Python). Note that since the <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> callables take no
-arguments, you might need to make use of a <a class="reference external" href="https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions">lambda</a> or <a class="reference external" href="https://docs.python.org/3/library/functools.html#functools.partial" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">functools.partial</span></code></a> to
+arguments, you might need to make use of a <a class="reference external" href="https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions">lambda</a> or <a class="reference external" href="https://docs.python.org/3/library/functools.html#functools.partial" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">functools.partial</span></code></a> to
 forward any additional parameters needed to the default factory.</p></li>
 <li><p>Builtin <em>empty</em> mutable collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>) may be used as default values (as in <code class="docutils literal notranslate"><span class="pre">c</span></code> above). Since
@@ -453,7 +453,7 @@ custom validation).</p>
 <li><p>Decoding into a struct type (e.g. <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode(...,</span> <span class="pre">type=MyStruct)</span></code>)</p></li>
 <li><p>Converting into a struct type (e.g. <code class="docutils literal notranslate"><span class="pre">msgspec.convert(...,</span> <span class="pre">type=MyStruct)</span></code>)</p></li>
 </ul>
-<p>In these cases any <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#TypeError" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TypeError</span></code></a> or <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValueError</span></code></a> exceptions raised by this method
+<p>In these cases any <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#TypeError" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TypeError</span></code></a> or <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValueError</span></code></a> exceptions raised by this method
 will be considered “user facing” and converted into a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.ValidationError</span></code></a>
 with additional context. All other exceptions will be raised directly.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
@@ -550,12 +550,12 @@ fields.</p>
 </pre></div>
 </div>
 <p>The field ordering rules for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types are identical to those for
-<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, see the <a class="reference external" href="dataclasses">dataclasses docs</a> for more information.</p>
+<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, see the <a class="reference external" href="dataclasses">dataclasses docs</a> for more information.</p>
 </section>
 <section id="class-variables">
 <h2>Class Variables<a class="headerlink" href="#class-variables" title="Link to this heading">¶</a></h2>
-<p>Like <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types will exclude any attribute
-annotations wrapped in <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> from their fields.</p>
+<p>Like <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types will exclude any attribute
+annotations wrapped in <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> from their fields.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span>
@@ -613,7 +613,7 @@ when decoding messages (provided an expected decode type is provided). This
 validation is fast enough that it is <em>negligible in cost</em> - there is no added
 performance benefit when not using it. In fact, in most cases it’s faster to
 decode a message into a type validated <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> than into an untyped
-<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
+<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
 </section>
 <section id="pattern-matching">
 <h2>Pattern Matching<a class="headerlink" href="#pattern-matching" title="Link to this heading">¶</a></h2>
@@ -1128,7 +1128,7 @@ array, and is used to determine which type in the union to use when decoding.</p
 <h2>Runtime Definition<a class="headerlink" href="#runtime-definition" title="Link to this heading">¶</a></h2>
 <p>In some cases it can be useful to dynamically generate <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> classes
 at runtime. This can be handled through the use of <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a>, which
-has a signature similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.make_dataclass" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.make_dataclass</span></code></a>. See
+has a signature similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.make_dataclass" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.make_dataclass</span></code></a>. See
 <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a> for more information.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
@@ -1174,7 +1174,7 @@ in all subclasses of <code class="docutils literal notranslate"><span class="pre
 </pre></div>
 </div>
 <p>You can also mix <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with other metaclasses. One common
-use case is combining it with <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a> to define abstract base
+use case is combining it with <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a> to define abstract base
 Structs.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
 
@@ -1205,7 +1205,7 @@ Structs.</p>
 </div>
 <p>Here <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> participates fully in the ABC machinery:
 abstract base Structs (like <code class="docutils literal notranslate"><span class="pre">Event</span></code>) cannot be instantiated, and
-<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#isinstance" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isinstance()</span></code></a> and <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#issubclass" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">issubclass()</span></code></a> checks behave the same as for normal
+<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#isinstance" title="(in Python v3.15)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isinstance()</span></code></a> and <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#issubclass" title="(in Python v3.15)"><code class="xref py py-func docutils literal notranslate"><span class="pre">issubclass()</span></code></a> checks behave the same as for normal
 ABCs.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
@@ -1214,9 +1214,9 @@ ABCs.</p>
 <em>technically</em> need to inherit from <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>, but it is
 recommended to do so for static typing support in IDEs and other tools.</p></li>
 <li><p>Mixing <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with arbitrary metaclasses
-is not supported. Only combinations involving <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a>
+is not supported. Only combinations involving <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a>
 (or its subclasses) are guaranteed to work. Prefer using
-<a class="reference external" href="https://docs.python.org/3/reference/datamodel.html#object.__init_subclass__" title="(in Python v3.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">object.__init_subclass__()</span></code></a> on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> base class
+<a class="reference external" href="https://docs.python.org/3/reference/datamodel.html#object.__init_subclass__" title="(in Python v3.15)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">object.__init_subclass__()</span></code></a> on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> base class
 instead of additional custom metaclasses.</p></li>
 </ul>
 </div>
