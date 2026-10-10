@@ -1058,6 +1058,40 @@ def test_optional_union_null_member_metadata_preserved():
     }
 
 
+def test_optional_union_struct_member_metadata_preserved():
+    class Point(msgspec.Struct):
+        x: int
+
+    PointWithMeta = Annotated[Point, msgspec.Meta(description="a point")]
+
+    schema = msgspec.json.schema(Union[PointWithMeta, None])
+    assert schema["anyOf"] == [
+        {"$ref": "#/$defs/Point", "description": "a point"},
+        {"type": "null"},
+    ]
+
+
+def test_struct_tagged_union_member_metadata_preserved():
+    class Point(msgspec.Struct, tag=True):
+        x: int
+        y: int
+
+    class Point3D(Point):
+        z: int
+
+    PointWithMeta = Annotated[Point, msgspec.Meta(description="a 2D point")]
+
+    schema = msgspec.json.schema(Union[PointWithMeta, Point3D])
+    assert schema["anyOf"] == [
+        {"$ref": "#/$defs/Point", "description": "a 2D point"},
+        {"$ref": "#/$defs/Point3D"},
+    ]
+    assert schema["discriminator"] == {
+        "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
+        "propertyName": "type",
+    }
+
+
 def test_struct_array_union():
     class Point(msgspec.Struct, array_like=True, tag=True):
         x: int
