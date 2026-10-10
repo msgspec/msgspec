@@ -1419,47 +1419,47 @@ class TestFrozenDict:
 
 
 class TestTypedDict:
-    def test_typeddict_total_true(self):
+    def test_typeddict_total_true(self, dictcls):
         class Ex(TypedDict):
             a: int
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x2, Ex) == x
+        assert convert(dictcls(x2), Ex) == x
 
         with pytest.raises(ValidationError) as rec:
-            convert({"b": "two"}, Ex)
+            convert(dictcls({"b": "two"}), Ex)
         assert "Object missing required field `a`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
-            convert({"a": 1, "b": 2}, Ex)
+            convert(dictcls({"a": 1, "b": 2}), Ex)
         assert "Expected `str`, got `int` - at `$.b`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
             convert({"a": 1, 1: 2}, Ex)
         assert "Expected `str` - at `key` in `$`" == str(rec.value)
 
-    def test_typeddict_total_false(self):
+    def test_typeddict_total_false(self, dictcls):
         class Ex(TypedDict, total=False):
             a: int
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x2, Ex) == x
+        assert convert(dictcls(x2), Ex) == x
 
         x3 = {"b": "two"}
-        assert convert(x3, Ex) == x3
+        assert convert(dictcls(x3), Ex) == x3
 
         x4 = {}
-        assert convert(x4, Ex) == x4
+        assert convert(dictcls(x4), Ex) == x4
 
-    def test_typeddict_total_partially_optional(self):
+    def test_typeddict_total_partially_optional(self, dictcls):
         class Base(TypedDict):
             a: int
             b: str
@@ -1468,14 +1468,39 @@ class TestTypedDict:
             c: str
 
         x = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two"}
-        assert convert(x2, Ex) == x2
+        assert convert(dictcls(x2), Ex) == x2
 
         with pytest.raises(ValidationError) as rec:
-            convert({"b": "two"}, Ex)
+            convert(dictcls({"b": "two"}), Ex)
         assert "Object missing required field `a`" == str(rec.value)
+
+    def test_typeddict_nested_mapping(self):
+        class Inner(TypedDict):
+            b: int
+
+        class Ex(TypedDict):
+            a: list[Inner]
+
+        msg = GetItemObj(a=[GetItemObj(b=1), GetItemObj(b=2)])
+        assert convert(msg, Ex) == {"a": [{"b": 1}, {"b": 2}]}
+
+        with pytest.raises(ValidationError) as rec:
+            convert(GetItemObj(a=[GetItemObj(b="bad")]), Ex)
+        assert "Expected `int`, got `str` - at `$.a[0].b`" == str(rec.value)
+
+    def test_typeddict_mapping_getitem_error_propagates(self):
+        class Bad(GetItemObj):
+            def __getitem__(self, key):
+                raise ZeroDivisionError
+
+        class Ex(TypedDict, total=False):
+            a: int
+
+        with pytest.raises(ZeroDivisionError):
+            convert(Bad(), Ex)
 
 
 class TestDataclass:
