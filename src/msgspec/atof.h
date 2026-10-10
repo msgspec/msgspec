@@ -117,15 +117,41 @@ eisel_lemire(uint64_t man, int32_t exp) {
      * in-depth description of the algorithm */
 
     /* Normalization */
-    const uint64_t* po10 = ms_atof_powers_of_10[exp + 307];
+    const uint64_t* po10 = ms_atof_powers_of_10[exp + 342];
     uint32_t clz = ms_clzll(man);
     man <<= clz;
-    uint64_t ret_exp2 = ((uint64_t)(((217706 * exp) >> 16) + 1087)) - ((uint64_t)clz);
+    int64_t ret_exp2 = (((217706 * exp) >> 16) + 1087) - (int64_t)clz;
 
     /* Multiplication */
     ms_uint128 x = ms_mulu64(man, po10[1]);
     uint64_t x_hi = x.hi;
     uint64_t x_lo = x.lo;
+
+    /* Round small values directly in units of 2**-1074, without first
+     * rounding to a normal float (which would risk double rounding).
+     * po10[1] is the floor of the normalized power of ten. Since man is
+     * less than 2**64, the exact product divided by 2**64 lies strictly
+     * between x_hi and x_hi + 2 for these negative decimal exponents.
+     * Only accept the approximation when that entire interval rounds to
+     * the same integer; otherwise leave the tie to the exact fallback. */
+    if (ret_exp2 <= 1) {
+        uint32_t shift = (uint32_t)(12 - ret_exp2);
+        if (shift > 64) {
+            return 0;
+        }
+        uint64_t halfway = (uint64_t)1 << (shift - 1);
+        uint64_t remainder = x_hi;
+        uint64_t rounded = 0;
+        if (shift < 64) {
+            rounded = x_hi >> shift;
+            remainder &= ((uint64_t)1 << shift) - 1;
+        }
+        if ((remainder <= halfway) && (halfway - remainder <= 2)) {
+            return -1;
+        }
+        /* Carry into the smallest normal value has the same bit pattern. */
+        return (int64_t)(rounded + (remainder > halfway));
+    }
 
     /* Apply a wider Approximation if needed */
 	if (((x_hi & 0x1FF) == 0x1FF) && ((x_lo + man) < man)) {
