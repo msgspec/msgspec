@@ -17942,6 +17942,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         PyObject *out;
         if (MS_LIKELY(is_ascii)) {
             out = PyUnicode_New(size, 127);
+            if (MS_UNLIKELY(out == NULL)) return NULL;
             memcpy(ascii_get_buffer(out), view, size);
         }
         else {
