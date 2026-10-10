@@ -22345,6 +22345,48 @@ error:
     return NULL;
 }
 
+static PyObject *
+convert_object_to_typeddict(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path,
+    PyObject* (*getter)(PyObject *, PyObject *)
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = PyDict_New();
+    if (out == NULL) goto error;
+
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    for (Py_ssize_t i = 0; i < Py_SIZE(info); i++) {
+        PyObject *field = info->fields[i].key;
+        if (field == NULL) continue;
+        TypeNode *field_type = info->fields[i].type;
+        PyObject *attr = getter(obj, field);
+        if (attr == NULL) {
+            if (!PyErr_ExceptionMatches(PyExc_KeyError)) goto error;
+            PyErr_Clear();
+            if (field_type->types & MS_EXTRA_FLAG) {
+                ms_missing_required_field(field, path);
+                goto error;
+            }
+            continue;
+        }
+        PathNode field_path = {path, PATH_STR, field};
+        PyObject *val = convert(self, attr, field_type, &field_path);
+        Py_DECREF(attr);
+        if (val == NULL) goto error;
+        int status = PyDict_SetItem(out, field, val);
+        Py_DECREF(val);
+        if (status < 0) goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
 static bool
 Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
     if (Lookup_IsStrLookup(lookup)) {
@@ -22471,6 +22513,9 @@ convert_other(
         }
         else if (type->types & MS_TYPE_DATACLASS) {
             return convert_object_to_dataclass(self, obj, type, path, getter);
+        }
+        else if (is_mapping && (type->types & MS_TYPE_TYPEDDICT)) {
+            return convert_object_to_typeddict(self, obj, type, path, PyObject_GetItem);
         }
     }
 
