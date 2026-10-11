@@ -10,7 +10,7 @@
 - Fix a typing false negative that allowed assigning attributes
   to `READONLY` and C level getters ({pr}`1244`)
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
-  requires `mypy>=2.4` ({pr}`1245`)
+  requires `mypy>=2.1` ({pr}`1245`)
 
 ## Version 0.22.0 (2026-09-29)
 
