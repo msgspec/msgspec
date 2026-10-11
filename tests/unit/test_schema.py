@@ -1360,6 +1360,78 @@ def test_component_names_collide():
     }
 
 
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_component_names_collide_in_same_module(ref_template, reverse):
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    third = msgspec.defstruct("Response", [("value", bool)])
+    cases = [(first, 1, "integer"), (second, "ok", "string"), (third, True, "boolean")]
+    if reverse:
+        cases.reverse()
+    types = [case[0] for case in cases]
+    schemas, components = msgspec.json.schema_components(
+        types, ref_template=ref_template
+    )
+    assert len(components) == 3
+    assert len({schema["$ref"] for schema in schemas}) == 3
+    for (cls, value, expected_type), schema in zip(cases, schemas):
+        encoded = msgspec.json.encode(cls(value))
+        assert msgspec.json.decode(encoded, type=cls) == cls(value)
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected_type}
+    assert msgspec.json.schema_components(types, ref_template=ref_template) == (
+        schemas,
+        components,
+    )
+
+
+def test_component_names_collide_with_reserved_suffix():
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    # A normal class in the same module already needs the generated suffix.
+    third = msgspec.defstruct("Response_2", [("value", bool)])
+    fourth = msgspec.defstruct("Response_2", [("value", float)])
+    types = [first, second, third, fourth]
+    schemas, components = msgspec.json.schema_components(types)
+    assert len(components) == 4
+    assert len({schema["$ref"] for schema in schemas}) == 4
+    for schema, expected in zip(schemas, ["integer", "string", "boolean", "number"]):
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected}
+    assert schemas[2]["$ref"] == f"#/$defs/{third.__module__}.Response_2"
+
+
+def test_component_names_collide_recursive_union():
+    source = """
+    import msgspec
+    ResponseA = msgspec.defstruct(
+        "Response", [("value", int), ("child", "ResponseA | None", None)], tag="a"
+    )
+    ResponseB = msgspec.defstruct(
+        "Response", [("value", str), ("child", "ResponseB | None", None)], tag="b"
+    )
+    """
+    with temp_module(source) as mod:
+        typ = mod.ResponseA | mod.ResponseB
+        schema = msgspec.json.schema(typ)
+        refs = [item["$ref"] for item in schema["anyOf"]]
+        assert len(set(refs)) == 2
+        assert len(schema["$defs"]) == 2
+        for cls, tag, value, ref in zip(
+            [mod.ResponseA, mod.ResponseB], ["a", "b"], [1, "ok"], refs
+        ):
+            obj = cls(value, cls(value))
+            assert msgspec.json.decode(msgspec.json.encode(obj), type=typ) == obj
+            component = schema["$defs"][ref.rsplit("/", 1)[1]]
+            assert component["properties"]["type"] == {"enum": [tag]}
+            assert component["properties"]["child"]["anyOf"] == [
+                {"$ref": ref},
+                {"type": "null"},
+            ]
+            assert schema["discriminator"]["mapping"][tag] == ref
+
+
 def test_schema_components_collects_subtypes():
     class ExEnum(enum.Enum):
         A = 1
