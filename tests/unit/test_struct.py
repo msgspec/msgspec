@@ -2782,7 +2782,7 @@ class TestClassVar:
     @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])
     def test_wrong_classvar(self, annotation):
         # See https://github.com/msgspec/msgspec/issues/1096 and #1221
-        source = """
+        source = f"""
         from __future__ import annotations
         from msgspec import Struct
 
@@ -2790,10 +2790,8 @@ class TestClassVar:
             pass
 
         class Ex(Struct):
-            a: typing.ClassVar
+            a: {annotation}
         """
-
-        source = source.replace("a: typing.ClassVar", f"a: {annotation}")
         with pytest.raises(
             AttributeError,
             match="'typing' has no attribute 'ClassVar'",
