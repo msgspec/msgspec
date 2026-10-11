@@ -6,11 +6,7 @@ from typing import (
     ClassVar,
     Final,
     Literal,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     final,
     overload,
 )

@@ -3,6 +3,7 @@ from collections.abc import Callable
 from types import GenericAlias
 from typing import (
     Any,
+    Final,
     Generic,
     Literal,
     Type,
@@ -25,16 +26,16 @@ _DecimalFormatSig: TypeAlias = (
 
 @final
 class Ext:
-    code: int
-    data: Buffer
+    code: Final[int]
+    data: Final[Buffer]
     def __init__(self, code: int, data: Buffer, /) -> None: ...
 
 @final
 class Decoder(Generic[_T]):
-    type: Type[_T]  # needed for mypy, because of the same name
-    strict: bool
-    dec_hook: _DecHookSig
-    ext_hook: _ExtHookSig
+    strict: Final[bool]
+    dec_hook: Final[_DecHookSig]
+    ext_hook: Final[_ExtHookSig]
+
     @overload
     def __init__(
         self: Decoder[_T],
@@ -55,13 +56,16 @@ class Decoder(Generic[_T]):
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> _T: ...
     def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
+    # This is `READONLY` in C, but we can't use `Final` here:
+    @property
+    def type(self) -> Type[_T]: ...
 
 @final
 class Encoder:
-    enc_hook: _EncHookSig
-    decimal_format: _DecimalFormatSig
-    uuid_format: Literal["canonical", "hex", "bytes"]
-    order: Literal["deterministic", "sorted"] | None
+    enc_hook: Final[_EncHookSig]
+    decimal_format: Final[_DecimalFormatSig]
+    uuid_format: Final[Literal["canonical", "hex", "bytes"]]
+    order: Final[Literal["deterministic", "sorted"] | None]
     def __init__(
         self,
         *,

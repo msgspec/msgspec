@@ -7,6 +7,8 @@
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
   same-named module-level `TypeVar` from shadowing the PEP 695 type parameter,
   which could silently affect decoding on Python 3.12+ ({pr}`1130`).
+- Fix a typing false negative that allowed assigning attributes
+  to `READONLY` and C level getters
 
 ## Version 0.22.0 (2026-09-29)
 

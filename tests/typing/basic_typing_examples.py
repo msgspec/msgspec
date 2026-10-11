@@ -380,6 +380,8 @@ def check_struct_config() -> None:
     assert_type(config.tag, str | int | None)
     assert_type(config.tag_field, str | None)
 
+    config.frozen = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+
 
 ##########################################################
 # defstruct                                              #
@@ -591,6 +593,9 @@ def check_meta_constructor() -> None:
     Meta(gt=1.0, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
     Meta(multiple_of=1, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
 
+    # Cannot assign to attrs:
+    Meta(gt=1, lt=5).gt = 0  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+
 
 def check_meta_attributes() -> None:
     c = msgspec.Meta()
@@ -676,6 +681,7 @@ def check_msgpack_Decoder_decode_any() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[Any])
     assert_type(o, Any)
+    assert_type(dec.type, type[Any])
 
 
 def check_msgpack_Decoder_decode_typed() -> None:
@@ -685,6 +691,13 @@ def check_msgpack_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[list[int]])
     assert_type(o, list[int])
+    assert_type(dec.type, type[list[int]])
+
+
+def check_msgpack_Decoder_decode_readonly() -> None:
+    dec = msgspec.msgpack.Decoder(list[int])
+    dec.type = list  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+    dec.strict = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_msgpack_Decoder_decode_union() -> None:
@@ -762,6 +775,8 @@ def check_msgpack_Encoder_uuid_format() -> None:
     msgspec.msgpack.Encoder(uuid_format="bytes")
     assert_type(enc.uuid_format, Literal['canonical', 'hex', 'bytes'])
 
+    enc.uuid_format = "hex"  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+
 
 def check_msgpack_decode_dec_hook() -> None:
     def dec_hook(typ: type, obj: Any) -> Any:
@@ -802,6 +817,9 @@ def check_msgpack_Ext() -> None:
 
     # Non buffers:
     msgspec.msgpack.Ext(1, {})  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
+
+    # Attributes are read-only:
+    ext.code = 1  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 ##########################################################
@@ -855,6 +873,13 @@ def check_json_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.json.Decoder[list[int]])
     assert_type(o, list[int])
+    assert_type(dec.type, type[list[int]])
+
+
+def check_json_Decoder_decode_readonly() -> None:
+    dec = msgspec.json.Decoder(list[int])
+    dec.type = list  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+    dec.strict = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_json_Decoder_decode_type_comment() -> None:
@@ -952,6 +977,8 @@ def check_json_Encoder_uuid_format() -> None:
     enc = msgspec.json.Encoder(uuid_format="canonical")
     msgspec.json.Encoder(uuid_format="hex")
     assert_type(enc.uuid_format, Literal['canonical', 'hex'])
+
+    enc.uuid_format = "hex"  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_json_decode_dec_hook() -> None:
