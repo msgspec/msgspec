@@ -7,7 +7,7 @@ import pickle
 from typing import Annotated, Any, Final, Literal, final
 
 import msgspec
-from typing_extensions import assert_type, Buffer
+from typing_extensions import Buffer, TypeForm, assert_type
 
 
 def check___version__() -> None:
@@ -681,7 +681,7 @@ def check_msgpack_Decoder_decode_any() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[Any])
     assert_type(o, Any)
-    assert_type(dec.type, type[Any])
+    assert_type(dec.type, TypeForm[Any])
 
 
 def check_msgpack_Decoder_decode_typed() -> None:
@@ -691,7 +691,13 @@ def check_msgpack_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[list[int]])
     assert_type(o, list[int])
-    assert_type(dec.type, type[list[int]])
+    assert_type(dec.type, TypeForm[list[int]])
+
+    dec2 = msgspec.msgpack.Decoder(Literal[True])
+    b2 = msgspec.msgpack.encode(True)
+    o2 = dec2.decode(b2)
+    assert_type(o2, Literal[True])
+    assert_type(dec2.type, TypeForm[Literal[True]])
 
 
 def check_msgpack_Decoder_decode_readonly() -> None:
@@ -728,8 +734,11 @@ def check_msgpack_decode_any() -> None:
 def check_msgpack_decode_typed() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = msgspec.msgpack.decode(b, type=list[int])
-
     assert_type(o, list[int])
+
+    b2 = msgspec.msgpack.encode(True)
+    o2 = msgspec.msgpack.decode(b2, type=Literal[True])
+    assert_type(o2, Literal[True])
 
 
 def check_msgpack_decode_from_buffer() -> None:
@@ -873,7 +882,13 @@ def check_json_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.json.Decoder[list[int]])
     assert_type(o, list[int])
-    assert_type(dec.type, type[list[int]])
+    assert_type(dec.type, TypeForm[list[int]])
+
+    dec2 = msgspec.json.Decoder(Literal[True])
+    b2 = msgspec.json.encode(True)
+    o2 = dec2.decode(b2)
+    assert_type(o2, Literal[True])
+    assert_type(dec2.type, TypeForm[Literal[True]])
 
 
 def check_json_Decoder_decode_readonly() -> None:
@@ -927,8 +942,11 @@ def check_json_decode_any() -> None:
 def check_json_decode_typed() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b, type=list[int])
-
     assert_type(o, list[int])
+
+    b2 = msgspec.json.encode(True)
+    o2 = msgspec.json.decode(b2, type=Literal[True])
+    assert_type(o2, Literal[True])
 
 
 def check_json_decode_typed_union() -> None:

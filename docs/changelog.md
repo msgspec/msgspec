@@ -8,7 +8,9 @@
   same-named module-level `TypeVar` from shadowing the PEP 695 type parameter,
   which could silently affect decoding on Python 3.12+ ({pr}`1130`).
 - Fix a typing false negative that allowed assigning attributes
-  to `READONLY` and C level getters
+  to `READONLY` and C level getters ({pr}`1244`)
+- Support `TypeForm[]` type instead of `Type[]` in decoders,
+  requires `mypy>=2.4` ({pr}``)
 
 ## Version 0.22.0 (2026-09-29)
 

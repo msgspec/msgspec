@@ -6,14 +6,13 @@ from typing import (
     Final,
     Generic,
     Literal,
-    Type,
     TypeAlias,
     TypeVar,
     final,
     overload,
 )
 
-from typing_extensions import Buffer
+from typing_extensions import Buffer, TypeForm
 
 _T = TypeVar("_T")
 
@@ -53,7 +52,7 @@ class Decoder(Generic[_T]):
     @overload
     def __init__(
         self: Decoder[_T],
-        type: Type[_T],
+        type: TypeForm[_T],
         *,
         strict: bool = True,
         dec_hook: _DecHookSig = None,
@@ -62,7 +61,7 @@ class Decoder(Generic[_T]):
     @overload
     def __init__(
         self: Decoder[Any],
-        type: Any = ...,
+        type: Any = Any,
         *,
         strict: bool = True,
         dec_hook: _DecHookSig = None,
@@ -73,14 +72,14 @@ class Decoder(Generic[_T]):
     def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
     # This is `READONLY` in C, but we can't use `Final` here:
     @property
-    def type(self) -> Type[_T]: ...
+    def type(self) -> TypeForm[_T]: ...
 
 @overload
 def decode(
     buf: Buffer | str,
     /,
     *,
-    type: type[_T],
+    type: TypeForm[_T],
     strict: bool = True,
     dec_hook: _DecHookSig = None,
 ) -> _T: ...
@@ -89,7 +88,7 @@ def decode(
     buf: Buffer | str,
     /,
     *,
-    type: Any = ...,
+    type: Any = Any,
     strict: bool = True,
     dec_hook: _DecHookSig = None,
 ) -> Any: ...
