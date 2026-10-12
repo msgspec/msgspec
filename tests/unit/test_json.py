@@ -1932,6 +1932,24 @@ class TestNamedTuple:
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=Test)
 
+    def test_namedtuple_like(self):
+        # This is not exactly a `NamedTuple`, but it passed the check:
+        class FakeNamedTuple(tuple):
+            _fields = ["a", "b"]
+            _field_defaults = {}
+
+        # It used to crash:
+        converted = msgspec.json.decode(b"[1, 2]", type=FakeNamedTuple)
+        assert type(converted) is FakeNamedTuple
+        assert converted == (1, 2)
+
+        class NotSequenceFields(tuple):
+            _fields = 1
+
+        # It used to crash:
+        with pytest.raises(TypeError, match="not iterable"):
+            msgspec.json.decode(b"[1, 2]", type=NotSequenceFields)
+
 
 class TestDict:
     def test_encode_dict_raises_non_string_or_numeric_keys(self):

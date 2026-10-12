@@ -9150,6 +9150,12 @@ NamedTupleInfo_Convert(PyObject *obj) {
 
     fields = PyObject_GetAttr(cls, mod->str__fields);
     if (fields == NULL) goto cleanup;
+    if (!PyTuple_CheckExact(fields)) {
+        PyObject *new_fields = PySequence_Tuple(fields);
+        if (new_fields == NULL) goto cleanup;
+        Py_DECREF(fields);
+        fields = new_fields;
+    }
     defaults = PyObject_GetAttr(cls, mod->str__field_defaults);
     if (defaults == NULL) goto cleanup;
 

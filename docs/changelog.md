@@ -16,6 +16,8 @@
   to `READONLY` and C level getters ({pr}`1244`)
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
   requires `mypy>=2.1` ({pr}`1245`)
+- Fix converting values to `tuple` subclasses
+  with non-tuple `_field` field ({pr}`1259`)
 
 ## Version 0.22.0 (2026-09-29)
 
