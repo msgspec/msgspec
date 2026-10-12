@@ -288,6 +288,11 @@ class TestInvalidConstraintAnnotations:
         assert name in str(rec.value)
         assert "not supported" in str(rec.value)
 
+    @pytest.mark.parametrize("kw", ["gt", "ge", "lt", "le", "multiple_of"])
+    def test_integer_range_for_floats(self, kw):
+        with pytest.raises(ValueError, match="out of range"):
+            Meta(**{kw: 10**400})
+
     def test_invalid_multiple_meta_annotations_conflict(self):
         with pytest.raises(TypeError, match="Multiple `Meta` annotations"):
             msgspec.json.Decoder(Annotated[int, Meta(ge=1), Meta(ge=2)])

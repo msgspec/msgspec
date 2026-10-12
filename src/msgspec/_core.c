@@ -1746,6 +1746,15 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
     double x;
     if (PyLong_CheckExact(val)) {
         x = PyLong_AsDouble(val);
+        if (x == -1.0 && PyErr_Occurred()) {
+            PyErr_Clear();
+            PyErr_Format(
+                PyExc_ValueError,
+                "`%s` is out of range, %R is not representable as a float",
+                param, val
+            );
+            return false;
+        }
     }
     else if (PyFloat_CheckExact(val)) {
         x = PyFloat_AS_DOUBLE(val);

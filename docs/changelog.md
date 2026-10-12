@@ -16,7 +16,9 @@
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
   requires `mypy>=2.1` ({pr}`1245`)
 - Fix a possible crash when `Meta(pattern='...')`
-  was used in loops, ({pr}`1256`)
+  was used in loops ({pr}`1256`)
+- Fix a possible crash when too big ints are passed
+  into `Meta`'s constructor ({pr}``)
 
 ## Version 0.22.0 (2026-09-29)
 
