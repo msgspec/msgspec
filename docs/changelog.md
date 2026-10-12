@@ -18,7 +18,7 @@
 - Fix a possible crash when `Meta(pattern='...')`
   was used in loops ({pr}`1256`)
 - Fix a possible crash when too big ints are passed
-  into `Meta`'s constructor ({pr}``)
+  into `Meta`'s constructor ({pr}`1260`)
 
 ## Version 0.22.0 (2026-09-29)
 
