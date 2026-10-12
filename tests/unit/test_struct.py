@@ -806,6 +806,7 @@ class TestRepr:
     def test_repr_null_deref(self):
         class A(msgspec.Struct, repr_omit_defaults=True):
             x: list[int] = []
+
         a = A()
         del a.x
 
