@@ -1,4 +1,5 @@
 import datetime
+import gc
 import math
 import re
 import sys
@@ -231,15 +232,15 @@ class TestMetaObject:
         with pytest.raises(ValueError, match="Cannot mix numeric constraints"):
             Meta(gt=0, pattern="foo")
 
-    def test_constraints_leak(self):
-        import gc
-
-        for i in range(5):
+    def test_pattern_constraint_leak(self):
+        # See https://github.com/msgspec/msgspec/pull/1256 for the context.
+        for _ in range(5):
             d = msgspec.json.Decoder(
                 Union[Annotated[str, Meta(pattern="^a")], list[int]],
             )
             d.decode(b'"abc"')
             d.decode(b"[1,2]")
+            # Must not crash with the sanitizers:
             del d
             gc.collect()
 

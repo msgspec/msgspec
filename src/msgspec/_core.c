@@ -3433,7 +3433,7 @@ TypeNode_get_traverse_ranges(
                 MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
                 MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
                 MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
-                MS_TYPE_NAMEDTUPLE
+                MS_TYPE_NAMEDTUPLE | MS_CONSTR_STR_REGEX
             )
         );
         /* Number of typenode details */
