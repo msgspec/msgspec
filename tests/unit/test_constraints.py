@@ -2,7 +2,7 @@ import datetime
 import math
 import re
 import sys
-from typing import Annotated
+from typing import Annotated, Union
 
 import pytest
 
