@@ -5,8 +5,7 @@
 - Fix the error state left set when looking up `ClassVar` on a module-level
   `typing` name that is not the real `typing` module. On CPython builds with
   assertions enabled this terminated the interpreter. The lookup error now
-  propagates as intended ({issue}`1221`).
-
+  propagates as intended ({issue}`1221`)
 - Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
   type parameter syntax (`class Foo[T](TypedDict)`) under
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
@@ -16,6 +15,8 @@
   to `READONLY` and C level getters ({pr}`1244`)
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
   requires `mypy>=2.1` ({pr}`1245`)
+- Fix a possible crash when `Meta(pattern='...')`
+  was used in loops, ({pr}`1256`)
 
 ## Version 0.22.0 (2026-09-29)
 
