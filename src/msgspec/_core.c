@@ -3084,6 +3084,7 @@ static PyTypeObject Ext_Type;
 static TypeNode* TypeNode_Convert(PyObject *type);
 static PyObject* StructInfo_Convert(PyObject*);
 static PyObject* TypedDictInfo_Convert(PyObject*);
+static int TypedDictInfo_clear(TypedDictInfo*);
 static PyObject* DataclassInfo_Convert(PyObject*);
 static PyObject* NamedTupleInfo_Convert(PyObject*);
 
@@ -8796,21 +8797,33 @@ TypedDictInfo_Convert(PyObject *obj) {
 
 cleanup:
     if (!succeeded) {
+        PyObject *err_type, *err_value, *err_tb;
+        PyErr_Fetch(&err_type, &err_value, &err_tb);
+        /* A cached recursive sibling may still reference this incomplete
+         * info. Release its fields to break cycles and leave it invalid. */
+        if (info != NULL) TypedDictInfo_clear(info);
         Py_CLEAR(info);
         if (cache_set) {
             /* An error occurred after the cache was created and set on the
             * TypedDict. We need to delete the attribute. Fetch and restore the
             * original exception to avoid DelAttr silently clearing it on rare
             * occasions. */
-            PyObject *err_type, *err_value, *err_tb;
-            PyErr_Fetch(&err_type, &err_value, &err_tb);
             PyObject_DelAttr(obj, mod->str___msgspec_cache__);
-            PyErr_Restore(err_type, err_value, err_tb);
         }
+        PyErr_Restore(err_type, err_value, err_tb);
     }
     Py_XDECREF(annotations);
     Py_XDECREF(required);
     return (PyObject *)info;
+}
+
+static MS_INLINE int
+TypedDictInfo_check_initialized(TypedDictInfo *info) {
+    if (MS_UNLIKELY(info->nrequired < 0)) {
+        PyErr_SetString(PyExc_TypeError, "TypedDict type is incomplete");
+        return -1;
+    }
+    return 0;
 }
 
 static MS_INLINE PyObject *
@@ -16399,12 +16412,13 @@ static PyObject *
 mpack_decode_typeddict(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *res = PyDict_New();
     if (res == NULL) goto error;
 
-    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
     Py_ssize_t nrequired = 0, pos = 0;
     for (Py_ssize_t i = 0; i < size; i++) {
         char *key;
@@ -18904,6 +18918,7 @@ json_decode_typeddict(
     bool first = true;
     Py_ssize_t key_size, nrequired = 0, pos = 0;
     TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
 
     self->input_pos++; /* Skip '{' */
 
@@ -22013,12 +22028,13 @@ static PyObject *
 convert_dict_to_typeddict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *out = PyDict_New();
     if (out == NULL) goto error;
 
-    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
     Py_ssize_t nrequired = 0, pos = 0, pos_obj = 0;
     PyObject *key_obj, *val_obj;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
