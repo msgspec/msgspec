@@ -354,6 +354,40 @@ def test_enum_unhashable_scalar_values(value_type, values):
     }
 
 
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+@pytest.mark.parametrize("value", [10_000, 1 << 60])
+def test_enum_large_value_aliases(enum_type, value):
+    class Example(enum_type):
+        # Construct equal values separately instead of reusing an integer constant.
+        A = int(str(value))
+        ALIAS = int(str(value))
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("shift", [0, 60])
+def test_enum_flag_expressions(enum_type, shift):
+    class Example(enum_type):
+        A = 1 << shift
+        B = 2 << shift
+        C = A | B
+        D = ~A
+        C_ALIAS = A | B
+        D_ALIAS = ~A
+
+    values = [-(1 << shift) - 1, 1 << shift, 2 << shift, 3 << shift]
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
 def test_enum_unhashable_members():
     class Example(enum.Enum):
         __hash__ = None
