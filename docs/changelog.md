@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
+  and partial inner state, now proper `AttributeError`
+  is raised instead ({pr}`1257`)
 - Fix the error state left set when looking up `ClassVar` on a module-level
   `typing` name that is not the real `typing` module. On CPython builds with
   assertions enabled this terminated the interpreter. The lookup error now
