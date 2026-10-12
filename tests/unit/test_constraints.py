@@ -234,9 +234,12 @@ class TestMetaObject:
     def test_constraints_leak(self):
         import gc
         for i in range(5):
-            d = msgspec.json.Decoder(Union[Annotated[str, Meta(pattern="^a")], list[int]])
+            d = msgspec.json.Decoder(
+                Union[Annotated[str, Meta(pattern="^a")],
+                list[int]],
+            )
             d.decode(b'"abc"')
-            d.decode(b'[1,2]')
+            d.decode(b"[1,2]")
             del d
             gc.collect()
 
