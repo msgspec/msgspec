@@ -2819,3 +2819,54 @@ class TestRaw:
         with pytest.raises(ValidationError) as rec:
             convert({"x": value}, type=Ex)
         assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"
+
+
+@pytest.mark.parametrize("target", ["struct", "dataclass"])
+def test_mapping_fields_named_like_methods(target):
+    @dataclass
+    class Example:
+        keys: int
+        values: int
+        items: int
+        get: int
+
+    if target == "struct":
+        Example = msgspec.defstruct(
+            "Example", [("keys", int), ("values", int), ("items", int), ("get", int)]
+        )
+
+    result = convert(GetItemObj(keys=1, values=2, items=3, get=4), Example)
+    assert result == Example(1, 2, 3, 4)
+
+
+def test_mapping_item_precedence_respects_from_attributes():
+    class Example(Struct):
+        value: int
+
+    source = GetItemObj(value=1)
+    source.value = 2
+    assert convert(source, Example) == Example(1)
+    assert convert(source, Example, from_attributes=True) == Example(2)
+
+
+def test_mapping_method_name_as_struct_union_tag():
+    class First(Struct, tag="first", tag_field="keys"):
+        value: int
+
+    class Second(Struct, tag="second", tag_field="keys"):
+        value: int
+
+    assert convert(GetItemObj(keys="first", value=1), First | Second) == First(1)
+
+
+def test_mapping_with_integer_keys_can_convert_attributes():
+    class Example(Struct):
+        value: int
+
+    class Row:
+        value = 1
+
+        def __getitem__(self, key):
+            return (self.value,)[key]
+
+    assert convert(Row(), Example) == Example(1)

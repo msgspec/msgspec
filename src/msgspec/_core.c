@@ -22388,6 +22388,16 @@ getattr_then_getitem(PyObject *obj, PyObject *key) {
 }
 
 static PyObject *
+getitem_then_getattr(PyObject *obj, PyObject *key) {
+    PyObject *out = PyObject_GetItem(obj, key);
+    if (out == NULL) {
+        PyErr_Clear();
+        out = PyObject_GetAttr(obj, key);
+    }
+    return out;
+}
+
+static PyObject *
 convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
@@ -22455,7 +22465,7 @@ convert_other(
             matches_struct_union = type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION);
         }
         else {
-            getter = getattr_then_getitem;
+            getter = getitem_then_getattr;
             matches_struct = type->types & MS_TYPE_STRUCT;
             matches_struct_union = type->types & MS_TYPE_STRUCT_UNION;
         }
