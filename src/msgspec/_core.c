@@ -8513,13 +8513,13 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
+        if (val == NULL) goto error;
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
             if (is_default(val, default_val)) continue;
         }
 
-        if (val == NULL) goto error;
         PyObject *part = PyTuple_Pack(2, field, val);
         if (part == NULL) goto error;
         int status = PyList_Append(out, part);
