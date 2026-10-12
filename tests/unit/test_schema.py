@@ -363,6 +363,7 @@ def test_enum_large_value_aliases(enum_type, value):
         # Construct equal values separately instead of reusing an integer constant.
         A = int(str(value))
         ALIAS = int(str(value))
+        ALIAS2 = value
 
     assert msgspec.json.schema(Example) == {
         "$ref": "#/$defs/Example",
@@ -381,7 +382,8 @@ def test_enum_flag_expressions(enum_type, shift):
         C_ALIAS = A | B
         D_ALIAS = ~A
 
-    values = [-(1 << shift) - 1, 1 << shift, 2 << shift, 3 << shift]
+    # Python 3.15 normalizes negative flag declarations during class creation.
+    values = sorted({Example.D.value, 1 << shift, 2 << shift, 3 << shift})
     assert msgspec.json.schema(Example) == {
         "$ref": "#/$defs/Example",
         "$defs": {"Example": {"title": "Example", "enum": values}},
