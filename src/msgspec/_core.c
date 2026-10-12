@@ -13151,7 +13151,7 @@ mpack_encode_and_free_assoclist(EncoderState *self, AssocList *list) {
 
     if (mpack_encode_map_header(self, list->size, "dicts") < 0) goto cleanup2;
 
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
 
     for (Py_ssize_t i = 0; i < list->size; i++) {
         AssocItem *item = &(list->items[i]);
