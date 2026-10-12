@@ -119,11 +119,7 @@ ms_popcount(uint64_t i) {                            \
 static inline int
 PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
 {
-#if PY_VERSION_HEX >= 0x03000000
     PyObject *item = PyDict_GetItemWithError(mp, key);
-#else
-    PyObject *item = _PyDict_GetItemWithError(mp, key);
-#endif
     if (item != NULL) {
         Py_INCREF(item);
         *result = item;
