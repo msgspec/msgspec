@@ -1448,7 +1448,7 @@ StrLookup_GetOrError(
         return out;
     }
     return _Lookup_OnMissing(
-        (Lookup *)self, PyUnicode_FromStringAndSize(key, size), path
+        (Lookup *)self, ms_decode_utf8(key, size), path
     );
 }
 
@@ -5430,7 +5430,7 @@ ms_invalid_cuint_value(uint64_t val, PathNode *path) {
 
 static MS_NOINLINE PyObject *
 ms_error_unknown_field(const char *key, Py_ssize_t key_size, PathNode *path) {
-    PyObject *field = PyUnicode_FromStringAndSize(key, key_size);
+    PyObject *field = ms_decode_utf8(key, key_size);
     if (field == NULL) return NULL;
     ms_raise_validation_error(
         path, "Object contains unknown field `%U`%U", field

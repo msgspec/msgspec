@@ -154,6 +154,15 @@ class Custom:
         return self.x == other.x and self.y == other.y
 
 
+class StrEnumUTF8(enum.Enum):
+    A = "a"
+    B = "b"
+
+
+class StructForbidUTF8(Struct, forbid_unknown_fields=True):
+    x: int = 0
+
+
 class TestInvalidUTF8:
     """Invalid UTF-8 in the input is malformed data and raises DecodeError"""
 
@@ -181,6 +190,10 @@ class TestInvalidUTF8:
             ("key", dict[str, int]),
             ("nested", Any),
             ("nested", list[Union[int, str]]),
+            ("value", Literal["a", "b"]),
+            ("value", StrEnumUTF8),
+            ("key", dict[Literal["a", "b"], int]),
+            ("key", StructForbidUTF8),
         ],
     )
     def test_invalid_utf8_raises_decode_error(self, proto, kind, typ):
