@@ -1,9 +1,28 @@
 import inspect
 import sys
+import sysconfig
 import textwrap
 import types
 import uuid
 from contextlib import contextmanager
+
+import pytest
+
+emscripten_stack_limited = pytest.mark.skipif(
+    sys.platform == "emscripten",
+    reason="Pyodide can overflow the JS/Wasm stack before raising RecursionError",
+)
+
+# The C recursion limit on Windows ARM64 was lowered from 3000 to 1000 in
+# CPython 3.13 (python/cpython#117008); 3.12 still uses 3000.
+win_arm64_py312_stack_limited = pytest.mark.skipif(
+    sysconfig.get_platform() == "win-arm64" and sys.version_info[:2] == (3, 12),
+    reason="Python 3.12 on Windows ARM64 can overflow the C stack before raising RecursionError",
+)
+
+py315_or_later_only = pytest.mark.skipif(
+    sys.version_info < (3, 15), reason="frozendict was added in 3.15"
+)
 
 
 @contextmanager

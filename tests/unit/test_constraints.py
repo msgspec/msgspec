@@ -1,7 +1,9 @@
 import datetime
+import gc
 import math
 import re
-from typing import Annotated
+import sys
+from typing import Annotated, Union
 
 import pytest
 
@@ -168,10 +170,27 @@ class TestMetaObject:
     def test_nonnegative_integer_fields(self, field):
         Meta(**{field: 0})
         Meta(**{field: 10})
+        Meta(**{field: sys.maxsize})
         with pytest.raises(TypeError, match=f"`{field}` must be an int, got float"):
             Meta(**{field: 1.5})
-        with pytest.raises(ValueError, match=f"{field}` must be >= 0, got -10"):
+
+        with pytest.raises(ValueError, match=f"`{field}` must be >= 0, got -1"):
+            Meta(**{field: -1})
+        with pytest.raises(ValueError, match=f"`{field}` must be >= 0, got -10"):
             Meta(**{field: -10})
+        with pytest.raises(
+            ValueError, match=f"`{field}` must be >= 0, got {-sys.maxsize - 1}"
+        ):
+            Meta(**{field: -sys.maxsize - 1})
+
+    @pytest.mark.parametrize("field", ["min_length", "max_length"])
+    @pytest.mark.parametrize(
+        "val", [sys.maxsize + 1, -sys.maxsize - 2, 10**400, -(10**400)]
+    )
+    def test_nonnegative_integer_fields_out_of_range(self, field, val):
+        # Values outside Py_ssize_t need a range error in either direction.
+        with pytest.raises(ValueError, match=f"`{field}` is out of range"):
+            Meta(**{field: val})
 
     @pytest.mark.parametrize("field", ["pattern", "title", "description"])
     def test_string_fields(self, field):
@@ -212,6 +231,18 @@ class TestMetaObject:
     def test_mixing_numeric_and_nonnumeric_constraints_errors(self):
         with pytest.raises(ValueError, match="Cannot mix numeric constraints"):
             Meta(gt=0, pattern="foo")
+
+    def test_pattern_constraint_leak(self):
+        # See https://github.com/msgspec/msgspec/pull/1256 for the context.
+        for _ in range(5):
+            d = msgspec.json.Decoder(
+                Union[Annotated[str, Meta(pattern="^a")], list[int]],
+            )
+            d.decode(b'"abc"')
+            d.decode(b"[1,2]")
+            # Must not crash with the sanitizers:
+            del d
+            gc.collect()
 
 
 class TestInvalidConstraintAnnotations:
@@ -256,6 +287,11 @@ class TestInvalidConstraintAnnotations:
             msgspec.json.Decoder(Annotated[int, Meta(**{name: val})])
         assert name in str(rec.value)
         assert "not supported" in str(rec.value)
+
+    @pytest.mark.parametrize("kw", ["gt", "ge", "lt", "le", "multiple_of"])
+    def test_integer_range_for_floats(self, kw):
+        with pytest.raises(ValueError, match="out of range"):
+            Meta(**{kw: 10**400})
 
     def test_invalid_multiple_meta_annotations_conflict(self):
         with pytest.raises(TypeError, match="Multiple `Meta` annotations"):

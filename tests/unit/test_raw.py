@@ -8,6 +8,11 @@ import pytest
 
 import msgspec
 
+requires_subprocess = pytest.mark.skipif(
+    not getattr(subprocess, "_can_fork_exec", True),
+    reason="subprocess support required",
+)
+
 
 def test_raw_noargs():
     r = msgspec.Raw()
@@ -71,6 +76,7 @@ def test_raw_copy():
     assert ref() is None
 
 
+@requires_subprocess
 def test_raw_copy_doesnt_leak():
     """See https://github.com/msgspec/msgspec/pull/709"""
     script = textwrap.dedent(

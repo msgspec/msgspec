@@ -6,16 +6,18 @@ from typing import (
     ClassVar,
     Final,
     Literal,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     final,
     overload,
 )
 
-from typing_extensions import Buffer, Self, dataclass_transform
+from typing_extensions import (
+    Buffer,
+    Self,
+    TypeAlias,
+    dataclass_transform,
+    disjoint_base,
+)
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -26,6 +28,7 @@ from . import inspect, json, msgpack, structs, toml, yaml
 # https://github.com/python/typeshed/blob/17bde1bd5e556de001adde3c2f340ba1c3581bd2/stdlib/abc.pyi#L14-L19
 _SM = TypeVar("_SM", bound="StructMeta")
 
+@disjoint_base
 class StructMeta(type):
     __struct_fields__: ClassVar[tuple[str, ...]]
     __struct_defaults__: ClassVar[tuple[Any, ...]]
@@ -69,7 +72,7 @@ _T = TypeVar("_T")
 @final
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
-    def __bool__(self) -> Literal[False]: ...
+    def __bool__(self, /) -> Literal[False]: ...
 
 UNSET: Final = UnsetType.UNSET
 
@@ -89,7 +92,9 @@ def field(*, name: str | None = None) -> Any: ...
 @dataclass_transform(field_specifiers=(field,))
 class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[tuple[str, ...]]
+    __struct_defaults__: ClassVar[tuple[Any, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
+    __struct_encode_fields__: ClassVar[tuple[str, ...]]
     __match_args__: ClassVar[tuple[str, ...]]
     # A default __init__ so that Structs with unknown field types (say
     # constructed by `defstruct`) won't error on every call to `__init__`
@@ -117,8 +122,8 @@ class Struct(metaclass=StructMeta):
         dict: bool = False,
         cache_hash: bool = False,
     ) -> None: ...
-    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
-    def __replace__(self, **changes: Any) -> Self: ...
+    def __rich_repr__(self, /) -> list[tuple[str, Any]]: ...
+    def __replace__(self, /, **changes: Any) -> Self: ...
 
 def defstruct(
     name: str,
@@ -156,22 +161,78 @@ class Raw(bytes):
     @overload
     def __new__(cls) -> "Raw": ...
     @overload
-    def __new__(cls, msg: Buffer | str) -> "Raw": ...
-    def copy(self) -> "Raw": ...
+    def __new__(cls, msg: Buffer | str, /) -> "Raw": ...
+    def copy(self, /) -> "Raw": ...
+
+#: We can't represent this in types, only via a name:
+_NonNegativeInt: TypeAlias = int
 
 @final
 class Meta:
+    # Numeric:
+    # You can't mix:
+    # - `gt` and `ge`
+    # - `lt` and `le`
+    @overload
     def __init__(
         self,
         *,
         gt: int | float | None = None,
-        ge: int | float | None = None,
         lt: int | float | None = None,
+        multiple_of: int | float | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        gt: int | float | None = None,
         le: int | float | None = None,
         multiple_of: int | float | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        ge: int | float | None = None,
+        lt: int | float | None = None,
+        multiple_of: int | float | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        ge: int | float | None = None,
+        le: int | float | None = None,
+        multiple_of: int | float | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        examples: list[Any] | None = None,
+        extra_json_schema: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None: ...
+    # Other:
+    @overload
+    def __init__(
+        self,
+        *,
         pattern: str | None = None,
-        min_length: int | None = None,
-        max_length: int | None = None,
+        min_length: _NonNegativeInt | None = None,
+        max_length: _NonNegativeInt | None = None,
         tz: bool | None = None,
         title: str | None = None,
         description: str | None = None,
@@ -187,13 +248,13 @@ class Meta:
     pattern: Final[str | None]
     min_length: Final[int | None]
     max_length: Final[int | None]
-    tz: Final[int | None]
+    tz: Final[bool | None]
     title: Final[str | None]
     description: Final[str | None]
     examples: Final[list[Any] | None]
     extra_json_schema: Final[dict[str, Any] | None]
     extra: Final[dict[str, Any] | None]
-    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
+    def __rich_repr__(self, /) -> list[tuple[str, Any]]: ...
 
 def to_builtins(
     obj: Any,

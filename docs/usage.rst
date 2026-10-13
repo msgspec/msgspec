@@ -183,8 +183,8 @@ representation.
     types: `bytes` / `bytearray` / `memoryview` to base64 string,
     `datetime.datetime` / `datetime.date` / `datetime.time` /
     `datetime.timedelta` to ISO 8601 string, `uuid.UUID` and
-    `decimal.Decimal` to string, `set` / `frozenset` to `list`, `enum.Enum`
-    to its member value.
+    `decimal.Decimal` to string, `set` / `frozenset` to `list`,
+    ``frozendict`` to `dict`, `enum.Enum` to its member value.
   - Optional ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types``
     kwargs for tuning the output to the wrapping protocol.
 

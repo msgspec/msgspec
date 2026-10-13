@@ -19,6 +19,8 @@ import pytest
 
 import msgspec
 
+from .utils import emscripten_stack_limited
+
 UTC = datetime.timezone.utc
 
 
@@ -176,6 +178,7 @@ class TestEncoderMisc:
         return o
 
     @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    @emscripten_stack_limited
     def test_encode_infinite_recursive_object_errors(self, case):
         enc = msgspec.json.Encoder()
         o = getattr(self, "rec_obj%d" % case)()
@@ -238,6 +241,7 @@ class TestEncoderMisc:
         res = json.loads(msg)
         assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
 
+    @emscripten_stack_limited
     def test_encode_enc_hook_recursion_error(self):
         enc = msgspec.json.Encoder(enc_hook=lambda x: x)
 
@@ -252,6 +256,9 @@ class TestEncoderMisc:
 
         with pytest.raises(TypeError):
             enc.encode_into(1, bytearray(), "bad")
+
+        with pytest.raises(TypeError):
+            enc.encode_into(1, bytearray(), None)
 
         with pytest.raises(ValueError, match="offset"):
             enc.encode_into(1, bytearray(), -2)
@@ -1694,6 +1701,16 @@ class TestDecimal:
         msg = enc.encode(Decimal("1.3000"))
         assert msg == b"1.3000"
 
+    @pytest.mark.parametrize("decimal_format", ["string", "number", str, float])
+    def test_decimal_dict_keys_encoded_as_strings(self, decimal_format):
+        """JSON object keys must be strings, whatever `decimal_format` says
+        about values"""
+        enc = msgspec.json.Encoder(decimal_format=decimal_format)
+        msg = enc.encode({Decimal("1.5"): 1})
+        assert msg == b'{"1.5":1}'
+        res = msgspec.json.decode(msg, type=dict[Decimal, int])
+        assert res == {Decimal("1.5"): 1}
+
     @pytest.mark.parametrize(
         "msg",
         [
@@ -1773,6 +1790,27 @@ class TestDecimal:
         for msg, request_type, out_type in cases:
             out = msgspec.json.decode(msg, type=request_type)
             assert type(out) is out_type
+
+    @pytest.mark.parametrize(
+        "dec_value",
+        [
+            "NaN",
+            "nan",
+            "sNaN",
+            "snan",
+            "Infinity",
+            "infinity",
+            "-Infinity",
+            "-infinity",
+            "inf",
+            "-inf",
+        ],
+    )
+    def test_Encoder_encode_decimal_number_infinite(self, dec_value):
+        enc = msgspec.json.Encoder(decimal_format="number")
+        dec_num = decimal.Decimal(dec_value)
+        with pytest.raises(ValueError, match="non-finite"):
+            enc.encode(dec_num)
 
 
 class TestSequences:
@@ -1915,6 +1953,32 @@ class TestNamedTuple:
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=Test)
 
+    def test_namedtuple_like(self):
+        # This is not exactly a `NamedTuple`, but it passed the check:
+        class FieldsNotTuple(tuple):
+            _fields = ["a", "b"]
+            _default_fields = {}
+
+        class NotSequenceFields(tuple):
+            _fields = 1
+
+        class MissingDefaults(tuple):
+            _fields = ("a", "b")
+
+        class NotTupleSubclass:
+            _fields = ("a", "b")
+            _default_fields = {}
+
+        # It used to crash:
+        for klass in (
+            FieldsNotTuple,
+            NotSequenceFields,
+            MissingDefaults,
+            NotTupleSubclass,
+        ):
+            with pytest.raises(msgspec.ValidationError, match=klass.__name__):
+                msgspec.json.decode(b"[1, 2]", type=klass)
+
 
 class TestDict:
     def test_encode_dict_raises_non_string_or_numeric_keys(self):
@@ -2015,6 +2079,7 @@ class TestDict:
             1,
             1.5,
             FruitInt.APPLE,
+            FruitStr.APPLE,
             uuid.uuid4(),
             datetime.datetime.now(),
             datetime.date.today(),
@@ -2032,6 +2097,45 @@ class TestDict:
 
         msg2 = msgspec.json.decode(sol, type=dict[type(key), int])
         assert msg == msg2
+
+    def test_encode_dict_plain_enum_str_key(self):
+        # Regression: a plain `enum.Enum` with str values, used as a dict key.
+        # json.encode previously raised "Only dicts with str-like or
+        # number-like keys are supported", even though `dict[FruitStr, int]` is
+        # an accepted decode type and both msgpack and to_builtins handle it.
+        msg = {FruitStr.APPLE: 1, FruitStr.BANANA: 2}
+
+        res = msgspec.json.encode(msg)
+        assert res == b'{"apple":1,"banana":2}'
+
+        # JSON must agree with the msgpack encoder and with to_builtins.
+        expected = {"apple": 1, "banana": 2}
+        assert msgspec.msgpack.decode(msgspec.msgpack.encode(msg)) == expected
+        assert msgspec.to_builtins(msg, str_keys=True) == expected
+
+        # Full round-trip through the accepted decode type.
+        assert msgspec.json.decode(res, type=dict[FruitStr, int]) == msg
+
+    def test_encode_dict_plain_enum_str_key_nested(self):
+        # The same must hold when the dict is nested inside a Struct field.
+        class Rec(msgspec.Struct):
+            fruits: dict[FruitStr, int]
+
+        rec = Rec(fruits={FruitStr.APPLE: 5})
+        res = msgspec.json.encode(rec)
+        assert res == b'{"fruits":{"apple":5}}'
+        assert msgspec.json.decode(res, type=Rec) == rec
+
+    def test_encode_dict_plain_int_enum_key(self):
+        # A plain Enum with int values (not IntEnum) must keep round-tripping.
+        class IntVals(enum.Enum):
+            A = 1
+            B = 2
+
+        msg = {IntVals.A: 9, IntVals.B: 8}
+        res = msgspec.json.encode(msg)
+        assert res == b'{"1":9,"2":8}'
+        assert msgspec.json.decode(res, type=dict[IntVals, int]) == msg
 
     def test_decode_dict_int_enum_key(self):
         dec = msgspec.json.Decoder(dict[FruitInt, int])
@@ -2136,6 +2240,12 @@ class TestDict:
 
         with pytest.raises(TypeError):
             msgspec.json.encode({Custom("x"): 1}, enc_hook=enc_hook)
+
+    @emscripten_stack_limited
+    def test_encode_dict_custom_key_recursion_error(self):
+        class Custom:
+            def __init__(self, value):
+                self.value = value
 
         with pytest.raises(RecursionError):
             msgspec.json.encode({Custom("x"): 1}, enc_hook=lambda x: x)

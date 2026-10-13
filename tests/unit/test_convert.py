@@ -8,19 +8,38 @@ import uuid
 from base64 import b64encode
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Generic, Literal, NamedTuple, TypedDict, TypeVar
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    Generic,
+    Literal,
+    NamedTuple,
+    TypedDict,
+    TypeVar,
+)
 
 import pytest
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
-from .utils import max_call_depth, temp_module
+from .utils import (
+    emscripten_stack_limited,
+    max_call_depth,
+    py315_or_later_only,
+    temp_module,
+)
 
 try:
     import attrs
 except ImportError:
     attrs = None
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
@@ -153,6 +172,20 @@ def dictcls(request):
         return dict
     elif request.param == "subclass":
         return SubDict
+    else:
+        return GetItemObj
+
+
+@pytest.fixture(params=["frozendict", "subclass", "mapping"])
+def frozendictcls(request):
+    assert sys.version_info >= (3, 15), "Do not use frozendictcls on <3.15"
+    if request.param == "frozendict":
+        return frozendict
+    elif request.param == "subclass":
+
+        class SubFrozenDict(frozendict): ...
+
+        return SubFrozenDict
     else:
         return GetItemObj
 
@@ -395,6 +428,17 @@ class TestFloat:
         assert isinstance(res, float)
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
             convert(None, float)
+
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_float_from_int_out_of_range(self, strict):
+        # A python int too large to represent as a C double must raise a
+        # ValidationError, matching json.decode, rather than leaking the
+        # OverflowError PyLong_AsDouble sets as a SystemError.
+        big = 10**400
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert(big, float, strict=strict)
+        with pytest.raises(ValidationError, match="Number out of range"):
+            convert({"x": big}, dict[str, float], strict=strict)
 
     @pytest.mark.parametrize(
         "meta, good, bad",
@@ -1097,6 +1141,7 @@ class TestNamedTuple:
         with pytest.raises(ValidationError, match="Expected `array`, got `object`"):
             convert({"a": 1, "b": "two"}, Example)
 
+    @emscripten_stack_limited
     def test_namedtuple_cyclic_recursion(self):
         source = """
         from __future__ import annotations
@@ -1250,48 +1295,171 @@ class TestDict:
                 convert(dictcls({"x": x}), Ex)
 
 
+@py315_or_later_only
+class TestFrozenDict:
+    def check_frozen(self, val, expected):
+        assert isinstance(expected, frozendict)
+        assert type(val) is type(expected)
+        assert val == expected
+
+    def check_non_frozen(self, val, expected):
+        assert isinstance(expected, dict)
+        assert type(val) is type(expected)
+        assert val == expected
+
+    def test_any_frozendict(self, frozendictcls):
+        if frozendictcls is GetItemObj:
+            return  # `GetItemObj` will be converted to `dict` by default with `Any`
+        self.check_frozen(
+            convert(frozendictcls({"one": 1, 2: "two"}), Any),
+            frozendictcls({"one": 1, 2: "two"}),
+        )
+
+    def test_empty_frozendict(self, frozendictcls):
+        self.check_frozen(
+            convert(frozendictcls({}), frozendict),
+            frozendict(),
+        )
+        self.check_frozen(
+            convert(frozendictcls({}), frozendict[str, int]),
+            frozendict(),
+        )
+        self.check_frozen(
+            convert(frozendictcls({}), frozendict[str, int]),
+            frozendict(),
+        )
+
+        self.check_non_frozen(convert(frozendictcls({}), dict), {})
+        self.check_non_frozen(convert(frozendictcls({}), Dict[int, int]), {})
+        self.check_non_frozen(convert(frozendictcls({}), dict[int, int]), {})
+
+    def test_typed_frozendict(self, frozendictcls):
+        res = convert(frozendictcls({"x": 1, "y": 2}), frozendict[str, float])
+        self.check_frozen(res, frozendict({"x": 1.0, "y": 2.0}))
+        assert all(type(v) is float for v in res.values())
+
+        with pytest.raises(
+            ValidationError, match=r"Expected `str`, got `int` - at `\$\[\.\.\.\]`"
+        ):
+            convert(frozendictcls({"x": 1}), frozendict[str, str])
+
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
+        ):
+            convert(frozendictcls({"x": 1}), frozendict[int, str])
+
+    def test_frozendict_wrong_type(self):
+        with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
+            assert convert(1, frozendict)
+
+    def test_str_formatted_keys(self):
+        msg = frozendict({uuid.uuid4(): 1, uuid.uuid4(): 2})
+        res = convert(to_builtins(msg), frozendict[uuid.UUID, int])
+        self.check_frozen(res, msg)
+
+    @pytest.mark.parametrize("key_type", ["int", "enum", "literal"])
+    def test_int_keys(self, frozendictcls, key_type):
+        msg = frozendictcls({1: "A", 2: "B"})
+        if key_type == "enum":
+            Key = enum.IntEnum("Key", ["one", "two"])
+            sol = frozendict({Key.one: "A", Key.two: "B"})
+        elif key_type == "literal":
+            Key = Literal[1, 2]
+            sol = frozendict(msg)
+        else:
+            Key = int
+            sol = frozendict(msg)
+
+        res = convert(msg, frozendict[Key, str])
+        self.check_frozen(res, sol)
+
+        res = convert(msg, frozendict[Key, str], str_keys=True)
+        self.check_frozen(res, sol)
+
+        str_msg = frozendictcls(to_builtins(dict(msg), str_keys=True))
+        res = convert(str_msg, frozendict[Key, str], str_keys=True)
+        self.check_frozen(res, sol)
+
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
+        ):
+            convert(str_msg, frozendict[Key, str])
+
+    def test_non_str_keys(self, frozendictcls):
+        self.check_frozen(
+            convert(frozendictcls({1.5: 1}), frozendict[float, int]),
+            frozendict({1.5: 1}),
+        )
+        self.check_non_frozen(
+            convert(frozendictcls({1.5: 1}), dict[float, int]),
+            {1.5: 1},
+        )
+
+        with pytest.raises(ValidationError, match="Expected `array`, got `str`"):
+            convert(
+                frozendictcls({"x": 1}),
+                frozendict[tuple[int, int], int],
+                str_keys=True,
+            )
+
+    # Recursion error can't happen, because `frozendict` is immutable.
+
+    def test_frozendict_constrs(self, frozendictcls):
+        class Ex(Struct):
+            x: Annotated[frozendict, Meta(min_length=2, max_length=4)]
+
+        for n in [2, 4]:
+            x = frozendictcls({str(i): i for i in range(n)})
+            self.check_frozen(convert(frozendictcls({"x": x}), Ex).x, frozendict(x))
+
+        for n in [1, 5]:
+            x = {str(i): i for i in range(n)}
+            with pytest.raises(ValidationError):
+                convert(frozendictcls({"x": x}), Ex)
+
+
 class TestTypedDict:
-    def test_typeddict_total_true(self):
+    def test_typeddict_total_true(self, dictcls):
         class Ex(TypedDict):
             a: int
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x2, Ex) == x
+        assert convert(dictcls(x2), Ex) == x
 
         with pytest.raises(ValidationError) as rec:
-            convert({"b": "two"}, Ex)
+            convert(dictcls({"b": "two"}), Ex)
         assert "Object missing required field `a`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
-            convert({"a": 1, "b": 2}, Ex)
+            convert(dictcls({"a": 1, "b": 2}), Ex)
         assert "Expected `str`, got `int` - at `$.b`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
             convert({"a": 1, 1: 2}, Ex)
         assert "Expected `str` - at `key` in `$`" == str(rec.value)
 
-    def test_typeddict_total_false(self):
+    def test_typeddict_total_false(self, dictcls):
         class Ex(TypedDict, total=False):
             a: int
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x2, Ex) == x
+        assert convert(dictcls(x2), Ex) == x
 
         x3 = {"b": "two"}
-        assert convert(x3, Ex) == x3
+        assert convert(dictcls(x3), Ex) == x3
 
         x4 = {}
-        assert convert(x4, Ex) == x4
+        assert convert(dictcls(x4), Ex) == x4
 
-    def test_typeddict_total_partially_optional(self):
+    def test_typeddict_total_partially_optional(self, dictcls):
         class Base(TypedDict):
             a: int
             b: str
@@ -1300,14 +1468,64 @@ class TestTypedDict:
             c: str
 
         x = {"a": 1, "b": "two", "c": "extra"}
-        assert convert(x, Ex) == x
+        assert convert(dictcls(x), Ex) == x
 
         x2 = {"a": 1, "b": "two"}
-        assert convert(x2, Ex) == x2
+        assert convert(dictcls(x2), Ex) == x2
+
+        for msg in [{"b": "two"}, {"b": "two", "c": "extra"}]:
+            with pytest.raises(ValidationError) as rec:
+                convert(dictcls(msg), Ex)
+            assert "Object missing required field `a`" == str(rec.value)
+
+    def test_typeddict_nested_mapping(self):
+        class Inner(TypedDict):
+            b: int
+
+        class Ex(TypedDict):
+            a: list[Inner]
+
+        msg = GetItemObj(a=[GetItemObj(b=1), GetItemObj(b=2)])
+        assert convert(msg, Ex) == {"a": [{"b": 1}, {"b": 2}]}
 
         with pytest.raises(ValidationError) as rec:
-            convert({"b": "two"}, Ex)
-        assert "Object missing required field `a`" == str(rec.value)
+            convert(GetItemObj(a=[GetItemObj(b="bad")]), Ex)
+        assert "Expected `int`, got `str` - at `$.a[0].b`" == str(rec.value)
+
+    def test_typeddict_mapping_ignores_attributes(self):
+        class Ex(TypedDict, total=False):
+            keys: int
+            items: int
+
+        assert convert(GetItemObj(keys=1), Ex) == {"keys": 1}
+
+    def test_typeddict_mapping_getitem_error_propagates(self):
+        class Bad(GetItemObj):
+            def __getitem__(self, key):
+                raise ZeroDivisionError
+
+        class Ex(TypedDict, total=False):
+            a: int
+
+        with pytest.raises(ZeroDivisionError):
+            convert(Bad(), Ex)
+
+    def test_typeddict_mapping_incomplete_recursive_type(self):
+        class A(TypedDict, total=False):
+            child: "B"
+            bad: list | tuple
+
+        class B(TypedDict):
+            parent: A
+
+        A.__annotations__["child"] = B
+
+        # A fails to build, but B keeps a reference to A's partial info
+        with pytest.raises(TypeError, match="not supported"):
+            convert({}, A)
+
+        with pytest.raises(TypeError, match="TypedDict type is incomplete"):
+            convert(GetItemObj(parent=GetItemObj()), B)
 
 
 class TestDataclass:
@@ -2612,3 +2830,42 @@ class TestRaw:
 
         sol = Ex(x=raw)
         assert convert({"x": raw}, type=Ex) == sol
+
+    @pytest.mark.parametrize(
+        "value", [1, "a", [1, 2], {"a": 1}], ids=["int", "str", "array", "object"]
+    )
+    def test_raw_mismatch_error_message(self, value):
+        """Regression test for gh#1136 -- convert() only accepts an already
+        `Raw` instance for a `Raw`-typed field (e.g. via `yaml.decode`,
+        `toml.decode`, or `convert` on already-parsed data). The mismatch
+        error previously claimed `any` was acceptable, which contradicted
+        the `ValidationError` being raised."""
+
+        class Ex(Struct):
+            x: msgspec.Raw
+
+        with pytest.raises(ValidationError, match=r"^Expected `raw`, got `\w+`"):
+            convert({"x": value}, type=Ex)
+
+    @pytest.mark.parametrize("total", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_typeddict_error_message(self, total, value, kind):
+        class Ex(TypedDict, total=total):
+            x: msgspec.Raw
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"
+
+    @pytest.mark.parametrize("default_factory", [False, True])
+    @pytest.mark.parametrize("value, kind", [(None, "null"), (1, "int")])
+    def test_raw_dataclass_error_message(self, default_factory, value, kind):
+        @dataclass
+        class Ex:
+            x: msgspec.Raw = (
+                field(default_factory=msgspec.Raw) if default_factory else field()
+            )
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"x": value}, type=Ex)
+        assert str(rec.value) == f"Expected `raw`, got `{kind}` - at `$.x`"

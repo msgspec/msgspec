@@ -24,12 +24,15 @@ jobs:
       contents: read
     steps:
     - name: Checkout proposed repository
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       with:
         persist-credentials: false
         # pull_request_target runs this trusted workflow from the default branch.
-        # The proposed merge is checked out only to parse its workflow YAML.
+        # The proposed merge is checked out only to parse workflow YAML as data.
+        # Do not execute checked-out repository content in this workflow.
         ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+        sparse-checkout: .github
+        allow-unsafe-pr-checkout: true
 
     - name: Audit CI definitions
       env:

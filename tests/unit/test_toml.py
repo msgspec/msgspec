@@ -22,6 +22,12 @@ try:
 except ImportError:
     tomli_w = None
 
+from .utils import py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 needs_decode = pytest.mark.skipif(
     tomllib is None, reason="Neither tomllib or tomli are installed"
@@ -131,6 +137,17 @@ def test_roundtrip_typed(val, type):
     msg = msgspec.toml.encode({"x": val})
     res = msgspec.toml.decode(msg, type=dict[str, type])["x"]
     assert res == val
+
+
+@py315_or_later_only
+@needs_encode
+@needs_decode
+def test_roundtrip_frozendict():
+    val = frozendict({"x": 1})
+    msg = msgspec.toml.encode(val)
+    res = msgspec.toml.decode(msg, type=frozendict[str, int])
+    assert res == val
+    assert type(res) is frozendict
 
 
 @needs_encode

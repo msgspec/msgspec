@@ -80,7 +80,7 @@ ms_clzll(uint64_t x) {
 #elif defined(__GNUC__)
   return (uint32_t)__builtin_clzll(x);
 #else
-    uint32_t out;
+    uint32_t out = 0;
     if ((x >> 32) == 0) {
         out |= 32;
         x <<= 32;

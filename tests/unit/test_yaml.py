@@ -14,6 +14,12 @@ try:
 except ImportError:
     pytestmark = pytest.mark.skip(reason="PyYAML is not installed")
 
+from .utils import py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -109,6 +115,15 @@ def test_roundtrip_typed(val, type):
     msg = msgspec.yaml.encode(val)
     res = msgspec.yaml.decode(msg, type=type)
     assert res == val
+
+
+@py315_or_later_only
+def test_roundtrip_frozendict():
+    val = frozendict({"x": 1})
+    msg = msgspec.yaml.encode(val)
+    res = msgspec.yaml.decode(msg, type=frozendict[str, int])
+    assert res == val
+    assert type(res) is frozendict
 
 
 def test_encode_error():

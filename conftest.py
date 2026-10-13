@@ -50,8 +50,8 @@ def add_performance_profiling_options(parser):
         "--calibrate",
         action="store_true",
         help=(
-            "Override automatic calibration of benchmarks and enable the following options: ",
-            "--rounds, --warmup-rounds, --iterations",
+            "Override automatic calibration of benchmarks and enable the following options: "
+            "--rounds, --warmup-rounds, --iterations"
         ),
     )
     group.addoption(

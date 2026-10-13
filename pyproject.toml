@@ -20,6 +20,7 @@ requires-python = ">=3.10"
 maintainers = [
   { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
   { name = "Ofek Lev", email = "oss@ofek.dev" },
+  { name = "Nikita Sobolev", email = "mail@sobolevn.me" },
 ]
 keywords = [
   "JSON",
@@ -33,12 +34,17 @@ keywords = [
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: WebAssembly :: Emscripten",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: 3.15",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Software Development :: Libraries",
 ]
 
 [project.optional-dependencies]
@@ -57,16 +63,16 @@ Source = "https://github.com/msgspec/msgspec"
 
 [dependency-groups]
 bench = [
-  "cattrs==25.3.0",
-  "mashumaro==3.17",
-  "msgpack==1.1.2",
-  "orjson==3.11.4",
-  "ormsgpack==1.11.0",
-  "pydantic==2.12.4",
-  "python-rapidjson==1.22",
+  "cattrs==26.2.1",
+  "mashumaro==3.22",
+  "msgpack==1.2.2",
+  "orjson==3.12.0",
+  "ormsgpack==1.12.2",
+  "pydantic==2.13.5",
+  "python-rapidjson==1.25",
   "pysimdjson==7.0.2",
   "requests",
-  "ujson==5.11.0",
+  "ujson==6.0.0",
 ]
 dev = [
   "rust-just",
@@ -80,9 +86,9 @@ doc = [
   "sphinx-design",
 ]
 hooks = [
-  "codespell==2.4.1",
+  "codespell==2.4.3",
   "prek>=0.2.13",
-  "ruff==0.15.16",
+  "ruff==0.17.0",
 ]
 test-base = [
   "pytest>=9",
@@ -96,9 +102,9 @@ test-prof = [
 ]
 test-typing = [
   { include-group = "test-base" },
-  "mypy",
-  "pyright",
-  "pyrefly",
+  "mypy==2.4.0",
+  "pyright==1.1.414",
+  "pyrefly==1.3.2",
 ]
 test-unit = [
   { include-group = "test-base" },
@@ -156,3 +162,7 @@ preset = 'strict'
 min-severity = 'warn'
 # Don't use '# type: ignore' to suppress with pyright:
 enabled-ignores = ["pyrefly"]
+
+[tool.pyrefly.errors]
+# Do not require type annotations for `lambda` functions:
+implicit-any-lambda = false

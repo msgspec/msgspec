@@ -21,6 +21,7 @@
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
+#define PY315_PLUS (PY_VERSION_HEX >= 0x030f0000)
 
 /* In Python 3.14+, tuples cache their hash value in ob_hash. When a tuple is
  * allocated via tp_alloc (which zero-initializes memory), ob_hash is 0 — a
@@ -53,12 +54,16 @@ ms_popcount(uint64_t i) {                            \
 }
 #endif
 
-/* In Python 3.12+, tp_dict is NULL for some core types, PyType_GetDict returns
- * a borrowed reference to the interpreter or cls mapping */
+/* In Python 3.12+, tp_dict is NULL for some core types, so PyType_GetDict is
+ * used instead. It returns a new reference, which must be released; before
+ * 3.12 the tp_dict slot is read directly and is borrowed, so there is nothing
+ * to release. */
 #if PY312_PLUS
 #define MS_GET_TYPE_DICT(a) PyType_GetDict(a)
+#define MS_RELEASE_TYPE_DICT(d) Py_XDECREF(d)
 #else
 #define MS_GET_TYPE_DICT(a) ((a)->tp_dict)
+#define MS_RELEASE_TYPE_DICT(d) ((void)(d))
 #endif
 
 #if PY313_PLUS
@@ -114,11 +119,7 @@ ms_popcount(uint64_t i) {                            \
 static inline int
 PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
 {
-#if PY_VERSION_HEX >= 0x03000000
     PyObject *item = PyDict_GetItemWithError(mp, key);
-#else
-    PyObject *item = _PyDict_GetItemWithError(mp, key);
-#endif
     if (item != NULL) {
         Py_INCREF(item);
         *result = item;
@@ -132,6 +133,18 @@ PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
     return -1;
 }
 #endif // PY_VERSION_HEX < 0x030D00A1
+
+#if PY315_PLUS
+static inline PyObject *
+_PyFrozenDict_NewSteal(PyObject *dict) {
+    if (dict == NULL) {
+        return NULL;
+    }
+    PyObject *op = PyFrozenDict_New(dict);
+    Py_DECREF(dict);
+    return op;
+}
+#endif
 
 #if PY_VERSION_HEX < 0x030D00B3
 #  define Py_BEGIN_CRITICAL_SECTION(op) {
@@ -517,8 +530,10 @@ typedef struct {
     PyObject *concrete_types;
     PyObject *get_type_hints;
     PyObject *get_class_annotations;
+    PyObject *call_annotate_forwardref;
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
+    PyObject *convert_generic_alias;
     PyObject *rebuild;
     PyObject *types_uniontype;
 #if PY312_PLUS
@@ -552,6 +567,13 @@ static int
 ms_err_truncated(void)
 {
     PyErr_SetString(msgspec_get_global_state()->DecodeError, "Input data was truncated");
+    return -1;
+}
+
+static int
+ms_decimal_format_error(void)
+{
+    PyErr_SetString(PyExc_TypeError, "callable returned a value containing a Decimal");
     return -1;
 }
 
@@ -1150,9 +1172,13 @@ static PyObject *
 IntLookup_GetInt64(IntLookup *self, int64_t key) {
     if (MS_LIKELY(self->compact)) {
         IntLookupCompact *lk = (IntLookupCompact *)self;
-        Py_ssize_t index = key - lk->offset;
-        if (index >= 0 && index < Py_SIZE(lk)) {
-            return lk->table[index];
+        /* Compute the dense-table index in 64-bit space so large offsets
+         * cannot wrap through Py_ssize_t on 32-bit builds. */
+        if (key >= lk->offset) {
+            uint64_t index = (uint64_t)key - (uint64_t)(lk->offset);
+            if (index < (uint64_t)Py_SIZE(lk)) {
+                return lk->table[(Py_ssize_t)index];
+            }
         }
         return NULL;
     }
@@ -1450,7 +1476,7 @@ Raw_New(PyObject *msg) {
 }
 
 PyDoc_STRVAR(Raw__doc__,
-"Raw(msg="", /)\n"
+"Raw(msg=b'', /)\n"
 "--\n"
 "\n"
 "A buffer containing an encoded message.\n"
@@ -1595,7 +1621,7 @@ Raw_reduce(Raw *self, PyObject *unused)
 }
 
 PyDoc_STRVAR(Raw_copy__doc__,
-"copy(self)\n"
+"copy($self, /)\n"
 "--\n"
 "\n"
 "Copy a Raw object.\n"
@@ -1631,7 +1657,7 @@ static PyTypeObject Raw_Type = {
     .tp_name = "msgspec.Raw",
     .tp_doc = Raw__doc__,
     .tp_basicsize = sizeof(Raw),
-    .tp_itemsize = sizeof(char),
+    .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = Raw_new,
     .tp_dealloc = (destructor) Raw_dealloc,
@@ -1700,6 +1726,17 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
     }
     Py_ssize_t x = PyLong_AsSsize_t(val);
     if (x >= 0) return true;
+    if (PyErr_Occurred()) {
+        /* Doesn't fit in a Py_ssize_t, in either direction. Without this the
+         * pending OverflowError is replaced by the message below, which for a
+         * large positive value says it isn't >= 0. */
+        PyErr_Clear();
+        PyErr_Format(
+            PyExc_ValueError, "`%s` is out of range, %R is not a valid length",
+            param, val
+        );
+        return false;
+    }
     PyErr_Format(PyExc_ValueError, "`%s` must be >= 0, got %R", param, val);
     return false;
 }
@@ -1709,6 +1746,15 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
     double x;
     if (PyLong_CheckExact(val)) {
         x = PyLong_AsDouble(val);
+        if (x == -1.0 && PyErr_Occurred()) {
+            PyErr_Clear();
+            PyErr_Format(
+                PyExc_ValueError,
+                "`%s` is out of range, %R is not representable as a float",
+                param, val
+            );
+            return false;
+        }
     }
     else if (PyFloat_CheckExact(val)) {
         x = PyFloat_AS_DOUBLE(val);
@@ -2824,6 +2870,18 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
 #define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
 #define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
+// Despite the fact that `frozendict` was added in 3.15,
+// this type is always defined for order consistency:
+#define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+
+/* Aliases for commonly used types */
+#if PY315_PLUS
+#define MS_ANY_DICT                 (MS_TYPE_DICT | MS_TYPE_FROZENDICT)
+#else
+// `frozendict` was added in 3.15, before that we can ignore this type.
+#define MS_ANY_DICT                 MS_TYPE_DICT
+#endif
+
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2869,7 +2927,7 @@ AssocList_Sort(AssocList* list) {
  * O | TYPEDDICT | DATACLASS |
  * O | NAMEDTUPLE |
  * O | STR_REGEX |
- * T | DICT [key, value] |
+ * T | DICT [key, value] | FROZENDICT [key, value] |
  * T | LIST | SET | FROZENSET | VARTUPLE |
  * I | INT_MIN |
  * I | INT_MAX |
@@ -2898,7 +2956,7 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_03 (MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS)
 #define SLOT_04 MS_TYPE_NAMEDTUPLE
 #define SLOT_05 MS_CONSTR_STR_REGEX
-#define SLOT_06 MS_TYPE_DICT
+#define SLOT_06 MS_ANY_DICT
 #define SLOT_07 (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)
 #define SLOT_08 MS_CONSTR_INT_MIN
 #define SLOT_09 MS_CONSTR_INT_MAX
@@ -3384,13 +3442,13 @@ TypeNode_get_traverse_ranges(
                 MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
                 MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
                 MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
-                MS_TYPE_NAMEDTUPLE
+                MS_TYPE_NAMEDTUPLE | MS_CONSTR_STR_REGEX
             )
         );
         /* Number of typenode details */
         n_type = ms_popcount(
             type->types & (
-                MS_TYPE_DICT |
+                MS_ANY_DICT |
                 MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE
             )
         );
@@ -3452,8 +3510,12 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
+    }
+    if ((self->types & ~MS_EXTRA_FLAG) == 0) {
+        /* Ignore TypedDict/dataclass field metadata when identifying Raw. */
+        return PyUnicode_FromString("raw");
     }
     if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
         if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
@@ -3493,7 +3555,8 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & (
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS | MS_TYPE_DICT
+            MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
+            MS_ANY_DICT
         )
     ) {
         if (!strbuilder_extend_literal(&builder, "object")) return NULL;
@@ -3796,8 +3859,7 @@ typenode_collect_constraints(
     else if (kind == CK_STR) {
         if (constraints->regex != NULL) {
             state->types |= MS_CONSTR_STR_REGEX;
-            Py_INCREF(constraints->regex);
-            state->c_str_regex = constraints->regex;
+            Py_XSETREF(state->c_str_regex, Py_NewRef(constraints->regex));
         }
         if (constraints->min_length != NULL) {
             state->types |= MS_CONSTR_STR_MIN_LENGTH;
@@ -3868,7 +3930,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS |
             MS_TYPE_NAMEDTUPLE |
             MS_CONSTR_STR_REGEX |
-            MS_TYPE_DICT |
+            MS_ANY_DICT |
             MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE |
             MS_CONSTR_INT_MIN |
             MS_CONSTR_INT_MAX |
@@ -4011,7 +4073,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         Py_INCREF(state->c_str_regex);
         out->details[e_ind++].pointer = state->c_str_regex;
     }
-    if (state->dict_key_obj != NULL) {
+    if (state->dict_key_obj != NULL && state->dict_val_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
         if (temp == NULL) goto error;
         out->details[e_ind++].pointer = temp;
@@ -4160,7 +4222,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             MS_TYPE_TYPEDDICT | MS_TYPE_DATACLASS
         )
     );
-    if (state->types & MS_TYPE_DICT) {
+    if (state->types & MS_ANY_DICT) {
         ndictlike++;
     }
     if (ndictlike > 1) {
@@ -4287,11 +4349,11 @@ typenode_collect_enum(TypeNodeCollectState *state, PyObject *obj) {
 }
 
 static int
-typenode_collect_dict(TypeNodeCollectState *state, PyObject *key, PyObject *val) {
-    if (state->dict_key_obj != NULL) {
+typenode_collect_dict(TypeNodeCollectState *state, uint64_t type, PyObject *key, PyObject *val) {
+    if (state->dict_key_obj != NULL || state->dict_val_obj != NULL) {
         return typenode_collect_err_unique(state, "dict");
     }
-    state->types |= MS_TYPE_DICT;
+    state->types |= type;
     Py_INCREF(key);
     state->dict_key_obj = key;
     Py_INCREF(val);
@@ -4958,11 +5020,37 @@ error:
 
 static bool
 is_namedtuple_class(TypeNodeCollectState *state, PyObject *t) {
-    return (
-        PyType_Check(t)
-        && PyType_IsSubtype((PyTypeObject *)t, &PyTuple_Type)
-        && PyObject_HasAttr(t, state->mod->str__fields)
-    );
+    // There's no `NamedTuple` class, it is not really easy to check.
+    // We use structural checks:
+    // 1. It must be a type
+    // 2. It must be a subtype of `tuple`
+    // 3. It must have `_fields` of type `tuple`
+    // 4. It must have `_default_fields` of type `dict`
+    // NOTE: keep in sync with `NamedTupleInfo_Convert`!
+    if (
+        !PyType_Check(t)
+        || !PyType_IsSubtype((PyTypeObject *)t, &PyTuple_Type)
+    ) {
+        return false;
+    }
+
+    PyObject *fields = PyObject_GetAttr(t, state->mod->str__fields);
+    if (fields == NULL) {
+        PyErr_Clear();
+        return false;
+    }
+    if (!PyTuple_CheckExact(fields)) return false;
+    Py_DECREF(fields);
+
+    PyObject *defaults = PyObject_GetAttr(t, state->mod->str__field_defaults);
+    if (defaults == NULL) {
+        PyErr_Clear();
+        return false;
+    }
+;
+    bool result = (bool)PyDict_CheckExact(defaults);
+    Py_DECREF(defaults);
+    return result;
 }
 
 static bool
@@ -4982,6 +5070,29 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
             PyObject_HasAttr(t, state->mod->str___attrs_attrs__)
         )
     );
+}
+
+static MS_INLINE int
+normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
+    // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
+    // 'typing._GenericAlias'. 'types.GenericAlias' has __slots__ and forwards
+    // attribute access to its origin, so we can't cache type info (as
+    // '__msgspec_cache__') on it; a 'typing._GenericAlias' can.
+    //
+    // only the branches that cache on the alias (struct/dataclass/TypedDict/
+    // NamedTuple/Literal) need to call this. a 'types.GenericAlias' here only arises
+    // when  subclassing a builtin container generic (e.g. 'collections.abc.Mapping') or
+    // from a manually constructed 'types.GenericAlias' (e.g. wrapping 'typing.Literal').
+    //
+    // replace '*t' with a new reference on success (dropping the original), or
+    // return -1 with an exception set.
+    if (MS_LIKELY(Py_TYPE(*t) != &Py_GenericAliasType)) return 0;
+    PyObject *converted = PyObject_CallFunctionObjArgs(
+        state->mod->convert_generic_alias, origin, args, NULL
+    );
+    if (converted == NULL) return -1;
+    Py_SETREF(*t, converted);
+    return 0;
 }
 
 static int
@@ -5065,7 +5176,12 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         ms_is_struct_cls(t) ||
         (origin != NULL && ms_is_struct_cls(origin))
     ) {
-        out = typenode_collect_struct(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_struct(state, t);
+        }
     }
     else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
@@ -5075,6 +5191,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
         out = typenode_collect_dict(
             state,
+            MS_TYPE_DICT,
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
         );
@@ -5088,6 +5205,18 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
         );
     }
+#if PY315_PLUS
+    else if (origin == (PyObject*)(&PyFrozenDict_Type)) {
+        kind = CK_MAP;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
+        out = typenode_collect_dict(
+            state,
+            MS_TYPE_FROZENDICT,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
+        );
+    }
+#endif
     else if (origin == (PyObject*)(&PySet_Type)) {
         kind = CK_ARRAY;
         if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
@@ -5155,25 +5284,45 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
         }
-        out = PyList_Append(state->literals, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = PyList_Append(state->literals, t);
+        }
     }
     else if (
         is_typeddict_class(state, t) ||
         (origin != NULL && is_typeddict_class(state, origin))
     ) {
-        out = typenode_collect_typeddict(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_typeddict(state, t);
+        }
     }
     else if (
         is_namedtuple_class(state, t) ||
         (origin != NULL && is_namedtuple_class(state, origin))
     ) {
-        out = typenode_collect_namedtuple(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_namedtuple(state, t);
+        }
     }
     else if (
         is_dataclass_or_attrs_class(state, t) ||
         (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        out = typenode_collect_dataclass(state, t);
+        if (normalize_types_generic_alias(state, &t, origin, args) < 0) {
+            out = -1;
+        }
+        else {
+            out = typenode_collect_dataclass(state, t);
+        }
     }
     else {
         if (origin != NULL) {
@@ -5694,7 +5843,24 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
 
 static int
 structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base) {
+    if (!PyType_Check(base)) {
+        /* CPython's metaclass conflict check will catch this issue earlier on,
+         * but it's still good to have this check in place in case that's ever
+         * removed */
+        PyErr_SetString(PyExc_TypeError, "All base classes must be types");
+        return -1;
+    }
+
     if ((PyTypeObject *)base == &StructMixinType) return 0;
+
+    /* A base that has not been readied yet, which a C extension can expose,
+     * has neither its type dict nor its inherited slots filled in. Readying
+     * a type owned by another extension can have side effects, so such a
+     * base is rejected instead. */
+    if (!PyType_HasFeature((PyTypeObject *)base, Py_TPFLAGS_READY)) {
+        PyErr_Format(PyExc_TypeError, "Base class %R is not ready", base);
+        return -1;
+    }
 
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
         info->already_has_weakref = true;
@@ -5702,14 +5868,6 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
 
     if (((PyTypeObject *)base)->tp_dictoffset) {
         info->already_has_dict = true;
-    }
-
-    if (!PyType_Check(base)) {
-        /* CPython's metaclass conflict check will catch this issue earlier on,
-         * but it's still good to have this check in place in case that's ever
-         * removed */
-        PyErr_SetString(PyExc_TypeError, "All base classes must be types");
-        return -1;
     }
 
     if (!ms_is_struct_cls(base)) {
@@ -5720,12 +5878,22 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         static const char *attrs[] = {"__init__", "__new__"};
         Py_ssize_t nattrs = 2;
         PyObject *tp_dict = MS_GET_TYPE_DICT((PyTypeObject *)base);
+        if (tp_dict == NULL) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Cannot read the attributes of base class %R",
+                base
+            );
+            return -1;
+        }
         for (Py_ssize_t i = 0; i < nattrs; i++) {
             if (PyDict_GetItemString(tp_dict, attrs[i]) != NULL) {
                 PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
+                MS_RELEASE_TYPE_DICT(tp_dict);
                 return -1;
             }
         }
+        MS_RELEASE_TYPE_DICT(tp_dict);
         return 0;
     }
 
@@ -5809,7 +5977,12 @@ structmeta_process_rename(
         ((Field *)default_value)->name != NULL
     ) {
         Field *field = (Field *)default_value;
-        if (PyUnicode_Compare(name, field->name) == 0) return 0;
+        if (PyUnicode_Compare(name, field->name) == 0) {
+            if (PyDict_GetItem(info->renamed_fields, name) != NULL) {
+                return PyDict_DelItem(info->renamed_fields, name);
+            }
+            return 0;
+        }
         return PyDict_SetItem(info->renamed_fields, name, field->name);
     }
 
@@ -5853,6 +6026,9 @@ structmeta_process_rename(
     int out = 0;
     if (PyUnicode_Compare(name, temp) != 0) {
         out = PyDict_SetItem(info->renamed_fields, name, temp);
+    }
+    else if (PyDict_GetItem(info->renamed_fields, name) != NULL) {
+        out = PyDict_DelItem(info->renamed_fields, name);
     }
     Py_DECREF(temp);
     return out;
@@ -5986,6 +6162,7 @@ structmeta_is_classvar(
             PyObject *temp = PyDict_GetItemString(*module_ns, "typing");
             if (temp == NULL) return 0;
             temp = PyObject_GetAttrString(temp, "ClassVar");
+            if (temp == NULL) return -1;
             int status = temp == mod->typing_classvar;
             Py_DECREF(temp);
             return status;
@@ -6021,16 +6198,12 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             Py_DECREF(annotate);
             return 0;
         }
-        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
-        if (format == NULL) {
-            Py_DECREF(annotate);
-            return -1;
-        }
-        annotations = PyObject_CallOneArg(
-            annotate, format
-        );
+        /* Use Format.FORWARDREF so unresolved names do not raise NameError
+         * while the class body is still executing. See PEP 649 / annotationlib:
+         * https://docs.python.org/3/library/annotationlib.html#using-annotations-in-a-metaclass
+         */
+        annotations = PyObject_CallOneArg(mod->call_annotate_forwardref, annotate);
         Py_DECREF(annotate);
-        Py_DECREF(format);
         if (annotations == NULL) {
             return -1;
         }
@@ -6087,6 +6260,8 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
 
         if (structmeta_process_default(info, field) < 0) goto error;
     }
+    Py_DECREF(annotations);
+    Py_XDECREF(module_ns);
     return 0;
 error:
     Py_DECREF(annotations);
@@ -6525,6 +6700,14 @@ StructMeta_new_inner(
         }
         else if (info.dict == OPT_TRUE || info.already_has_dict) {
             PyErr_SetString(PyExc_ValueError, "Cannot set gc=False and dict=True");
+            goto cleanup;
+        }
+        else if (info.weakref == OPT_TRUE || info.already_has_weakref) {
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Cannot set gc=False and weakref=True at the same time, due to "
+                "possible memory corruption"
+            );
             goto cleanup;
         }
     }
@@ -7394,7 +7577,7 @@ static PyGetSetDef StructMeta_getset[] = {
 };
 
 PyDoc_STRVAR(StructMeta__doc__,
-"StructMeta(name, bases, namespace, /, *, **struct_config)\n"
+"StructMeta(name, bases, namespace, /, **struct_config)\n"
 "--\n"
 "\n"
 "The metaclass for creating `Struct` types. See its documentation for the\n"
@@ -8090,7 +8273,7 @@ cleanup:
 }
 
 PyDoc_STRVAR(struct_replace__doc__,
-"replace(struct, / **changes)\n"
+"replace(struct, /, **changes)\n"
 "--\n"
 "\n"
 "Create a new struct instance of the same type as ``struct``, replacing fields\n"
@@ -8136,7 +8319,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 }
 
 PyDoc_STRVAR(struct_asdict__doc__,
-"asdict(struct)\n"
+"asdict(struct, /)\n"
 "--\n"
 "\n"
 "Convert a struct to a dict.\n"
@@ -8204,7 +8387,7 @@ error:
 }
 
 PyDoc_STRVAR(struct_astuple__doc__,
-"astuple(struct)\n"
+"astuple(struct, /)\n"
 "--\n"
 "\n"
 "Convert a struct to a tuple.\n"
@@ -8271,7 +8454,7 @@ error:
 }
 
 PyDoc_STRVAR(struct_force_setattr__doc__,
-"force_setattr(struct, name, value)\n"
+"force_setattr(struct, name, value, /)\n"
 "--\n"
 "\n"
 "Set an attribute on a struct, even if the struct is frozen.\n"
@@ -8364,13 +8547,13 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
+        if (val == NULL) goto error;
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
             if (is_default(val, default_val)) continue;
         }
 
-        if (val == NULL) goto error;
         PyObject *part = PyTuple_Pack(2, field, val);
         if (part == NULL) goto error;
         int status = PyList_Append(out, part);
@@ -8821,9 +9004,9 @@ DataclassInfo_Convert(PyObject *obj) {
         TypeNode *type = TypeNode_Convert(PyTuple_GET_ITEM(field, 1));
         if (type == NULL) goto cleanup;
         /* If field has a default factory, set extra flag bit */
-        if (PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))) {
-            type->types |= MS_EXTRA_FLAG;
-        }
+        int has_df = PyObject_IsTrue(PyTuple_GET_ITEM(field, 2));
+        if (has_df == -1) goto cleanup;
+        if (has_df) type->types |= MS_EXTRA_FLAG;
         info->fields[i].type = type;
         info->fields[i].key = PyTuple_GET_ITEM(field, 0);
         Py_INCREF(info->fields[i].key);
@@ -8842,7 +9025,7 @@ cleanup:
             * occasions. */
             PyObject *err_type, *err_value, *err_tb;
             PyErr_Fetch(&err_type, &err_value, &err_tb);
-            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
+            (void)PyObject_DelAttr(obj, mod->str___msgspec_cache__);
             PyErr_Restore(err_type, err_value, err_tb);
         }
     }
@@ -8975,6 +9158,7 @@ static PyTypeObject DataclassInfo_Type = {
 
 static PyObject *
 NamedTupleInfo_Convert(PyObject *obj) {
+    // NOTE: keep in sync with `is_namedtuple_class`!
     MsgspecState *mod = msgspec_get_global_state();
     NamedTupleInfo *info = NULL;
     PyObject *annotations = NULL, *cls = NULL, *fields = NULL;
@@ -9003,6 +9187,10 @@ NamedTupleInfo_Convert(PyObject *obj) {
     if (fields == NULL) goto cleanup;
     defaults = PyObject_GetAttr(cls, mod->str__field_defaults);
     if (defaults == NULL) goto cleanup;
+
+    // It is checked in `is_namedtuple_class`:
+    assert(PyTuple_CheckExact(fields));
+    assert(PyDict_CheckExact(defaults));
 
     /* Allocate and zero-out a new NamedTupleInfo object */
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
@@ -9138,7 +9326,7 @@ Ext_New(long code, PyObject *data) {
 }
 
 PyDoc_STRVAR(Ext__doc__,
-"Ext(code, data)\n"
+"Ext(code, data, /)\n"
 "--\n"
 "\n"
 "A record representing a MessagePack Extension Type.\n"
@@ -9216,7 +9404,7 @@ Ext_dealloc(Ext *self)
 }
 
 static PyMemberDef Ext_members[] = {
-    {"code", T_INT, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"code", T_LONG, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
@@ -9287,6 +9475,33 @@ typedef struct {
     bool fastpath;
     bool standard_getattr;
 } DataclassIter;
+
+static MS_INLINE PyObject *
+ms_type_lookup_ref(PyTypeObject *type, PyObject *name) {
+#if PY313_PLUS
+    return _PyType_LookupRef(type, name);
+#else
+    PyObject *out = _PyType_Lookup(type, name);
+    Py_XINCREF(out);
+    return out;
+#endif
+}
+
+static PyObject *
+ms_get_dataclass_fields(MsgspecState *mod, PyTypeObject *type, PyObject *obj) {
+    PyObject *fields = ms_type_lookup_ref(type, mod->str___dataclass_fields__);
+    if (fields == NULL) return NULL;
+    if (MS_LIKELY(
+        PyDict_CheckExact(fields) &&
+        type->tp_getattro == PyObject_GenericGetAttr
+    )) {
+        return fields;
+    }
+    Py_DECREF(fields);
+    fields = PyObject_GetAttr(obj, mod->str___dataclass_fields__);
+    if (fields == NULL) PyErr_Clear();
+    return fields;
+}
 
 static bool
 dataclass_iter_setup(DataclassIter *iter, PyObject *obj, PyObject *fields) {
@@ -9521,6 +9736,7 @@ cleanup:
 enum decimal_format {
     DECIMAL_FORMAT_STRING = 0,
     DECIMAL_FORMAT_NUMBER = 1,
+    DECIMAL_FORMAT_CALLABLE = 2,
 };
 
 enum uuid_format {
@@ -9532,10 +9748,12 @@ enum uuid_format {
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
     PyObject *enc_hook;         /* `enc_hook` callback */
+    PyObject *decimal_callable; /* `decimal_format` callable */
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
     enum order_mode order;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
+    bool in_decimal_callable;
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
@@ -9546,6 +9764,7 @@ typedef struct EncoderState {
 typedef struct Encoder {
     PyObject_HEAD
     PyObject *enc_hook;
+    PyObject *decimal_callable;
     MsgspecState *mod;
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
@@ -9617,8 +9836,14 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process decimal format */
+    self->decimal_callable = NULL;
     if (decimal_format == NULL) {
         self->decimal_format = DECIMAL_FORMAT_STRING;
+    }
+    else if (PyCallable_Check(decimal_format)) {
+        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
+        Py_INCREF(decimal_format);
+        self->decimal_callable = decimal_format;
     }
     else {
         bool ok = false;
@@ -9635,7 +9860,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         if (!ok) {
             PyErr_Format(
                 PyExc_ValueError,
-                "`decimal_format` must be 'string' or 'number', got %R",
+                "`decimal_format` must be 'string', 'number', or a callable, got %R",
                 decimal_format
             );
             return -1;
@@ -9698,6 +9923,7 @@ static int
 Encoder_traverse(Encoder *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->enc_hook);
+    Py_VISIT(self->decimal_callable);
     return 0;
 }
 
@@ -9705,6 +9931,7 @@ static int
 Encoder_clear(Encoder *self)
 {
     Py_CLEAR(self->enc_hook);
+    Py_CLEAR(self->decimal_callable);
     return 0;
 }
 
@@ -9717,7 +9944,7 @@ Encoder_dealloc(Encoder *self)
 }
 
 PyDoc_STRVAR(Encoder_encode_into__doc__,
-"encode_into(self, obj, buffer, offset=0, /)\n"
+"encode_into($self, obj, buffer, offset=0, /)\n"
 "--\n"
 "\n"
 "Serialize an object into an existing bytearray buffer.\n"
@@ -9779,6 +10006,8 @@ encoder_encode_into_common(
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_buffer = buf,
@@ -9797,7 +10026,7 @@ encoder_encode_into_common(
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
-"encode(self, obj)\n"
+"encode($self, obj, /)\n"
 "--\n"
 "\n"
 "Serialize an object to bytes.\n"
@@ -9826,6 +10055,8 @@ encoder_encode_common(
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_len = 0,
@@ -9883,6 +10114,8 @@ encode_common(
         .mod = mod,
         .enc_hook = enc_hook,
         .decimal_format = DECIMAL_FORMAT_STRING,
+        .decimal_callable = NULL,
+        .in_decimal_callable = false,
         .uuid_format = UUID_FORMAT_CANONICAL,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
@@ -9914,7 +10147,13 @@ Encoder_decimal_format(Encoder *self, void *closure) {
     if (self->decimal_format == DECIMAL_FORMAT_STRING) {
         return PyUnicode_InternFromString("string");
     }
-    return PyUnicode_InternFromString("number");
+    else if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
+        return PyUnicode_InternFromString("number");
+    }
+    else {
+        Py_INCREF(self->decimal_callable);
+        return self->decimal_callable;
+    }
 }
 
 static PyObject*
@@ -10171,8 +10410,9 @@ static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 #if PY314_PLUS
     /* obj is always a PyLong here, so PyLong_GetSign can't fail */
+    assert(PyLong_CheckExact(obj));
     int sign = 0;
-    PyLong_GetSign(obj, &sign);
+    (void)PyLong_GetSign(obj, &sign);
     bool neg = sign < 0;
 #else
     bool neg = _PyLong_Sign(obj) < 0;
@@ -10199,9 +10439,11 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         PyObject *remainder = PyNumber_Remainder(obj, base);
         Py_DECREF(base);
         if (remainder == NULL) return false;
-        long iremainder = PyLong_AsLong(remainder);
+        long long iremainder = PyLong_AsLongLong(remainder);
         Py_DECREF(remainder);
         if (iremainder != 0) {
+            // There was an overflow error, do not hide it:
+            if (iremainder == -1 && PyErr_Occurred()) return false;
             _err_int_constraint(
                 "Expected `int` that's a multiple of %lld%U", c, path
             );
@@ -11676,10 +11918,10 @@ ms_encode_base64(const char *input, Py_ssize_t input_size, char *out) {
 static int
 ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
     PyObject *int128 = PyObject_GetAttr(obj, mod->str_int);
-    if (int128 == NULL) return -1;
+    if (int128 == NULL) goto error;
     if (MS_UNLIKELY(!PyLong_CheckExact(int128))) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
-        return -1;
+        goto error;
     }
 #if PY313_PLUS
     int out = (int)PyLong_AsNativeBytes(
@@ -11693,6 +11935,10 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
 #endif
     Py_DECREF(int128);
     return out;
+
+error:
+    Py_XDECREF(int128);
+    return -1;
 }
 
 static PyObject *
@@ -12502,11 +12748,14 @@ PyDoc_STRVAR(Encoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
-"decimal_format : {'string', 'number'}, optional\n"
+"decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
-"    they're encoded as strings, if 'number', they're encoded as floats.\n"
-"    Defaults to 'string', which is the recommended value since 'number'\n"
-"    may result in precision loss when decoding.\n"
+"    they're encoded as strings, if 'number', they're encoded as floats. If\n"
+"    a callable is provided, it will be called with the `decimal.Decimal`\n"
+"    object and must return a JSON-serializable value (but **not** another\n"
+"    `decimal.Decimal` or a nested structure containing `decimal.Decimal`).\n"
+"    Defaults to 'string', which is the recommended value since 'number' may\n"
+"    result in precision loss when decoding.\n"
 "uuid_format : {'canonical', 'hex', 'bytes'}, optional\n"
 "    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
 "    and 'hex' formats encode them as strings with and without hyphens\n"
@@ -12944,7 +13193,7 @@ mpack_encode_and_free_assoclist(EncoderState *self, AssocList *list) {
 
     if (mpack_encode_map_header(self, list->size, "dicts") < 0) goto cleanup2;
 
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
 
     for (Py_ssize_t i = 0; i < list->size; i++) {
         AssocItem *item = &(list->items[i]);
@@ -13391,10 +13640,20 @@ mpack_encode_decimal(EncoderState *self, PyObject *obj)
         if (temp == NULL) return -1;
         out = mpack_encode_str(self, temp);
     }
-    else {
+    else if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
         temp = PyNumber_Float(obj);
         if (temp == NULL) return -1;
         out = mpack_encode_float(self, temp);
+    }
+    else {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
+        if (temp == NULL) return -1;
+        self->in_decimal_callable = true;
+        out = mpack_encode(self, temp);
+        self->in_decimal_callable = false;
     }
     Py_DECREF(temp);
     return out;
@@ -13538,14 +13797,11 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
         return mpack_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             int status = mpack_encode_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return status;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return mpack_encode_object(self, obj);
@@ -13587,6 +13843,11 @@ mpack_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+#endif
     else {
         return mpack_encode_uncommon(self, type, obj);
     }
@@ -13663,7 +13924,7 @@ static PyTypeObject Encoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
-"msgpack_encode(obj, *, enc_hook=None, order=None)\n"
+"msgpack_encode(obj, /, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as MessagePack.\n"
@@ -13720,12 +13981,14 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
-"decimal_format : {'string', 'number'}, optional\n"
+"decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
-"    they're encoded as strings, if 'number', they're encoded as floats.\n"
-"    Defaults to 'string', which is the recommended value since 'number'\n"
-"    may result in precision loss when decoding for some JSON library\n"
-"    implementations.\n"
+"    they're encoded as strings, if 'number', they're encoded as floats. If\n"
+"    a callable is provided, it will be called with the `decimal.Decimal`\n"
+"    object and must return a JSON-serializable value (but **not** another\n"
+"    `decimal.Decimal` or a nested structure containing `decimal.Decimal`).\n"
+"    Defaults to 'string', which is the recommended value since 'number' may\n"
+"    result in precision loss when decoding for some JSON library implementations.\n"
 "uuid_format : {'canonical', 'hex'}, optional\n"
 "    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
 "    and 'hex' formats encode them as strings with and without hyphens\n"
@@ -14010,9 +14273,20 @@ json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
 
-    int status = (
-        is_key ? json_encode_dict_key_noinline(self, value) : json_encode(self, value)
-    );
+    int status;
+    if (is_key) {
+        /* A str value must be written as a JSON object key directly.
+         * json_encode_dict_key_noinline only handles non-str keys (str keys
+         * are fast-pathed in json_encode_dict_key), so recursing into it with
+         * a str value would wrongly raise "unsupported key" - e.g. for a plain
+         * Enum whose members have str values when used as a dict key. */
+        status = PyUnicode_Check(value)
+            ? json_encode_str(self, value)
+            : json_encode_dict_key_noinline(self, value);
+    }
+    else {
+        status = json_encode(self, value);
+    }
 
     Py_DECREF(value);
     return status;
@@ -14033,7 +14307,41 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 json_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *temp = PyObject_Str(obj);
+    PyObject *temp;
+
+    if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallFunctionObjArgs(self->decimal_callable, obj, NULL);
+        if (temp == NULL) return -1;
+
+        self->in_decimal_callable = true;
+        int out = json_encode(self, temp);
+        self->in_decimal_callable = false;
+        Py_DECREF(temp);
+        return out;
+    }
+
+    if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
+        // We can't format `Inf` / `Nan` / `sNan` as numbers, only as strings:
+        PyObject *is_finite = PyObject_CallMethod(obj, "is_finite", NULL);
+        if (is_finite == NULL) return -1;
+        int is_finite_int = PyObject_IsTrue(is_finite);
+        Py_DECREF(is_finite);
+        if (is_finite_int == -1) return -1;
+        if (is_finite_int == 0) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "Cannot encode as a number an non-finite value of a decimal: %R; "
+                "use `decimal_format='string' or a custom callable`",
+                obj
+            );
+            return -1;
+        }
+    }
+
+    temp = PyObject_Str(obj);
     if (temp == NULL) return -1;
 
     Py_ssize_t size;
@@ -14045,14 +14353,11 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         Py_DECREF(temp);
         return -1;
     }
-
     char *p = self->output_buffer_raw + self->output_len;
     if (MS_LIKELY(decimal_as_string)) *p++ = '"';
     memcpy(p, buf, size);
     if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
-
     self->output_len += required;
-
     Py_DECREF(temp);
 
     return 0;
@@ -14196,6 +14501,33 @@ json_encode_dict_key(EncoderState *self, PyObject *key) {
     return json_encode_dict_key_noinline(self, key);
 }
 
+/* JSON object keys must be strings, so a `decimal.Decimal` key is always
+ * written as a string. `decimal_format='number'` only applies to values; a
+ * `decimal_format` callable's result is encoded as a key. */
+static int
+json_encode_decimal_key(EncoderState *self, PyObject *obj) {
+    PyObject *temp;
+    int status;
+
+    if (self->decimal_format == DECIMAL_FORMAT_CALLABLE) {
+        if (self->in_decimal_callable) {
+            return ms_decimal_format_error();
+        }
+        temp = PyObject_CallOneArg(self->decimal_callable, obj);
+        if (temp == NULL) return -1;
+        self->in_decimal_callable = true;
+        status = json_encode_dict_key(self, temp);
+        self->in_decimal_callable = false;
+    }
+    else {
+        temp = PyObject_Str(obj);
+        if (temp == NULL) return -1;
+        status = json_encode_str(self, temp);
+    }
+    Py_DECREF(temp);
+    return status;
+}
+
 static MS_NOINLINE int
 json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
@@ -14225,7 +14557,7 @@ json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
         return json_encode_bytes(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
-        return json_encode_decimal(self, obj);
+        return json_encode_decimal_key(self, obj);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         return json_encode_uuid(self, obj);
@@ -14646,14 +14978,11 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
         return json_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             int status = json_encode_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return status;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return json_encode_object(self, obj);
@@ -14695,6 +15024,11 @@ json_encode_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return json_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return json_encode_dict(self, obj);
+    }
+#endif
     else {
         return json_encode_uncommon(self, type, obj);
     }
@@ -14719,7 +15053,7 @@ JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
-"encode_lines(self, items)\n"
+"encode_lines($self, items, /)\n"
 "--\n"
 "\n"
 "Encode an iterable of items as newline-delimited JSON, one item per line.\n"
@@ -14751,6 +15085,8 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .mod = self->mod,
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
+        .decimal_callable = self->decimal_callable,
+        .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
         .output_len = 0,
@@ -14823,7 +15159,7 @@ static PyTypeObject JSONEncoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,
-"json_encode(obj, *, enc_hook=None, order=None)\n"
+"json_encode(obj, /, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as JSON.\n"
@@ -15073,7 +15409,17 @@ static MS_INLINE Py_ssize_t
 mpack_decode_size4(DecoderState *self) {
     char *s = NULL;
     if (mpack_read(self, &s, 4) < 0) return -1;
+#if SIZEOF_VOID_P > 4
     return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
+#else
+    uint32_t size = _msgspec_load32(uint32_t, s);
+    /* MessagePack uint32 sizes can exceed Py_ssize_t on 32-bit builds, so
+     * reject them before they become negative sentinel values. */
+    if (MS_UNLIKELY(size > PY_SSIZE_T_MAX)) {
+        return ms_err_truncated();
+    }
+    return (Py_ssize_t)size;
+#endif
 }
 
 static PyObject *
@@ -16078,8 +16424,17 @@ mpack_decode_dict(
         val = mpack_decode(self, val_type, &val_path, false);
         if (MS_UNLIKELY(val == NULL))
             goto error;
-        if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0))
+        if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0)) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear();
+                PyErr_Format(
+                    msgspec_get_global_state()->DecodeError,
+                    "MessagePack data is malformed: map keys must be hashable (byte %zd)",
+                    (Py_ssize_t)(self->input_pos - self->input_start)
+                );
+            }
             goto error;
+        }
         Py_CLEAR(key);
         Py_CLEAR(val);
     }
@@ -16092,6 +16447,17 @@ error:
     Py_DECREF(res);
     return NULL;
 }
+
+#if PY315_PLUS
+static PyObject *
+mpack_decode_frozendict(
+    DecoderState *self, Py_ssize_t size, TypeNode *key_type,
+    TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = mpack_decode_dict(self, size, key_type, val_type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
 
 static PyObject *
 mpack_decode_typeddict(
@@ -16317,7 +16683,7 @@ mpack_decode_map(
     else if (type->types & MS_TYPE_DATACLASS) {
         return mpack_decode_dataclass(self, size, type, path);
     }
-    else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+    else if (type->types & (MS_ANY_DICT | MS_TYPE_ANY)) {
         if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
             return NULL;
         }
@@ -16330,6 +16696,11 @@ mpack_decode_map(
         else {
             TypeNode_get_dict(type, &key, &val);
         }
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return mpack_decode_frozendict(self, size, key, val, path);
+        }
+#endif
         return mpack_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
@@ -16358,7 +16729,10 @@ mpack_decode_ext(
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         return ms_validation_error("ext", type, path);
@@ -16375,7 +16749,10 @@ mpack_decode_ext(
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return Ext_New(code, data);
+        /* Ext_New doesn't steal the reference to data */
+        out = Ext_New(code, data);
+        Py_DECREF(data);
+        return out;
     }
     else {
         pycode = PyLong_FromLong(code);
@@ -16556,7 +16933,7 @@ mpack_decode(
 }
 
 PyDoc_STRVAR(Decoder_decode__doc__,
-"decode(self, buf)\n"
+"decode($self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from MessagePack.\n"
@@ -16639,7 +17016,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
-"msgpack_decode(buf, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
+"msgpack_decode(buf, /, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from MessagePack.\n"
@@ -17626,6 +18003,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         PyObject *out;
         if (MS_LIKELY(is_ascii)) {
             out = PyUnicode_New(size, 127);
+            if (MS_UNLIKELY(out == NULL)) return NULL;
             memcpy(ascii_get_buffer(out), view, size);
         }
         else {
@@ -17733,11 +18111,11 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
     char *view = NULL;
     Py_ssize_t size;
-    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 #ifndef Py_GIL_DISABLED
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
         return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
@@ -18570,6 +18948,16 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+json_decode_frozendict(
+    JSONDecoderState *self, TypeNode *type, TypeNode *key_type, TypeNode *val_type, PathNode *path
+) {
+    PyObject *dict = json_decode_dict(self, type, key_type, val_type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
+
 static PyObject *
 json_decode_typeddict(
     JSONDecoderState *self, TypeNode *type, PathNode *path
@@ -18967,9 +19355,14 @@ json_decode_object(
         TypeNode type_any = {MS_TYPE_ANY};
         return json_decode_dict(self, type, &type_any, &type_any, path);
     }
-    else if (type->types & MS_TYPE_DICT) {
+    else if (type->types & MS_ANY_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            return json_decode_frozendict(self, type, key, val, path);
+        }
+#endif
         return json_decode_dict(self, type, key, val, path);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
@@ -19513,7 +19906,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
 
 
 PyDoc_STRVAR(JSONDecoder_decode__doc__,
-"decode(self, buf)\n"
+"decode($self, buf, /)\n"
 "--\n"
 "\n"
 "Deserialize an object from JSON.\n"
@@ -19570,7 +19963,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 }
 
 PyDoc_STRVAR(JSONDecoder_decode_lines__doc__,
-"decode_lines(self, buf)\n"
+"decode_lines($self, buf, /)\n"
 "--\n"
 "\n"
 "Decode a list of items from newline-delimited JSON.\n"
@@ -19701,7 +20094,7 @@ static PyTypeObject JSONDecoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_decode__doc__,
-"json_decode(buf, *, type='Any', strict=True, dec_hook=None)\n"
+"json_decode(buf, /, *, type='Any', strict=True, dec_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from JSON.\n"
@@ -19724,7 +20117,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -19847,6 +20240,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 #define MS_BUILTIN_UUID       (1ull << 6)
 #define MS_BUILTIN_DECIMAL    (1ull << 7)
 #define MS_BUILTIN_TIMEDELTA  (1ull << 8)
+#define MS_BUILTIN_FROZENDICT (1ull << 9)
 
 typedef struct {
     MsgspecState *mod;
@@ -20081,6 +20475,17 @@ cleanup:;
     return out;
 }
 
+#if PY315_PLUS
+static PyObject *
+to_builtins_frozendict(ToBuiltinsState *self, PyObject *obj) {
+    PyObject *out = to_builtins_dict(self, obj);
+    if (self->builtin_types & MS_BUILTIN_FROZENDICT) {
+        return _PyFrozenDict_NewSteal(out);
+    }
+    return out;
+}
+#endif
+
 static PyObject *
 to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
@@ -20121,7 +20526,6 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
             if (val == NULL) goto cleanup;
             PyObject *val2 = to_builtins(self, val, is_key);
             if (val2 == NULL) goto cleanup;
-            Py_INCREF(val2);
             if (is_key) {
                 PyTuple_SET_ITEM(out, i + tagged, val2);
             }
@@ -20360,6 +20764,11 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyDict_Check(obj)) {
         return to_builtins_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return to_builtins_frozendict(self, obj);
+    }
+#endif
     else if (ms_is_struct_type(type)) {
         return to_builtins_struct(self, obj, is_key);
     }
@@ -20377,14 +20786,11 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return to_builtins_set(self, obj, is_key);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
-        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
         if (fields != NULL) {
             PyObject *out = to_builtins_dataclass(self, obj, fields);
             Py_DECREF(fields);
             return out;
-        }
-        else {
-            PyErr_Clear();
         }
         if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
             return to_builtins_object(self, obj);
@@ -20450,6 +20856,11 @@ ms_process_builtin_types(
         else if (type == (PyObject *)(&PyMemoryView_Type)) {
             *mask |= MS_BUILTIN_MEMORYVIEW;
         }
+#if PY315_PLUS
+        else if (type == (PyObject *)(&PyFrozenDict_Type)) {
+            *mask |= MS_BUILTIN_FROZENDICT;
+        }
+#endif
         else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
             *mask |= MS_BUILTIN_DATETIME;
         }
@@ -20528,7 +20939,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "builtin_types: Iterable[type], optional\n"
 "    An iterable of types to treat as additional builtin types. These types will\n"
 "    be passed through ``to_builtins`` unchanged. Currently supports `bytes`,\n"
-"    `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
+"    `bytearray`, `memoryview`, `frozendict`, `datetime.datetime`, `datetime.time`,\n"
 "    `datetime.date`, `datetime.timedelta`, `uuid.UUID`, `decimal.Decimal`,\n"
 "    and custom types.\n"
 "str_keys: bool, optional\n"
@@ -20694,7 +21105,14 @@ convert_int(
         return ms_decode_int_enum_or_literal_pyint(obj, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(PyLong_AsDouble(obj), type, path);
+        double val = PyLong_AsDouble(obj);
+        if (val == -1.0 && PyErr_Occurred()) {
+            /* `obj` is out of range for a C double (PyLong_AsDouble sets
+             * OverflowError but still returns -1.0); without this check
+             * that error leaks past this function as a SystemError. */
+            return ms_error_with_path("Number out of range%U", path);
+        }
+        return ms_decode_float(val, type, path);
     }
     else if (
         type->types & MS_TYPE_DECIMAL
@@ -21542,6 +21960,16 @@ error:
     return NULL;
 }
 
+#if PY315_PLUS
+static PyObject *
+convert_dict_to_frozendict(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *dict = convert_dict_to_dict(self, obj, type, path);
+    return _PyFrozenDict_NewSteal(dict);
+}
+#endif
+
 static PyObject *
 convert_mapping_to_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
@@ -21747,6 +22175,11 @@ convert_dict(
     if (type->types & MS_TYPE_DICT) {
         res = convert_dict_to_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (type->types & MS_TYPE_FROZENDICT) {
+        res = convert_dict_to_frozendict(self, obj, type, path);
+    }
+#endif
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
         res = convert_dict_to_struct(self, obj, info, path, false);
@@ -21974,6 +22407,60 @@ error:
     return NULL;
 }
 
+static PyObject *
+convert_mapping_to_typeddict(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = PyDict_New();
+    if (out == NULL) goto error;
+
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    /* -1 if a recursive TypedDict cached this info before a failed init */
+    if (info->nrequired < 0) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "TypedDict type is incomplete: a recursively referenced type failed to initialize"
+        );
+        goto error;
+    }
+    Py_ssize_t nrequired = 0;
+    for (Py_ssize_t i = 0; i < Py_SIZE(info); i++) {
+        PyObject *field = info->fields[i].key;
+        assert(field != NULL);
+        TypeNode *field_type = info->fields[i].type;
+        assert(field_type != NULL);
+        /* Item lookup only, to avoid collisions with mapping methods. */
+        PyObject *item = PyObject_GetItem(obj, field);
+        if (item == NULL) {
+            if (!PyErr_ExceptionMatches(PyExc_KeyError)) goto error;
+            PyErr_Clear();
+            continue;
+        }
+        if (field_type->types & MS_EXTRA_FLAG) nrequired++;
+        PathNode field_path = {path, PATH_STR, field};
+        PyObject *val = convert(self, item, field_type, &field_path);
+        Py_DECREF(item);
+        if (val == NULL) goto error;
+        int status = PyDict_SetItem(out, field, val);
+        Py_DECREF(val);
+        if (status < 0) goto error;
+    }
+    if (nrequired < info->nrequired) {
+        /* A required field is missing, determine which one and raise */
+        TypedDictInfo_error_missing(info, out, path);
+        goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
 static bool
 Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
     if (Lookup_IsStrLookup(lookup)) {
@@ -22063,8 +22550,16 @@ convert_other(
 
     /* Next try converting from a mapping or by attribute */
     bool is_mapping = PyMapping_Check(obj);
-    if (is_mapping && type->types & MS_TYPE_DICT) {
-        return convert_mapping_to_dict(self, obj, type, path);
+    if (is_mapping) {
+        if (type->types & MS_TYPE_DICT) {
+            return convert_mapping_to_dict(self, obj, type, path);
+        }
+#if PY315_PLUS
+        if (type->types & MS_TYPE_FROZENDICT) {
+            PyObject *dict = convert_mapping_to_dict(self, obj, type, path);
+            return _PyFrozenDict_NewSteal(dict);
+        }
+#endif
     }
 
     if (is_mapping || self->from_attributes) {
@@ -22092,6 +22587,9 @@ convert_other(
         }
         else if (type->types & MS_TYPE_DATACLASS) {
             return convert_object_to_dataclass(self, obj, type, path, getter);
+        }
+        else if (is_mapping && (type->types & MS_TYPE_TYPEDDICT)) {
+            return convert_mapping_to_typeddict(self, obj, type, path);
         }
     }
 
@@ -22133,6 +22631,11 @@ convert(
     else if (PyDict_Check(obj)) {
         return convert_dict(self, obj, type, path);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return convert_dict(self, obj, type, path);
+    }
+#endif
     else if (obj == Py_None) {
         return convert_none(self, obj, type, path);
     }
@@ -22424,10 +22927,12 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_class_annotations);
+    Py_CLEAR(st->call_annotate_forwardref);
     Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
     Py_CLEAR(st->types_uniontype);
+    Py_CLEAR(st->convert_generic_alias);
 #if PY312_PLUS
     Py_CLEAR(st->typing_typealiastype);
 #endif
@@ -22497,10 +23002,12 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_class_annotations);
+    Py_VISIT(st->call_annotate_forwardref);
     Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
     Py_VISIT(st->types_uniontype);
+    Py_VISIT(st->convert_generic_alias);
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
@@ -22695,10 +23202,12 @@ PyInit__core(void)
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
+    SET_REF(call_annotate_forwardref, "call_annotate_forwardref");
     SET_REF(get_typeddict_info, "get_typeddict_info");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");
+    SET_REF(convert_generic_alias, "convert_generic_alias");
 
     IMPORT_TEMP_MODULE("types");
     SET_REF(types_uniontype, "UnionType");

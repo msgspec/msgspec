@@ -1,4 +1,5 @@
 line-length = 88
+output-prefer-rule-codes = true
 extend-exclude = [
   "src/msgspec/_version.py",
   "tests/typing/basic_typing_examples.py",

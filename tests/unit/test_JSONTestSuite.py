@@ -8,6 +8,28 @@ import pytest
 
 import msgspec
 
+from .utils import emscripten_stack_limited
+
+
+def _max_container_depth(case):
+    depth = max_depth = 0
+    for char in case:
+        if char in (ord("["), ord("{")):
+            depth += 1
+            max_depth = max(depth, max_depth)
+        elif char in (ord("]"), ord("}")):
+            depth -= 1
+    return max_depth
+
+
+def _case_param(case):
+    # JSONTestSuite includes 100,000-deep invalid inputs; Pyodide hits
+    # the JS/Wasm stack before msgspec can raise RecursionError.
+    if _max_container_depth(case) > 1000:
+        return pytest.param(case, marks=emscripten_stack_limited)
+    return case
+
+
 valid_cases = [
     b"[1e-2]",
     b'["\\uD834\\uDd1e"]',
@@ -296,6 +318,8 @@ invalid_cases = [
     b'["x",,]',
     b'{"a":',
 ]
+
+invalid_cases = [_case_param(case) for case in invalid_cases]
 
 
 @pytest.mark.parametrize("case", valid_cases, ids=itertools.count())

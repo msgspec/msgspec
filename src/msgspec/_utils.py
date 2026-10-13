@@ -1,8 +1,9 @@
 # type: ignore
 import collections
 import sys
+import types
 import typing
-from typing import _AnnotatedAlias  # noqa: F401
+from typing import _AnnotatedAlias, _GenericAlias  # noqa: F401
 
 try:
     from typing_extensions import get_type_hints as _get_type_hints
@@ -39,22 +40,53 @@ else:
         return typing.ForwardRef(value, is_argument=False, is_class=True)
 
 
-# Python 3.13 adds a new mandatory type_params kwarg to _eval_type
-if sys.version_info >= (3, 13):
+# The type_params kwarg was added in 3.12.4 and made mandatory in 3.13. Threading
+# it lets module-bound ForwardRefs (built eagerly by TypedDict) resolve PEP 695
+# type params, whose evaluation would otherwise ignore the locals we stash them in.
+# Copying them into localns also prevents same-named module globals from shadowing
+# the type parameter on Python versions where ForwardRef replaces globalns.
+if sys.version_info >= (3, 12, 4):
 
-    def _eval_type(t, globalns, localns):
-        return typing._eval_type(t, globalns, localns, ())
+    def _eval_type(t, globalns, localns, type_params=()):
+        if type_params:
+            localns = dict(localns)
+            localns.update((param.__name__, param) for param in type_params)
+        return typing._eval_type(t, globalns, localns, type_params=type_params)
 
 else:
-    _eval_type = typing._eval_type
+
+    def _eval_type(t, globalns, localns, type_params=()):
+        # On Python 3.12.0-3.12.3 the fourth positional argument is
+        # recursive_guard.
+        if type_params:
+            localns = dict(localns)
+            localns.update((param.__name__, param) for param in type_params)
+        return typing._eval_type(t, globalns, localns)
 
 
 if sys.version_info >= (3, 14):
-    from annotationlib import get_annotations as _get_class_annotations
+    from annotationlib import (
+        Format as _AnnotationFormat,
+        call_annotate_function as _call_annotate_function,
+        get_annotations as _get_class_annotations,
+    )
+
+    def call_annotate_forwardref(annotate):
+        """Evaluate a class annotate function without requiring names to exist.
+
+        Metaclasses should use ``Format.FORWARDREF`` (via
+        ``call_annotate_function``, which implements the format when the
+        annotate function only supports ``VALUE``).
+        """
+        return _call_annotate_function(annotate, _AnnotationFormat.FORWARDREF)
+
 else:
 
     def _get_class_annotations(cls):
         return cls.__dict__.get("__annotations__", {})
+
+    def call_annotate_forwardref(annotate):
+        return annotate(1)  # annotationlib.Format.VALUE
 
 
 def _apply_params(obj, mapping):
@@ -79,23 +111,42 @@ def _apply_params(obj, mapping):
 def _get_class_mro_and_typevar_mappings(obj):
     mapping = {}
 
-    if isinstance(obj, type):
+    # in Python 3.10 a natively produced 'types.GenericAlias' (e.g. 'list[int]', or the
+    # 'Base[int]' produced when a 'Generic' subclass inherits a builtin's
+    # '__class_getitem__') satisfies 'isinstance(_, type)', unlike on 3.11+. we still
+    # want to treat those as parametrised aliases, not bare classes
+    if isinstance(obj, type) and not isinstance(obj, types.GenericAlias):
         cls = obj
     else:
         cls = obj.__origin__
 
     def inner(c, scope):
-        if isinstance(c, type):
+        if isinstance(c, type) and not isinstance(c, types.GenericAlias):
             cls = c
             new_scope = {}
         else:
-            cls = getattr(c, "__origin__", None)
+            cls = typing.get_origin(c)
             if cls in (None, object, typing.Generic) or cls in mapping:
                 return
-            params = cls.__parameters__
-            args = tuple(_apply_params(a, scope) for a in c.__args__)
-            assert len(params) == len(args)
-            mapping[cls] = new_scope = dict(zip(params, args))
+
+            if hasattr(cls, "__parameters__"):
+                # 'cls' carries its own type vars. This covers both ordinary
+                # 'typing._GenericAlias' bases and the 'types.GenericAlias' that
+                # get produced when a user-defined 'Generic' subclass inherits a
+                # builtin's '__class_getitem__' (e.g. 'class Base(Mapping[str, T])',
+                # whose 'Base[...]' is a 'types.GenericAlias'). Map cls's own
+                # type vars onto the resolved args, applying '_apply_params' so any
+                # outer bindings in 'scope' (e.g. 'U -> int') are propagated.
+                params = cls.__parameters__
+                args = tuple(_apply_params(a, scope) for a in typing.get_args(c))
+                assert len(params) == len(args)
+                new_scope = dict(zip(params, args))
+            else:
+                # a true built-in generic (e.g. 'collections.abc.Mapping[str, T]')
+                # whose '__origin__' has no '__parameters__'; the unresolved type
+                # vars and args live on the alias itself, not the origin.
+                new_scope = dict(zip(c.__parameters__, typing.get_args(c)))
+            mapping[cls] = new_scope
 
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
@@ -133,6 +184,12 @@ def get_class_annotations(obj):
 
         mapping = typevar_mappings.get(cls)
         cls_locals = dict(vars(cls))
+
+        # resolve type parameters (e.g. class Foo[T]: pass)
+        type_params = getattr(cls, "__type_params__", ())
+        if type_params:
+            cls_locals.update({p.__name__: p for p in type_params})
+
         try:
             cls_module = cls.__module__
         except AttributeError:
@@ -146,7 +203,7 @@ def get_class_annotations(obj):
                 continue
             if isinstance(value, str):
                 value = _forward_ref(value)
-            value = _eval_type(value, cls_locals, cls_globals)
+            value = _eval_type(value, cls_locals, cls_globals, type_params)
             if mapping is not None:
                 value = _apply_params(value, mapping)
             if value is None:
@@ -184,6 +241,8 @@ _CONCRETE_TYPES = {
     collections.abc.MutableMapping: dict,
     collections.abc.Mapping: dict,
 }
+if sys.version_info >= (3, 15):
+    _CONCRETE_TYPES.update({frozendict: frozendict})  # noqa: F821
 
 
 def get_typeddict_info(obj):
@@ -315,3 +374,39 @@ def _wrap_attrs_validators(fields, post_init):
 def rebuild(cls, kwargs):
     """Used to unpickle Structs with keyword-only fields"""
     return cls(**kwargs)
+
+
+def convert_generic_alias(origin, args):
+    # subscribed typing._GenericAlias instances are cached within the typing module
+    # we make use of this fact, by storing a __msgspec_cache__ attribute on the
+    # subscribed instance. only subscribed types are cached, so
+    # 'typing._GenericAlias(list, int) is typing._GenericAlias(list, int)' would be
+    # false.
+    # to achieve the same behaviour when re-creating a typing._GenericAlias from a
+    # types.GenericAlias, we first construct a temporary *unbound*
+    # typing._GenericAlias, on which we then call __getattr__. effectively doing
+    # typing._GenericAlias(list, T)[int], for which
+    # 'typing._GenericAlias(list, T)[int] is typing._GenericAlias(list, T)[int]'
+    # holds true
+    try:
+        params = origin.__parameters__
+    except AttributeError:
+        if not isinstance(origin, type):
+            # a special form such as 'typing.Literal', whose args are values rather than
+            # type parameters. Ordinary subscription yields the canonical, interned
+            # alias of the right subclass (e.g. 'typing.Literal[...]' -> '_LiteralGenericAlias').
+            return origin[args]
+
+        # a non-generic class with type arguments. only reachable for e.g.
+        # manually-built 'types.GenericAlias' instances and is probably nonsense or at
+        # least not somthing we can meaningfully represent, so complain about it here,
+        # rather than silently dropping the arguments.
+        raise TypeError(f"{origin.__name__!r} is not a generic type")
+
+    # a regularly-parametrised generic. Create a new typing._GenericAlias with the
+    # origin's unbound type params (e.g. for a 'Mapping[str, int]' this is a
+    # '_GenericAlias(Mapping, (~K, ~V))'), then bind it to the concrete args by
+    # subscripting with the args *tuple* (i.e. 'alias[(int, str)]', not
+    # 'alias[int, str]'), so generics with more than one type var work
+    alias = _GenericAlias(origin, params)
+    return alias[args]

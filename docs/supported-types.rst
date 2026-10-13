@@ -18,6 +18,8 @@ Most combinations of the following types are supported (with a few restrictions)
 - `dict` / `typing.Dict`
 - `set` / `typing.Set`
 - `frozenset` / `typing.FrozenSet`
+- `frozendict <https://docs.python.org/3.15/library/stdtypes.html#frozendict>`__
+  for Python 3.15+
 
 **Msgspec types**
 
@@ -601,6 +603,43 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
 
     >>> encoder.encode(x)
     b'1.2345'
+
+.. note::
+
+    It is impossible to represent ``NaN``, ``sNaN``, ``Inf``,
+    and other non-finite decimal values as numbers.
+    `ValueError` will be raised in this case.
+    Prefer string format if these values are needed.
+
+For JSON and MessagePack you may also pass a callable to ``decimal_format`` to
+customize how decimals are encoded. The callable will be called with the
+`decimal.Decimal` instance as the only argument, and must return a JSON-serializable
+value (but **not** another `decimal.Decimal` or a nested structure containing
+`decimal.Decimal`). This is useful for custom rounding, formatting, or transforming
+decimal values before encoding.
+
+.. code-block:: python
+
+    >>> import decimal
+
+    >>> class Price(msgspec.Struct):
+    ...     amount: decimal.Decimal
+    ...     currency: str
+
+    >>> enc = msgspec.json.Encoder(
+    ...     decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.01")))
+    ... )
+    >>> enc.encode(Price(amount=decimal.Decimal("10.123456"), currency="USD"))
+    b'{"amount":"10.12","currency":"USD"}'
+
+.. warning::
+
+    The callable passed to ``decimal_format`` must **not** return a
+    `decimal.Decimal` instance or any nested structure (list, dict, tuple, set)
+    containing `decimal.Decimal`, as this would cause infinite recursion. The
+    callable should return a `str`, `int`, `float`, or other JSON-serializable
+    type. If the callable returns a value containing a `decimal.Decimal`, a
+    `TypeError` will be raised.
 
 This setting is not yet supported for YAML or TOML - if this option is
 important for you please `open an issue`_.
@@ -1528,6 +1567,16 @@ field (``point``) depends on the value of another (``dimensions``).
 
     >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
     Point3D(x=1, y=2, z=3)
+
+.. note::
+
+    `msgspec.Raw` values are only populated by `msgspec.json.decode` and
+    `msgspec.msgpack.decode`, which can capture the original encoded bytes of
+    a field before decoding it further. `msgspec.convert` (and anything
+    built on it, like `msgspec.yaml.decode` and `msgspec.toml.decode`)
+    operates on already-decoded Python objects, so there's no encoded byte
+    buffer left to capture -- a `Raw`-typed field will only accept an
+    already-constructed `Raw` object as input, not an arbitrary value.
 
 
 ``Any``
