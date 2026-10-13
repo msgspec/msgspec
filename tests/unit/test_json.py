@@ -1934,21 +1934,29 @@ class TestNamedTuple:
 
     def test_namedtuple_like(self):
         # This is not exactly a `NamedTuple`, but it passed the check:
-        class FakeNamedTuple(tuple):
+        class FieldsNotTuple(tuple):
             _fields = ["a", "b"]
-            _field_defaults = {}
-
-        # It used to crash:
-        converted = msgspec.json.decode(b"[1, 2]", type=FakeNamedTuple)
-        assert type(converted) is FakeNamedTuple
-        assert converted == (1, 2)
+            _default_fields = {}
 
         class NotSequenceFields(tuple):
             _fields = 1
 
+        class MissingDefaults(tuple):
+            _fields = ("a", "b")
+
+        class NotTupleSubclass:
+            _fields = ("a", "b")
+            _default_fields = {}
+
         # It used to crash:
-        with pytest.raises(TypeError, match="not iterable"):
-            msgspec.json.decode(b"[1, 2]", type=NotSequenceFields)
+        for klass in (
+            FieldsNotTuple,
+            NotSequenceFields,
+            MissingDefaults,
+            NotTupleSubclass,
+        ):
+            with pytest.raises(msgspec.ValidationError, match=klass.__name__):
+                msgspec.json.decode(b"[1, 2]", type=klass)
 
 
 class TestDict:

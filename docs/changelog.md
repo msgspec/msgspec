@@ -2,11 +2,16 @@
 
 ## Unreleased
 
+- Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
+  and partial inner state, now proper `AttributeError`
+  is raised instead ({pr}`1257`)
 - Fix the error state left set when looking up `ClassVar` on a module-level
   `typing` name that is not the real `typing` module. On CPython builds with
   assertions enabled this terminated the interpreter. The lookup error now
-  propagates as intended ({issue}`1221`).
-
+  propagates as intended ({issue}`1221`)
+- Support converting non-dict mappings (such as `asyncpg.Record`) to `TypedDict`
+  types with `convert`, matching the existing support for structs and
+  dataclasses ({issue}`1239`)
 - Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
   type parameter syntax (`class Foo[T](TypedDict)`) under
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
@@ -16,8 +21,12 @@
   to `READONLY` and C level getters ({pr}`1244`)
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
   requires `mypy>=2.1` ({pr}`1245`)
-- Fix converting values to `tuple` subclasses
-  with non-tuple `_field` field ({pr}`1259`)
+- Fix how we detect `NamedTuple` subclasses,
+  now we also check `_fields` to be a `tuple` ({pr}`1259`)
+- Fix a possible crash when `Meta(pattern='...')`
+  was used in loops ({pr}`1256`)
+- Fix a possible crash when too big ints are passed
+  into `Meta`'s constructor ({pr}`1260`)
 
 ## Version 0.22.0 (2026-09-29)
 

@@ -2966,9 +2966,10 @@ class TestTypedDict:
         x2 = {"a": 1, "b": "two"}
         assert dec.decode(proto.encode(x2)) == x2
 
-        with pytest.raises(ValidationError) as rec:
-            dec.decode(proto.encode({"b": "two"}))
-        assert "Object missing required field `a`" == str(rec.value)
+        for msg in [{"b": "two"}, {"b": "two", "c": "extra"}]:
+            with pytest.raises(ValidationError) as rec:
+                dec.decode(proto.encode(msg))
+            assert "Object missing required field `a`" == str(rec.value)
 
     @pytest.mark.parametrize("use_typing_extensions", [False, True])
     def test_broken_typeddict(self, proto, use_typing_extensions):

@@ -803,6 +803,17 @@ class TestRepr:
         with pytest.raises(ValueError, match=msg):
             repr(t)
 
+    def test_repr_null_deref(self):
+        class A(msgspec.Struct, repr_omit_defaults=True):
+            x: list[int] = []
+
+        a = A()
+        del a.x
+
+        # must not crash:
+        with pytest.raises(AttributeError, match="'x' is unset"):
+            a.__rich_repr__()
+
 
 def test_struct_copy():
     x = copy.copy(Struct())
