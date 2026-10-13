@@ -23276,12 +23276,14 @@ PyInit__core(void)
     if (temp_obj == NULL) return NULL;
     st->uuid_safeuuid_unknown = PyObject_GetAttrString(temp_obj, "unknown");
     Py_DECREF(temp_obj);
+    Py_DECREF(temp_module);
     if (st->uuid_safeuuid_unknown == NULL) return NULL;
 
     /* decimal module imports */
     temp_module = PyImport_ImportModule("decimal");
     if (temp_module == NULL) return NULL;
     st->DecimalType = PyObject_GetAttrString(temp_module, "Decimal");
+    Py_DECREF(temp_module);
     if (st->DecimalType == NULL) return NULL;
 
     /* Get the re.compile function */
