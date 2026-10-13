@@ -23217,10 +23217,6 @@ PyInit__core(void)
     st->EnumMetaType = (PyTypeObject *)PyObject_GetAttrString(temp_module, "EnumMeta");
     if (st->EnumMetaType == NULL)
         goto error;
-    if (!PyType_Check(st->EnumMetaType)) {
-        PyErr_SetString(PyExc_TypeError, "enum.EnumMeta should be a type");
-        goto error;
-    }
 
     /* Get the abc.ABCMeta type and _abc_init helper */
     IMPORT_TEMP_MODULE("abc");
@@ -23228,10 +23224,6 @@ PyInit__core(void)
     st->ABCMetaType = (PyTypeObject *)PyObject_GetAttrString(temp_module, "ABCMeta");
     if (st->ABCMetaType == NULL)
         goto error;
-    if (!PyType_Check(st->ABCMetaType)) {
-        PyErr_SetString(PyExc_TypeError, "abc.ABCMeta should be a type");
-        goto error;
-    }
 
     SET_REF(_abc_init, "_abc_init");
 
