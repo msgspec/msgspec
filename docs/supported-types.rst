@@ -607,7 +607,7 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
 .. note::
 
     It is impossible to represent ``NaN``, ``sNaN``, ``Inf``,
-    and other non-finite values as numbers.
+    and other non-finite decimal values as numbers.
     `ValueError` will be raised in this case.
     Prefer string format if these values are needed.
 
