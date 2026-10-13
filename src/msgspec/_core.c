@@ -6138,18 +6138,20 @@ static int
 structmeta_is_classvar(
     StructMetaInfo *info, MsgspecState *mod, PyObject *ann, PyObject **module_ns
 ) {
-    PyTypeObject *ann_type = Py_TYPE(ann);
-    if (ann_type == &PyUnicode_Type) {
+    if (MS_LIKELY(ann == mod->typing_classvar)) return 1;
+    else if (PyUnicode_CheckExact(ann)) {
         Py_ssize_t ann_len;
         const char *ann_buf = unicode_str_and_size(ann, &ann_len);
+        if (ann_buf == NULL) return -1;
         if (ann_len < 8) return 0;
         if (memcmp(ann_buf, "ClassVar", 8) == 0) {
             if (ann_len != 8 && ann_buf[8] != '[') return 0;
             if (*module_ns == NULL) {
                 *module_ns = structmeta_get_module_ns(mod, info);
             }
-            if (*module_ns == NULL) return 0;
+            if (*module_ns == NULL) return -1;
             PyObject *temp = PyDict_GetItemString(*module_ns, "ClassVar");
+            if (temp == NULL) return 0;
             return temp == mod->typing_classvar;
         }
         if (ann_len < 15) return 0;
@@ -6158,7 +6160,7 @@ structmeta_is_classvar(
             if (*module_ns == NULL) {
                 *module_ns = structmeta_get_module_ns(mod, info);
             }
-            if (*module_ns == NULL) return 0;
+            if (*module_ns == NULL) return -1;
             PyObject *temp = PyDict_GetItemString(*module_ns, "typing");
             if (temp == NULL) return 0;
             temp = PyObject_GetAttrString(temp, "ClassVar");
@@ -6168,19 +6170,14 @@ structmeta_is_classvar(
             return status;
         }
     }
-    else {
-        if (ann == mod->typing_classvar) {
-            return 1;
-        }
-        else if ((PyObject *)ann_type == mod->typing_generic_alias) {
-            PyObject *temp = PyObject_GetAttr(ann, mod->str___origin__);
-            if (temp == NULL) return -1;
-            int status = temp == mod->typing_classvar;
-            Py_DECREF(temp);
-            return status;
-        }
-        return 0;
+    else if ((PyObject *)Py_TYPE(ann) == mod->typing_generic_alias) {
+        PyObject *temp = PyObject_GetAttr(ann, mod->str___origin__);
+        if (temp == NULL) return -1;
+        int status = temp == mod->typing_classvar;
+        Py_DECREF(temp);
+        return status;
     }
+
     return 0;
 }
 
@@ -6229,7 +6226,9 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         }
 
         PyObject *invalid_field_names[] = {
-            mod->str___weakref__, mod->str___dict__, mod->str___msgspec_cached_hash__
+            mod->str___weakref__,
+            mod->str___dict__,
+            mod->str___msgspec_cached_hash__
         };
         for (int i = 0; i < 3; i++) {
             if (PyUnicode_Compare(field, invalid_field_names[i]) == 0) {
@@ -6245,6 +6244,7 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         int status = structmeta_is_classvar(info, mod, value, &module_ns);
         if (status == 1) continue;
         if (status == -1) goto error;
+        assert(status == 0 && !PyErr_Occurred());
 
         /* If the field is new, add it to slots */
         if (PyDict_GetItem(info->defaults_lk, field) == NULL) {

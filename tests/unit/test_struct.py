@@ -2790,8 +2790,9 @@ class TestClassVar:
             assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
 
+    @pytest.mark.parametrize("default", ["", " = 1"])
     @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])
-    def test_wrong_classvar(self, annotation):
+    def test_wrong_classvar(self, annotation, default):
         # See https://github.com/msgspec/msgspec/issues/1096 and #1221
         source = f"""
         from __future__ import annotations
@@ -2801,7 +2802,7 @@ class TestClassVar:
             pass
 
         class Ex(Struct):
-            a: {annotation}
+            a: {annotation}{default}
         """
         with pytest.raises(
             AttributeError,
@@ -2810,8 +2811,9 @@ class TestClassVar:
             with temp_module(source):
                 pass  # Class creation must raise, not abort the interpreter.
 
-    def test_classvar_attribute_lookup_error(self):
-        source = """
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_attribute_lookup_error(self, default):
+        source = f"""
         from __future__ import annotations
         from msgspec import Struct
 
@@ -2823,11 +2825,50 @@ class TestClassVar:
         typing = Namespace()
 
         class Ex(Struct):
-            a: typing.ClassVar[int]
+            a: typing.ClassVar[int]{default}
         """
         with pytest.raises(RuntimeError, match="classvar lookup failed"):
             with temp_module(source):
                 pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_attribute(self, default):
+        source = f"""
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace: ...
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]{default}
+        """
+        with pytest.raises(AttributeError, match="ClassVar"):
+            with temp_module(source):
+                pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_typing_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "typing.ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_not_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
 
 
 class TestPostInit:
