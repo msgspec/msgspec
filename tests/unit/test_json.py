@@ -1791,6 +1791,27 @@ class TestDecimal:
             out = msgspec.json.decode(msg, type=request_type)
             assert type(out) is out_type
 
+    @pytest.mark.parametrize(
+        "dec_value",
+        [
+            "NaN",
+            "nan",
+            "sNaN",
+            "snan",
+            "Infinity",
+            "infinity",
+            "-Infinity",
+            "-infinity",
+            "inf",
+            "-inf",
+        ],
+    )
+    def test_Encoder_encode_decimal_number_infinite(self, dec_value):
+        enc = msgspec.json.Encoder(decimal_format="number")
+        dec_num = decimal.Decimal(dec_value)
+        with pytest.raises(ValueError, match="non-finite"):
+            enc.encode(dec_num)
+
 
 class TestSequences:
     @pytest.mark.parametrize("x", [[], [1], [1, "two", False]])

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix invalid `json` that was produced when converting non-finite `Decimal`
+  objects with `decimal_format="number"` ({issue}`1262`)
 - Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
   and partial inner state, now proper `AttributeError`
   is raised instead ({pr}`1257`)

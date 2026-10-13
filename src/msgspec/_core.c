@@ -14286,6 +14286,23 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         return out;
     }
 
+    if (self->decimal_format == DECIMAL_FORMAT_NUMBER) {
+        // We can't format `Inf` / `Nan` / `sNan` as numbers, only as strings:
+        PyObject *is_finite = PyObject_CallMethod(obj, "is_finite", NULL);
+        if (is_finite == NULL) return -1;
+        int is_finite_int = PyObject_IsTrue(is_finite);
+        Py_DECREF(is_finite);
+        if (!is_finite_int) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "Cannot encode as a number an non-finite value of a decimal: %R; "
+                "use `decimal_format='string' or a custom callable`",
+                obj
+            );
+            return -1;
+        }
+    }
+
     temp = PyObject_Str(obj);
     if (temp == NULL) return -1;
 
