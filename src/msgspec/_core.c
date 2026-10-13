@@ -9004,7 +9004,7 @@ DataclassInfo_Convert(PyObject *obj) {
         TypeNode *type = TypeNode_Convert(PyTuple_GET_ITEM(field, 1));
         if (type == NULL) goto cleanup;
         /* If field has a default factory, set extra flag bit */
-        int has_df = PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))
+        int has_df = PyObject_IsTrue(PyTuple_GET_ITEM(field, 2));
         if (has_df == -1) goto cleanup;
         if (has_df) type->types |= MS_EXTRA_FLAG;
         info->fields[i].type = type;
