@@ -9004,9 +9004,9 @@ DataclassInfo_Convert(PyObject *obj) {
         TypeNode *type = TypeNode_Convert(PyTuple_GET_ITEM(field, 1));
         if (type == NULL) goto cleanup;
         /* If field has a default factory, set extra flag bit */
-        if (PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))) {
-            type->types |= MS_EXTRA_FLAG;
-        }
+        int has_df = PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))
+        if (has_df == -1) goto cleanup;
+        if (has_df) type->types |= MS_EXTRA_FLAG;
         info->fields[i].type = type;
         info->fields[i].key = PyTuple_GET_ITEM(field, 0);
         Py_INCREF(info->fields[i].key);
@@ -10410,6 +10410,7 @@ static bool
 ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 #if PY314_PLUS
     /* obj is always a PyLong here, so PyLong_GetSign can't fail */
+    assert(PyLong_CheckExact(obj));
     int sign = 0;
     (void)PyLong_GetSign(obj, &sign);
     bool neg = sign < 0;
@@ -10438,9 +10439,11 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         PyObject *remainder = PyNumber_Remainder(obj, base);
         Py_DECREF(base);
         if (remainder == NULL) return false;
-        long iremainder = PyLong_AsLong(remainder);
+        long long iremainder = PyLong_AsLongLong(remainder);
         Py_DECREF(remainder);
         if (iremainder != 0) {
+            // There was an overflow error, do not hide it:
+            if (iremainder == -1 && PyErr_Occurred()) return false;
             _err_int_constraint(
                 "Expected `int` that's a multiple of %lld%U", c, path
             );
@@ -14326,7 +14329,8 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
         if (is_finite == NULL) return -1;
         int is_finite_int = PyObject_IsTrue(is_finite);
         Py_DECREF(is_finite);
-        if (!is_finite_int) {
+        if (is_finite_int == -1) return -1;
+        if (is_finite_int == 0) {
             PyErr_Format(
                 PyExc_ValueError,
                 "Cannot encode as a number an non-finite value of a decimal: %R; "
