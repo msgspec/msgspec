@@ -9025,7 +9025,7 @@ cleanup:
             * occasions. */
             PyObject *err_type, *err_value, *err_tb;
             PyErr_Fetch(&err_type, &err_value, &err_tb);
-            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
+            (void)PyObject_DelAttr(obj, mod->str___msgspec_cache__);
             PyErr_Restore(err_type, err_value, err_tb);
         }
     }
