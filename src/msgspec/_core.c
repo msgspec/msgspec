@@ -3859,8 +3859,7 @@ typenode_collect_constraints(
     else if (kind == CK_STR) {
         if (constraints->regex != NULL) {
             state->types |= MS_CONSTR_STR_REGEX;
-            Py_INCREF(constraints->regex);
-            state->c_str_regex = constraints->regex;
+            Py_XSETREF(state->c_str_regex, Py_NewRef(constraints->regex));
         }
         if (constraints->min_length != NULL) {
             state->types |= MS_CONSTR_STR_MIN_LENGTH;
@@ -11885,10 +11884,10 @@ ms_encode_base64(const char *input, Py_ssize_t input_size, char *out) {
 static int
 ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
     PyObject *int128 = PyObject_GetAttr(obj, mod->str_int);
-    if (int128 == NULL) return -1;
+    if (int128 == NULL) goto error;
     if (MS_UNLIKELY(!PyLong_CheckExact(int128))) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
-        return -1;
+        goto error;
     }
 #if PY313_PLUS
     int out = (int)PyLong_AsNativeBytes(
@@ -11902,6 +11901,10 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
 #endif
     Py_DECREF(int128);
     return out;
+
+error:
+    Py_XDECREF(int128);
+    return -1;
 }
 
 static PyObject *
