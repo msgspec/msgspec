@@ -130,6 +130,12 @@ def _resolve_type_alias(alias, args):
         if has_default is not None and has_default():
             mapping[p] = _apply_params(p.__default__, mapping)
 
+    missing = [p.__name__ for p in params if p not in mapping]
+    if args and missing:
+        raise TypeError(
+            f"Too few type arguments for {alias.__name__}: missing {', '.join(missing)}"
+        )
+
     return _apply_params(alias.__value__, mapping)
 
 
