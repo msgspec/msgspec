@@ -207,9 +207,31 @@ def test_newtype():
         ("type Ex = str | None", str | None),
         ("type Ex[T] = tuple[T, int]", tuple[Any, int]),
         ("type Temp[T] = tuple[T, int]; Ex = Temp[str]", tuple[str, int]),
+        ("type Swap[A, B] = dict[B, A]; Ex = Swap[int, str]", dict[str, int]),
+        ("type Unused[A, B] = list[A]; Ex = Unused[int, str]", list[int]),
+        (
+            "type Swap[A, B] = dict[B, A]; type Nested[A, B] = list[Swap[A, B]]; "
+            "Ex = Nested[int, str]",
+            list[dict[str, int]],
+        ),
     ],
 )
 def test_typealias(src, typ):
+    with temp_module(src) as mod:
+        assert mi.type_info(mod.Ex) == mi.type_info(typ)
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 13), reason="type parameter defaults require 3.13+"
+)
+@pytest.mark.parametrize(
+    "src, typ",
+    [
+        ("type D[A, B = str] = dict[B, A]; Ex = D[int]", dict[str, int]),
+        ("type D[A, B = list[A]] = tuple[B, A]; Ex = D[int]", tuple[list[int], int]),
+    ],
+)
+def test_typealias_defaults(src, typ):
     with temp_module(src) as mod:
         assert mi.type_info(mod.Ex) == mi.type_info(typ)
 

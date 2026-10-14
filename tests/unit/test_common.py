@@ -4796,6 +4796,14 @@ class TestTypeAlias:
                 msgspec.json.Decoder(mod.Pair[int, int])
 
     @py312_plus
+    def test_parametrized_generic_binds_by_name(self):
+        with temp_module("type Swap[A, B] = dict[B, A]") as mod:
+            dec = msgspec.json.Decoder(mod.Swap[int, str])  # dict[str, int]
+            assert dec.decode(b'{"x": 1}') == {"x": 1}
+            with pytest.raises(ValidationError):
+                dec.decode(b'{"x": "y"}')
+
+    @py312_plus
     @pytest.mark.parametrize(
         "src",
         [
