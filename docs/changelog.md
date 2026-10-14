@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include string Literal and Enum dictionary key constraints in generated JSON
+  Schema `propertyNames`.
 - Fix invalid `json` that was produced when converting non-finite `Decimal`
   objects with `decimal_format="number"` ({issue}`1262`)
 - Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
