@@ -508,9 +508,6 @@ typedef struct {
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
-#if PY312_PLUS
-    PyObject *str___value__;
-#endif
     PyObject *str___bound__;
     PyObject *str___constraints__;
     PyObject *str_int;
@@ -534,6 +531,7 @@ typedef struct {
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *convert_generic_alias;
+    PyObject *resolve_type_alias;
     PyObject *rebuild;
     PyObject *types_uniontype;
 #if PY312_PLUS
@@ -4943,10 +4941,9 @@ typenode_origin_args_metadata(
                     /* Check for parametrized TypeAliasType if Python 3.12+ */
                 #if PY312_PLUS
                     if (Py_TYPE(origin) == (PyTypeObject *)(state->mod->typing_typealiastype)) {
-                        PyObject *value = PyObject_GetAttr(origin, state->mod->str___value__);
-                        if (value == NULL) goto error;
-                        PyObject *temp = PyObject_GetItem(value, args);
-                        Py_DECREF(value);
+                        PyObject *temp = PyObject_CallFunctionObjArgs(
+                            state->mod->resolve_type_alias, origin, args, NULL
+                        );
                         if (temp == NULL) goto error;
                         Py_CLEAR(args);
                         Py_CLEAR(origin);
@@ -4988,7 +4985,12 @@ typenode_origin_args_metadata(
             /* Check for TypeAliasType if Python 3.12+ */
         #if PY312_PLUS
             if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_typealiastype)) {
-                PyObject *value = PyObject_GetAttr(t, state->mod->str___value__);
+                PyObject *empty = PyTuple_New(0);
+                if (empty == NULL) goto error;
+                PyObject *value = PyObject_CallFunctionObjArgs(
+                    state->mod->resolve_type_alias, t, empty, NULL
+                );
+                Py_DECREF(empty);
                 if (value == NULL) goto error;
                 Py_DECREF(t);
                 t = value;
@@ -22905,9 +22907,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
-#if PY312_PLUS
-    Py_CLEAR(st->str___value__);
-#endif
     Py_CLEAR(st->str___bound__);
     Py_CLEAR(st->str___constraints__);
     Py_CLEAR(st->str_int);
@@ -22933,6 +22932,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->rebuild);
     Py_CLEAR(st->types_uniontype);
     Py_CLEAR(st->convert_generic_alias);
+    Py_CLEAR(st->resolve_type_alias);
 #if PY312_PLUS
     Py_CLEAR(st->typing_typealiastype);
 #endif
@@ -23008,6 +23008,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->rebuild);
     Py_VISIT(st->types_uniontype);
     Py_VISIT(st->convert_generic_alias);
+    Py_VISIT(st->resolve_type_alias);
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
@@ -23211,6 +23212,7 @@ PyInit__core(void)
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");
     SET_REF(convert_generic_alias, "convert_generic_alias");
+    SET_REF(resolve_type_alias, "_resolve_type_alias");
     Py_DECREF(temp_module);
 
     temp_module = PyImport_ImportModule("types");
@@ -23321,9 +23323,6 @@ PyInit__core(void)
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
-#if PY312_PLUS
-    CACHED_STRING(str___value__, "__value__");
-#endif
     CACHED_STRING(str___bound__, "__bound__");
     CACHED_STRING(str___constraints__, "__constraints__");
     CACHED_STRING(str_int, "int");

@@ -108,6 +108,31 @@ def _apply_params(obj, mapping):
     return obj[args]
 
 
+def _resolve_type_alias(alias, args):
+    params = alias.__type_params__
+
+    # TypeVarTuple/ParamSpec don't map 1:1 onto args.
+    if any(isinstance(p, (typing.TypeVarTuple, typing.ParamSpec)) for p in params):
+        return alias.__value__[args] if args else alias.__value__
+
+    if len(args) > len(params):
+        raise TypeError(
+            f"Too many type arguments for {alias.__name__}: "
+            f"got {len(args)}, expected at most {len(params)}"
+        )
+
+    # Bind by declared parameter, not by position in 'alias.__value__':
+    # the body's '__parameters__' follow first appearance, so in
+    # 'type Swap[A, B] = dict[B, A]'  they're (B, A), not (A, B).
+    mapping = dict(zip(params, args))
+    for p in params[len(args) :]:
+        has_default = getattr(p, "has_default", None)
+        if has_default is not None and has_default():
+            mapping[p] = _apply_params(p.__default__, mapping)
+
+    return _apply_params(alias.__value__, mapping)
+
+
 def _get_class_mro_and_typevar_mappings(obj):
     mapping = {}
 
