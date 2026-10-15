@@ -25,7 +25,12 @@ import pytest
 
 import msgspec
 
-from .utils import emscripten_stack_limited
+from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -1551,6 +1556,16 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         data = msgspec.msgpack.encode(orig)
         out = msgspec.msgpack.Decoder(dict[tuple[int, Test], list[int]]).decode(data)
         assert orig == out
+
+    @py315_or_later_only
+    def test_encode_frozendict_dict_keys(self):
+        orig = {frozendict({"a": 1}): 1}
+        data = msgspec.msgpack.encode(orig)
+        assert data == b"\x81\x81\xa1a\x01\x01"
+        out = msgspec.msgpack.Decoder(dict[frozendict[str, int], int]).decode(data)
+        assert out == orig
+        assert type(next(iter(out))) is frozendict
+        assert msgspec.msgpack.encode(out) == data
 
 
 class TestUntypedDecoder(CommonTypeTestBase):
