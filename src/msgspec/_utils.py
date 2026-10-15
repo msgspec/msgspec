@@ -175,6 +175,16 @@ def get_class_annotations(obj):
     tool like ``mypy``/``pyright`` already, which would catch misuse of these
     APIs.
     """
+    return _get_class_annotations_recursive(obj, {})
+
+
+def _get_class_annotations_recursive(obj, cache):
+    # Cache by specialization identity, not its origin. Identity keys also
+    # support generic arguments that aren't hashable. Bases remain alive in
+    # __orig_bases__ throughout this lookup; no cache escapes the lookup.
+    key = id(obj)
+    if key in cache:
+        return cache[key]
     hints = {}
     mro, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
 
@@ -198,9 +208,23 @@ def get_class_annotations(obj):
             cls_globals = getattr(sys.modules.get(cls_module, None), "__dict__", {})
 
         ann = _get_class_annotations(cls)
+        inherited = {}
+        if hasattr(cls, "__required_keys__"):
+            # TypedDict flattens base annotations and omits its bases from the
+            # MRO. Resolve each original base in its own generic scope first.
+            for base in cls.__dict__.get("__orig_bases__", ()):
+                origin = typing.get_origin(base) or base
+                if not hasattr(origin, "__required_keys__"):
+                    continue
+                base_ann = _get_class_annotations(origin)
+                base_hints = _get_class_annotations_recursive(base, cache)
+                for name, value in base_ann.items():
+                    inherited[name] = (value, base_hints[name])
         for name, value in ann.items():
             if name in hints:
                 continue
+            if name in inherited and value == inherited[name][0]:
+                value = inherited[name][1]
             if isinstance(value, str):
                 value = _forward_ref(value)
             value = _eval_type(value, cls_locals, cls_globals, type_params)
@@ -209,6 +233,7 @@ def get_class_annotations(obj):
             if value is None:
                 value = type(None)
             hints[name] = value
+    cache[key] = hints
     return hints
 
 
