@@ -685,7 +685,7 @@ def _origin_args_metadata(t):
             if supertype is not None:
                 t = supertype
             elif type(t) is _TypeAliasType:
-                t = _resolve_type_alias(t, ())
+                t = _resolve_type_alias(t, None)
             else:
                 origin = t
                 args = None

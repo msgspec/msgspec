@@ -4985,12 +4985,9 @@ typenode_origin_args_metadata(
             /* Check for TypeAliasType if Python 3.12+ */
         #if PY312_PLUS
             if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_typealiastype)) {
-                PyObject *empty = PyTuple_New(0);
-                if (empty == NULL) goto error;
                 PyObject *value = PyObject_CallFunctionObjArgs(
-                    state->mod->resolve_type_alias, t, empty, NULL
+                    state->mod->resolve_type_alias, t, Py_None, NULL
                 );
-                Py_DECREF(empty);
                 if (value == NULL) goto error;
                 Py_DECREF(t);
                 t = value;
