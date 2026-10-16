@@ -23180,7 +23180,7 @@ PyInit__core(void)
 
 #define SET_REF(attr, name) \
     do { \
-    st->attr = PyObject_GetAttrString(temp_module, name); \
+        st->attr = PyObject_GetAttrString(temp_module, name); \
         if (st->attr == NULL) goto error; \
     } while (0)
 
