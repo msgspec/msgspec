@@ -41,6 +41,7 @@ if sys.version_info >= (3, 15):
 
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
+py313_plus = pytest.mark.skipif(sys.version_info[:2] < (3, 13), reason="3.13+ only")
 
 T = TypeVar("T")
 
@@ -214,6 +215,33 @@ def test_newtype():
             "Ex = Nested[int, str]",
             list[dict[str, int]],
         ),
+        # ParamSpec
+        ("type Temp[**P, T] = list[T]; Ex = Temp[[str], int]", list[int]),
+        # Shorthand for Temp[[str, bytes]]
+        ("type Temp[**P] = list[int]; Ex = Temp[str, bytes]", list[int]),
+        (
+            "type Temp[T, **P, U] = dict[U, T]; Ex = Temp[int, [str], bytes]",
+            dict[bytes, int],
+        ),
+        # TypeVarTuple
+        (
+            "type Temp[*Ts] = tuple[int, *Ts]; Ex = Temp[str, float]",
+            tuple[int, str, float],
+        ),
+        (
+            "type Temp[T, *Ts] = tuple[*Ts, T]; Ex = Temp[int, str, float]",
+            tuple[str, float, int],
+        ),
+        (
+            "type Temp[*Ts, T] = tuple[T, *Ts]; Ex = Temp[int, str, float]",
+            tuple[float, int, str],
+        ),
+        (
+            "type Temp[T, *Ts, U] = tuple[U, *Ts, T]; Ex = Temp[int, str, bytes, float]",
+            tuple[float, str, bytes, int],
+        ),
+        # An explicit empty subscript binds the TypeVarTuple to the empty tuple
+        ("type Var[*Ts] = tuple[*Ts]; Ex = Var[()]", tuple[()]),
     ],
 )
 def test_typealias(src, typ):
@@ -221,14 +249,20 @@ def test_typealias(src, typ):
         assert mi.type_info(mod.Ex) == mi.type_info(typ)
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] < (3, 13), reason="type parameter defaults require 3.13+"
-)
+@py313_plus
 @pytest.mark.parametrize(
     "src, typ",
     [
         ("type D[A, B = str] = dict[B, A]; Ex = D[int]", dict[str, int]),
         ("type D[A, B = list[A]] = tuple[B, A]; Ex = D[int]", tuple[list[int], int]),
+        (
+            "type D[T, *Ts = *tuple[int, str]] = tuple[T, *Ts]; Ex = D[bytes]",
+            tuple[bytes, int, str],
+        ),
+        (
+            "type D[T, *Ts = *tuple[int, str]] = tuple[T, *Ts]; Ex = D[bytes, float]",
+            tuple[bytes, float],
+        ),
     ],
 )
 def test_typealias_defaults(src, typ):
