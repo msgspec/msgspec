@@ -23297,8 +23297,8 @@ PyInit__core(void)
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif
 
-    Py_XDECREF(temp_module);
-    Py_XDECREF(temp_obj);
+    Py_DECREF(temp_module);
+    Py_DECREF(temp_obj);
     return m;
 
 error:
