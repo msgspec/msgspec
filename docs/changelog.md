@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix generic `TypedDict` subclasses dropping the base type argument, so
+  `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
+  PEP 695 annotations on those subclasses resolve instead of raising
+  `NameError` ({issue}`1191`).
 - Fix invalid `json` that was produced when converting non-finite `Decimal`
   objects with `decimal_format="number"` ({issue}`1262`)
 - Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
