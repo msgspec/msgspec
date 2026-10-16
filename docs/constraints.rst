@@ -131,6 +131,34 @@ These constraints are valid on `str` types:
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str` matching regex '^[a-z0-9_]*$'
 
+.. _pattern-acceleration:
+
+Optional pattern acceleration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A compatible C API from the external ``pcre2`` package can accelerate patterns
+without changing annotations::
+
+    CountryCode = Annotated[str, msgspec.Meta(pattern=r"^[A-Z]{2}$")]
+
+Patterns retain Python ``re`` syntax and search semantics. Automatic acceleration
+is limited to anchored ``^...$`` concatenations of printable ASCII literals and
+positive ASCII character classes, with ordinary or lazy repetitions. Groups,
+alternatives, flags, negated classes, Unicode classes and unsupported escapes
+use Python ``re``. Non-ASCII input strings and string subclasses also use Python
+``re``. Python compilation errors, warnings and version-specific rules are
+preserved. For example, ``^[A-Z]{2}$`` accepts ``"US\n"``, as Python ``re`` does.
+
+Patterns are compiled when the metadata is created. Matching uses the external
+C API without a Python call or a Match object per accelerated value. Known
+native resource limits use the original Python ``re`` pattern; other errors
+propagate. The original pattern is retained in introspection and JSON Schema.
+
+Without a compatible API, or on free-threaded Python, all patterns use Python
+``re``. The proposed API is not available in published pcre2 0.7.1. See
+:ref:`install-without-pcre2` for installation details.
+
+
 .. _datetime-constraints:
 
 Datetime Constraints
