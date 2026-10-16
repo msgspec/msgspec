@@ -25,8 +25,8 @@ from ._typing_utils import is_struct, is_struct_type
 from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
-    _resolve_type_alias,
     _is_typeddict,
+    _resolve_type_alias,
     get_class_annotations as _get_class_annotations,
     get_dataclass_info as _get_dataclass_info,
     get_typeddict_info as _get_typeddict_info,
