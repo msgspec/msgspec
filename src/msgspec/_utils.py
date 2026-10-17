@@ -108,6 +108,85 @@ def _apply_params(obj, mapping):
     return obj[args]
 
 
+def _has_default(param):
+    # Type parameter defaults are 3.13+
+    has_default = getattr(param, "has_default", None)
+    return has_default is not None and has_default()
+
+
+def _resolve_type_alias(alias, args):
+    params = alias.__type_params__
+    value = alias.__value__
+
+    # 'args is None' -> bare alias; '()' -> 'Alias[()]'
+    if args is None:
+        bound = {}
+    else:
+        # A[int, str] is shorthand for A[[int, str]] if the only parameter is a ParamSpec
+        if len(params) == 1 and isinstance(params[0], typing.ParamSpec) and args:
+            arg = args[0]
+            if not (
+                arg is ...
+                or isinstance(arg, (list, tuple, typing.ParamSpec))
+                or typing.get_origin(arg) is typing.Concatenate
+            ):
+                args = (args,)
+
+        variadic = [
+            i for i, p in enumerate(params) if isinstance(p, typing.TypeVarTuple)
+        ]
+        required = sum(
+            not isinstance(p, typing.TypeVarTuple) and not _has_default(p)
+            for p in params
+        )
+        if len(args) < required:
+            raise TypeError(
+                f"Too few type arguments for {alias.__name__}: "
+                f"got {len(args)}, expected at least {required}"
+            )
+        if not variadic and len(args) > len(params):
+            raise TypeError(
+                f"Too many type arguments for {alias.__name__}: "
+                f"got {len(args)}, expected at most {len(params)}"
+            )
+
+        # Bind by declared parameter, not by position in 'alias.__value__.__parameters__':
+        # 'type A[T, U] = dict[U, T]' has parameters '(U, T)'
+        bound = {}
+        if variadic:
+            # TypeVarTuple takes whatever the other parameters leave over
+            i = variadic[0]
+            split = len(args) - (len(params) - i - 1)
+            bound.update(zip(params[:i], args[:i]))
+            bound.update(zip(params[i + 1 :], args[split:]))
+            if args[i:split] or not _has_default(params[i]):
+                bound[params[i]] = args[i:split]
+        else:
+            bound.update(zip(params, args))
+
+    for p in params:
+        if p not in bound and _has_default(p):
+            default = _apply_params(p.__default__, bound)
+            bound[p] = (default,) if isinstance(p, typing.TypeVarTuple) else default
+
+    if not bound:
+        return value
+    if isinstance(value, typing.TypeVar):
+        return bound.get(value, value)
+
+    value_params = getattr(value, "__parameters__", ())
+    if not value_params:
+        return value
+
+    new_args = []
+    for p in value_params:
+        if isinstance(p, typing.TypeVarTuple):
+            new_args.extend(bound.get(p, (typing.Unpack[p],)))
+        else:
+            new_args.append(bound.get(p, p))
+    return value[tuple(new_args)]
+
+
 def _get_class_mro_and_typevar_mappings(obj):
     mapping = {}
 

@@ -26,6 +26,7 @@ from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
     _is_typeddict,
+    _resolve_type_alias,
     get_class_annotations as _get_class_annotations,
     get_dataclass_info as _get_dataclass_info,
     get_typeddict_info as _get_typeddict_info,
@@ -674,7 +675,7 @@ def _origin_args_metadata(t):
             elif origin == Final:
                 t = t.__args__[0]
             elif type(origin) is _TypeAliasType:
-                t = origin.__value__[t.__args__]
+                t = _resolve_type_alias(origin, t.__args__)
             else:
                 args = getattr(t, "__args__", None)
                 origin = _CONCRETE_TYPES.get(origin, origin)
@@ -684,7 +685,7 @@ def _origin_args_metadata(t):
             if supertype is not None:
                 t = supertype
             elif type(t) is _TypeAliasType:
-                t = t.__value__
+                t = _resolve_type_alias(t, None)
             else:
                 origin = t
                 args = None
