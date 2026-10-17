@@ -146,7 +146,6 @@ mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
         (GetAttrObj, True, False),
         (GetAttrOrItemObj, True, True),
         (GetAttrOrItemObj, True, False),
-        (GetAttrOrItemObj, False, False),
         (GetItemObj, False, False),
     ],
 )
@@ -1699,6 +1698,17 @@ class TestDataclass:
 
         assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
 
+    def test_mapping_method_named_fields(self):
+        @dataclass
+        class Example:
+            keys: int
+            items: str
+
+        msg = GetItemObj(keys=1, items="a")
+        assert convert(msg, Example) == Example(1, "a")
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `method`"):
+            convert(msg, Example, from_attributes=True)
+
 
 @pytest.mark.skipif(attrs is None, reason="attrs is not installed")
 class TestAttrs:
@@ -1875,6 +1885,17 @@ class TestAttrs:
 
         assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
 
+    def test_mapping_method_named_fields(self):
+        @attrs.define
+        class Example:
+            keys: int
+            items: str
+
+        msg = GetItemObj(keys=1, items="a")
+        assert convert(msg, Example) == Example(1, "a")
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `method`"):
+            convert(msg, Example, from_attributes=True)
+
 
 class TestStruct:
     class Account(Struct, kw_only=True):
@@ -1929,6 +1950,20 @@ class TestStruct:
             convert(msg, Ex)
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
+
+    def test_mapping_method_named_fields(self):
+        class Ex(Struct):
+            keys: int
+            items: str
+            values: int
+            get: int
+
+        msg = GetItemObj(keys=1, items="a", values=3, get=4)
+        assert convert(msg, Ex) == Ex(1, "a", 3, 4)
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `method` - at `\$\.keys`"
+        ):
+            convert(msg, Ex, from_attributes=True)
 
     @pytest.mark.parametrize("mapcls", [GetAttrObj, GetItemObj])
     def test_object_to_struct_with_renamed_fields(self, mapcls):
@@ -2396,6 +2431,20 @@ class TestStructUnion:
 
         with pytest.raises(ValidationError, match="got `Ex3`"):
             convert(Ex3(1), typ)
+
+    def test_mapping_method_named_fields(self):
+        class Test1(Struct, tag="t1"):
+            keys: int
+
+        class Test2(Struct, tag="t2"):
+            keys: int
+
+        msg = GetItemObj(type="t1", keys=1)
+        assert convert(msg, Test1 | Test2) == Test1(1)
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `method` - at `\$\.keys`"
+        ):
+            convert(msg, Test1 | Test2, from_attributes=True)
 
 
 class TestGenericStruct:

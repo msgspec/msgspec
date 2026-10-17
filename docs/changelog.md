@@ -6,6 +6,11 @@
   `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
   PEP 695 annotations on those subclasses resolve instead of raising
   `NameError` ({issue}`1191`).
+- Fix `convert` of a non-dict mapping into a `Struct`, `dataclass`, `attrs`
+  class, or tagged struct union when a field is named like a mapping method
+  (`keys`, `items`, `values`, `get`). With `from_attributes=False` the field is
+  read with `__getitem__`. `from_attributes=True` still prefers attributes
+  ({issue}`1246`)
 - Fix invalid `json` that was produced when converting non-finite `Decimal`
   objects with `decimal_format="number"` ({issue}`1262`)
 - Fix a crash `repr()` call for structs with `repr_omit_defaults=True`

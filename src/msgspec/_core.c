@@ -22573,7 +22573,8 @@ convert_other(
             matches_struct_union = type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION);
         }
         else {
-            getter = getattr_then_getitem;
+            /* Item lookup only, to avoid collisions with mapping methods. */
+            getter = PyObject_GetItem;
             matches_struct = type->types & MS_TYPE_STRUCT;
             matches_struct_union = type->types & MS_TYPE_STRUCT_UNION;
         }
