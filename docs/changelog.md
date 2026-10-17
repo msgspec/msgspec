@@ -34,6 +34,9 @@
   was used in loops ({pr}`1256`)
 - Fix a possible crash when too big ints are passed
   into `Meta`'s constructor ({pr}`1260`)
+- Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
+  raised `TypeError` although the decoder produces such keys for
+  `dict[frozendict[K, V], T]` ({issue}`1280`)
 
 ## Version 0.22.0 (2026-09-29)
 

@@ -13873,6 +13873,11 @@ mpack_encode_dict_key_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+#endif
     else {
         return mpack_encode_uncommon(self, type, obj);
     }
