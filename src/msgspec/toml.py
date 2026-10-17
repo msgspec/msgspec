@@ -170,16 +170,16 @@ def decode(
     encode
     """
     toml = _import_tomllib()
-    if isinstance(buf, str):
-        str_buf = buf
-    elif isinstance(buf, (bytes, bytearray)):
-        str_buf = buf.decode("utf-8")
-    else:
-        # call `memoryview` first, since `bytes(1)` is actually valid
-        str_buf = bytes(memoryview(buf)).decode("utf-8")
     try:
+        if isinstance(buf, str):
+            str_buf = buf
+        elif isinstance(buf, (bytes, bytearray)):
+            str_buf = buf.decode("utf-8")
+        else:
+            # call `memoryview` first, since `bytes(1)` is actually valid
+            str_buf = bytes(memoryview(buf)).decode("utf-8")
         obj = toml.loads(str_buf)
-    except toml.TOMLDecodeError as exc:
+    except (toml.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise _DecodeError(str(exc)) from None
 
     if type is Any:
