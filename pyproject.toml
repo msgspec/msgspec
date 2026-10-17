@@ -17,10 +17,16 @@ license-files = [
   "LICENSE",
 ]
 requires-python = ">=3.10"
-maintainers = [
+authors = [
   { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
+  { name = "The msgspec community", email = "info@msgspec.dev" },
+]
+maintainers = [
+  { name = "The msgspec community", email = "info@msgspec.dev" },
   { name = "Ofek Lev", email = "oss@ofek.dev" },
   { name = "Nikita Sobolev", email = "mail@sobolevn.me" },
+  { name = "Janek Nouvertné", email = "provinzkraut@posteo.de" },
+  { name = "Tseluiko Aleksandr", email = "a.s.tseluyko@gmail.com"}
 ]
 keywords = [
   "JSON",
@@ -64,9 +70,9 @@ Source = "https://github.com/msgspec/msgspec"
 [dependency-groups]
 bench = [
   "cattrs==26.2.1",
-  "mashumaro==3.22",
+  "mashumaro==3.23",
   "msgpack==1.2.2",
-  "orjson==3.12.0",
+  "orjson==3.13.0",
   "ormsgpack==1.12.2",
   "pydantic==2.13.5",
   "python-rapidjson==1.25",
