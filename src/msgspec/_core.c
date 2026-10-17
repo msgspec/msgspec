@@ -15097,6 +15097,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
+    PyObject *iter = NULL;
     PyObject *input = args[0];
     if (MS_LIKELY(PyList_Check(input))) {
         for (Py_ssize_t i = 0; i < PyList_GET_SIZE(input); i++) {
@@ -15105,7 +15106,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         }
     }
     else {
-        PyObject *iter = PyObject_GetIter(input);
+        iter = PyObject_GetIter(input);
         if (iter == NULL) goto error;
 
         PyObject *item;
@@ -15118,10 +15119,12 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         if (PyErr_Occurred()) goto error;
     }
 
+    Py_XDECREF(iter);
     FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
     return state.output_buffer;
 
 error:
+    Py_XDECREF(iter);
     Py_DECREF(state.output_buffer);
     return NULL;
 }

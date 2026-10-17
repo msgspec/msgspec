@@ -11,6 +11,7 @@ import math
 import string
 import sys
 import uuid
+import weakref
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, Any, Literal, NamedTuple, TypedDict, Union
@@ -335,6 +336,39 @@ class TestEncoderMisc:
 
         res = enc.encode_lines(items)
         assert res == sol
+
+    @pytest.mark.parametrize("mode", ["empty", "success", "encode_error", "next_error"])
+    def test_encode_lines_releases_iterator(self, mode):
+        refs = []
+
+        class Iterable:
+            def __iter__(self):
+                def gen():
+                    if mode == "empty":
+                        return
+                    yield 1
+                    if mode == "next_error":
+                        raise ValueError("Oh no!")
+                    yield object() if mode == "encode_error" else 2
+
+                iterator = gen()
+                refs.append(weakref.ref(iterator))
+                return iterator
+
+        enc = msgspec.json.Encoder()
+        if mode == "encode_error":
+            with pytest.raises(TypeError, match="unsupported"):
+                enc.encode_lines(Iterable())
+        elif mode == "next_error":
+            with pytest.raises(ValueError, match="Oh no!"):
+                enc.encode_lines(Iterable())
+        else:
+            expected = b"" if mode == "empty" else b"1\n2\n"
+            assert enc.encode_lines(Iterable()) == expected
+
+        gc.collect()
+        assert len(refs) == 1
+        assert refs[0]() is None
 
     @pytest.mark.parametrize("iterable", [False, True])
     def test_encode_lines_iterable_unsupported_item_errors(self, iterable):
