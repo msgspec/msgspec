@@ -1423,6 +1423,38 @@ def test_generic_metadata():
     }
 
 
+@pytest.mark.parametrize("name", ["", "Node"])
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+def test_component_name_references(name, recursive, ref_template):
+    fields = '[("child", "Node | None", None)]' if recursive else '[("value", int)]'
+    code = f"import msgspec\nNode = msgspec.defstruct({name!r}, {fields})"
+    ref = {"$ref": ref_template.format(name=name)}
+    properties = (
+        {"child": {"anyOf": [ref, {"type": "null"}], "default": None}}
+        if recursive
+        else {"value": {"type": "integer"}}
+    )
+    expected = {
+        name: {
+            "title": name,
+            "type": "object",
+            "properties": properties,
+            "required": [] if recursive else ["value"],
+        }
+    }
+    with temp_module(code) as mod:
+        obj = mod.Node(mod.Node()) if recursive else mod.Node(1)
+        assert msgspec.json.decode(msgspec.json.encode(obj), type=mod.Node) == obj
+        assert msgspec.json.schema_components(
+            [mod.Node], ref_template=ref_template
+        ) == ((ref,), expected)
+        assert msgspec.json.schema(mod.Node, ref_template=ref_template) == {
+            **ref,
+            "$defs": expected,
+        }
+
+
 def test_component_names_collide():
     s1 = """
     import msgspec

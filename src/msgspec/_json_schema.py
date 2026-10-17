@@ -233,7 +233,7 @@ class _SchemaGenerator:
             t = t.type
 
         if check_ref and hasattr(t, "cls"):
-            if name := self.name_map.get(t.cls):
+            if (name := self.name_map.get(t.cls)) is not None:
                 schema["$ref"] = self.ref_template.format(name=name)
                 return schema
 
