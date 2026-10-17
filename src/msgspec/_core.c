@@ -5837,7 +5837,10 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
     PyObject *modules = PySys_GetObject("modules");
     if (modules == NULL) return NULL;
     PyObject *module = PyDict_GetItem(modules, name);
-    if (module == NULL) return NULL;
+    if (module == NULL) {
+        PyErr_Format(PyExc_KeyError, "Module %R is not loaded", name);
+        return NULL;
+    }
     return PyObject_GetAttr(module, mod->str___dict__);
 }
 
@@ -7181,7 +7184,14 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
         PyObject *field_type = PyDict_GetItem(annotations, field);
-        if (field_type == NULL) goto error;
+        if (field_type == NULL) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "%R.__annotations__ miss %R",
+                obj, field
+            );
+            goto error;
+        }
         TypeNode *type = TypeNode_Convert(field_type);
         if (type == NULL) goto error;
         info->types[i] = type;
@@ -20412,7 +20422,7 @@ sort_dict_inplace(PyObject **dict) {
     for (Py_ssize_t i = 0; i < size; i++) {
         PyObject *key = PyList_GET_ITEM(keys, i);
         PyObject *val = PyDict_GetItem(*dict, key);
-        if (val == NULL) goto error;
+        assert(val != NULL);  // dict can't miss it's own key
         if (PyDict_SetItem(new, key, val) < 0) goto error;
     }
     Py_INCREF(new);
