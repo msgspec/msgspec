@@ -7,10 +7,11 @@ import sys
 import uuid
 import weakref
 from dataclasses import dataclass, make_dataclass
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Union
 
 import pytest
 
+import msgspec
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
 from .utils import emscripten_stack_limited, py315_or_later_only
@@ -457,6 +458,62 @@ class TestToBuiltins:
         assert to_builtins(Ex(1, b=FruitStr.APPLE)) == {"x": 1, "b": "apple"}
 
     @pytest.mark.parametrize("tagged", [False, True])
+    def test_struct_object_int_keys(self, tagged):
+        class Ex(Struct, tag=tagged, int_keys={"x": 1, "y": 2}, rename={"z": "zed"}):
+            x: int
+            y: int
+            z: int
+
+        msg = Ex(1, 2, 3)
+
+        # Fields with an `int_keys` entry are keyed by their integer key, the
+        # rest by their encoded name -- the same keys `msgpack.encode` emits.
+        sol = {1: 1, 2: 2, "zed": 3}
+        if tagged:
+            sol = {"type": "Ex", **sol}
+        assert to_builtins(msg) == sol
+        assert to_builtins(msg) == msgspec.msgpack.decode(msgspec.msgpack.encode(msg))
+
+        # `str_keys=True` coerces the integer keys to their decimal strings,
+        # matching `json.encode`.
+        sol_str = {str(k): v for k, v in sol.items()}
+        assert to_builtins(msg, str_keys=True) == sol_str
+        assert to_builtins(msg, str_keys=True) == msgspec.json.decode(
+            msgspec.json.encode(msg)
+        )
+
+    def test_struct_object_int_keys_nested(self):
+        class Inner(Struct, frozen=True, int_keys={"a": 1}):
+            a: int
+
+        class Outer(Struct, int_keys={"inner": 1}):
+            inner: Inner
+            items: list[Inner]
+            mapping: dict[str, Inner]
+
+        msg = Outer(Inner(1), [Inner(2)], {"k": Inner(3)})
+        assert to_builtins(msg) == {
+            1: {1: 1},
+            "items": [{1: 2}],
+            "mapping": {"k": {1: 3}},
+        }
+        assert to_builtins(msg, str_keys=True) == {
+            "1": {"1": 1},
+            "items": [{"1": 2}],
+            "mapping": {"k": {"1": 3}},
+        }
+
+    def test_struct_object_int_keys_omit_defaults_and_unset(self):
+        class Ex(Struct, omit_defaults=True, int_keys={"x": 1, "y": 2}):
+            x: int = 0
+            y: Union[int, UnsetType] = UNSET
+            z: int = 0
+
+        assert to_builtins(Ex()) == {}
+        assert to_builtins(Ex(x=1, z=2)) == {1: 1, "z": 2}
+        assert to_builtins(Ex(y=3)) == {2: 3}
+
+    @pytest.mark.parametrize("tagged", [False, True])
     def test_struct_array(self, tagged):
         class Ex(Struct, array_like=True, tag=tagged):
             x: int
@@ -812,3 +869,37 @@ class TestOrder:
 
         res = to_builtins(Ex(0, 1), order="sorted")
         self.assert_eq(res, {"x": 1, "y": 2, "z": 0})
+
+    def test_order_struct_int_keys(self):
+        class Ex(Struct, tag_field="t", tag=True, int_keys={"a": 10, "b": 2}):
+            z: int
+            a: int
+            b: int
+            y: int
+
+        msg = Ex(0, 1, 2, 3)
+
+        # Integer keys sort numerically and before string keys, matching the
+        # `order="sorted"` output of the msgpack and json encoders.
+        res = to_builtins(msg, order="sorted")
+        self.assert_eq(res, {2: 2, 10: 1, "t": "Ex", "y": 3, "z": 0})
+        self.assert_eq(
+            res, msgspec.msgpack.decode(msgspec.msgpack.encode(msg, order="sorted"))
+        )
+
+        # `str_keys=True` keeps the numeric order ("10" still follows "2")
+        res = to_builtins(msg, order="sorted", str_keys=True)
+        self.assert_eq(res, {"2": 2, "10": 1, "t": "Ex", "y": 3, "z": 0})
+        self.assert_eq(
+            res, msgspec.json.decode(msgspec.json.encode(msg, order="sorted"))
+        )
+
+    def test_order_struct_int_keys_omit_defaults(self):
+        class Ex(Struct, omit_defaults=True, int_keys={"a": 2, "b": 1}):
+            a: int = 0
+            b: int = 0
+            c: int = 0
+
+        self.assert_eq(to_builtins(Ex(), order="sorted"), {})
+        self.assert_eq(to_builtins(Ex(a=1, c=3), order="sorted"), {2: 1, "c": 3})
+        self.assert_eq(to_builtins(Ex(a=1, b=2), order="sorted"), {1: 2, 2: 1})

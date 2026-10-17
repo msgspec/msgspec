@@ -869,6 +869,133 @@ precedence.
     b'{"fieldX":1,"y":2}'
 
 
+.. _struct-int-keys:
+
+Integer Field Keys
+------------------
+
+Descriptive field names make for readable code but bloat the encoded message,
+since the name of every field is repeated in full on the wire. For MessagePack
+you can avoid this by encoding fields with **integer keys** instead of their
+names, using the ``int_keys`` configuration option — a mapping from field name to
+integer. This is like renaming (above), but the wire keys are compact integers
+rather than strings.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Point(msgspec.Struct, int_keys={"x": 1, "y": 2}):
+    ...     x: int
+    ...     y: int
+
+    >>> # MessagePack encodes the fields with integer keys ({1: 1, 2: 2})
+    >>> buf = msgspec.msgpack.encode(Point(1, 2))
+    >>> msgspec.msgpack.decode(buf)
+    {1: 1, 2: 2}
+
+    >>> # Decoding maps the integer keys back to fields
+    >>> msgspec.msgpack.decode(buf, type=Point)
+    Point(x=1, y=2)
+
+JSON object keys must be strings, so in JSON the integer keys are encoded as their
+decimal strings (``"1"``, ``"2"``) — the same coercion msgspec uses for integer
+dict keys:
+
+.. code-block:: python
+
+    >>> msgspec.json.encode(Point(1, 2))
+    b'{"1":1,"2":2}'
+
+    >>> msgspec.json.decode(b'{"1":1,"2":2}', type=Point)
+    Point(x=1, y=2)
+
+Only the exact decimal string the encoder emits is recognized as an integer key
+when decoding JSON: no leading zeros, no ``"-0"``, and a value within the signed
+64-bit range. Anything else (``"01"``, ``"9223372036854775808"``, ...) is treated
+as an ordinary, unknown field name.
+
+Decoding also accepts the field's encoded (string) name as an alias, so a message
+that uses names (for example one produced by a non-msgspec producer) still
+round-trips. The alias is a decoding convenience only; the encoder never emits it.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b'{"x":1,"y":2}', type=Point)
+    Point(x=1, y=2)
+
+Because both spellings are accepted, the decimal string of an integer key must not
+also be the encoded name of a *different* field, or the ``tag_field`` of a tagged
+struct — otherwise two keys would be indistinguishable on the wire. Such
+collisions raise a ``ValueError`` at class definition:
+
+.. code-block:: python
+
+    >>> class Bad(msgspec.Struct, int_keys={"a": 1}, rename={"b": "1"}):
+    ...     a: int
+    ...     b: int = 0
+    Traceback (most recent call last):
+      ...
+    ValueError: `int_keys` value 1 for field 'a' conflicts with field 'b', whose encoded name is also '1'
+
+Generated :doc:`JSON schemas <jsonschema>` describe the encoded form: an
+int-keyed field appears under its decimal-string key (``"1"``), and is listed
+there in ``required`` if it has no default. Field defaults are rendered in
+encoded form as well, so a default that is itself an int-keyed struct appears
+under its integer keys. The name alias is not part of the schema. Note that
+this means a schema generated with ``forbid_unknown_fields=True``
+(``additionalProperties: false``) rejects alias-keyed messages that msgspec
+itself would still accept.
+
+.. code-block:: python
+
+    >>> msgspec.json.schema(Point)["$defs"]["Point"]
+    {'title': 'Point', 'type': 'object', 'properties': {'1': {'type': 'integer'}, '2': {'type': 'integer'}}, 'required': ['1', '2']}
+
+A few things to note:
+
+- Not every field needs a key; fields missing from ``int_keys`` keep their string
+  names on the wire (producing a message with mixed integer and string keys).
+- Integer keys are baked onto the type, so **nested** structs are handled
+  automatically — each struct encodes with its own ``int_keys``, with no extra
+  configuration needed at encode/decode time. This also holds under
+  ``order="sorted"``, which emits the same integer keys.
+- ``int_keys`` composes with ``rename`` (and ``field(name=...)``): ``int_keys``
+  sets the wire key for the fields it lists, while ``rename`` still controls the
+  string key of any unlisted fields (and the encoded name that decoding accepts
+  as an alias).
+- Integer keys must be unique within a struct, fit in a signed 64-bit integer
+  (``-2**63`` through ``2**63 - 1``), and not collide with another field's
+  encoded name or the ``tag_field`` as described above.
+- ``int_keys`` cannot be combined with ``array_like=True`` (array-encoded structs
+  have no field keys); doing so raises a ``ValueError`` at class definition.
+- `msgspec.to_builtins` and `msgspec.convert` honor ``int_keys`` the same way the
+  encoders and decoders do, so protocols built on them (including
+  :mod:`msgspec.yaml` and :mod:`msgspec.toml`) get the compact keys as well.
+  ``to_builtins`` keys int-keyed fields by their integer key, or by its decimal
+  string when ``str_keys=True``. ``convert`` accepts the integer key, its
+  canonical decimal string, or the field name.
+
+  .. code-block:: python
+
+      >>> msgspec.to_builtins(Point(1, 2))
+      {1: 1, 2: 2}
+
+      >>> msgspec.to_builtins(Point(1, 2), str_keys=True)
+      {'1': 1, '2': 2}
+
+      >>> msgspec.convert({1: 1, 2: 2}, Point)
+      Point(x=1, y=2)
+
+The assigned key for each field is available via introspection through the
+``int_key`` attribute of `msgspec.structs.FieldInfo`:
+
+.. code-block:: python
+
+    >>> [(f.name, f.int_key) for f in msgspec.structs.fields(Point)]
+    [('x', 1), ('y', 2)]
+
+
 Encoding/Decoding as Arrays
 ---------------------------
 

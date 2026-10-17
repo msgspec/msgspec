@@ -41,6 +41,7 @@ class FieldInfo(Struct):
     type: Any
     default: Any = NODEFAULT
     default_factory: Any = NODEFAULT
+    int_key: int | None = None
 
     @property
     def required(self) -> bool: ...
