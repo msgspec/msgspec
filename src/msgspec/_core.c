@@ -9836,24 +9836,24 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process decimal format */
-    self->decimal_callable = NULL;
+    enum decimal_format decimal_fmt;
+    PyObject *decimal_callable = NULL;
     if (decimal_format == NULL) {
-        self->decimal_format = DECIMAL_FORMAT_STRING;
+        decimal_fmt = DECIMAL_FORMAT_STRING;
     }
     else if (PyCallable_Check(decimal_format)) {
-        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
-        Py_INCREF(decimal_format);
-        self->decimal_callable = decimal_format;
+        decimal_fmt = DECIMAL_FORMAT_CALLABLE;
+        decimal_callable = decimal_format;
     }
     else {
         bool ok = false;
         if (PyUnicode_CheckExact(decimal_format)) {
             if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_STRING;
+                decimal_fmt = DECIMAL_FORMAT_STRING;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_NUMBER;
+                decimal_fmt = DECIMAL_FORMAT_NUMBER;
                 ok = true;
             }
         }
@@ -9900,8 +9900,8 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process order */
-    self->order = parse_order_arg(order);
-    if (self->order == ORDER_INVALID) return -1;
+    enum order_mode order_mode = parse_order_arg(order);
+    if (order_mode == ORDER_INVALID) return -1;
 
     if (enc_hook == Py_None) {
         enc_hook = NULL;
@@ -9916,6 +9916,10 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
+    self->decimal_format = decimal_fmt;
+    Py_XINCREF(decimal_callable);
+    Py_XSETREF(self->decimal_callable, decimal_callable);
+    self->order = order_mode;
     return 0;
 }
 
