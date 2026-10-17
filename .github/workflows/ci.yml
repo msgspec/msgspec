@@ -127,6 +127,49 @@ jobs:
           ryu.h.gcov
         if-no-files-found: error
 
+  test-free-threading:
+    name: Test FT Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs:
+    - prepare
+    runs-on: "${{ matrix.os }}"
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        python-version:
+        - "3.14t"
+        - "3.15t"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Install Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: "${{ matrix.python-version }}"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      with:
+        enable-cache: false
+
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Install testing dependencies
+      run: just env-sync test
+
+    # TODO: enable threading sanitizer
+    - name: Run tests
+      run: >-
+        just env-run test pytest tests/unit tests/freethreading -s
+
   upload-coverage:
     name: Upload coverage files to Codecov
     needs:

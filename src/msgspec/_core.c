@@ -13073,21 +13073,25 @@ mpack_encode_empty_array(EncoderState *self) {
 static MS_NOINLINE int
 mpack_encode_list(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t i, len;
-    int status = 0;
-
-    len = PyList_GET_SIZE(obj);
-    if (len == 0) return mpack_encode_empty_array(self);
-
-    if (mpack_encode_array_header(self, len, "list") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    int status = -1;
+
     Py_BEGIN_CRITICAL_SECTION(obj);
-    for (i = 0; i < len; i++) {
-        if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
-            status = -1;
-            break;
-        }
+    Py_ssize_t len = PyList_GET_SIZE(obj);
+    if (len == 0) {
+        status = mpack_encode_empty_array(self);
+        goto cleanup;
     }
+
+    if (mpack_encode_array_header(self, len, "list") < 0) goto cleanup;
+
+    for (Py_ssize_t i = 0; i < len; i++) {
+        if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) goto cleanup;
+    }
+    status = 0;
+
+cleanup:;
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
