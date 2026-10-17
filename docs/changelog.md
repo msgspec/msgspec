@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include string Literal and Enum dictionary key constraints in generated JSON
+  Schema `propertyNames`.
 - Fix generic `TypedDict` subclasses dropping the base type argument, so
   `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
   PEP 695 annotations on those subclasses resolve instead of raising

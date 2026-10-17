@@ -1355,6 +1355,73 @@ def test_dict_key_metadata_with_schema_metadata(meta, property_names):
     }
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_literal_key_schema(annotated):
+    key_type = Literal["apple", "banana"]
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"enum": ["apple", "banana"]}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["additionalProperties"] == {"type": "integer"}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {"apple": 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+@pytest.mark.parametrize("base", [enum.Enum, str])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_enum_key_schema(base, annotated):
+    if base is str:
+
+        class Fruit(str, enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    else:
+
+        class Fruit(enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    key_type = Fruit
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"$ref": "#/$defs/Fruit"}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["$defs"]["Fruit"]["enum"] == ["apple", "banana"]
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {Fruit.APPLE: 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+def test_dict_integer_keys_do_not_use_string_property_names():
+    class Number(enum.IntEnum):
+        ONE = 1
+        TWO = 2
+
+    for key_type in (int, Literal[1, 2], Number):
+        schema = msgspec.json.schema(dict[key_type, int])
+        assert "propertyNames" not in schema
+
+
+@py315_or_later_only
+def test_frozendict_string_literal_key_schema():
+    typ = frozendict[Literal["apple", "banana"], int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == {"enum": ["apple", "banana"]}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == frozendict(apple=1)
+
+
 @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
 @pytest.mark.parametrize(
     "field, n, constraint",
