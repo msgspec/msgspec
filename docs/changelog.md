@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preserve JSON Schema metadata on annotated `Struct` members of unions.
 - Fix generic `TypedDict` subclasses dropping the base type argument, so
   `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
   PEP 695 annotations on those subclasses resolve instead of raising

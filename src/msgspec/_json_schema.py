@@ -337,7 +337,7 @@ class _SchemaGenerator:
                     real_type = real_type.type
                 if isinstance(real_type, mi.StructType) and not real_type.array_like:
                     tag_field = real_type.tag_field
-                    structs[real_type.tag] = real_type
+                    structs[real_type.tag] = (real_type, subtype)
                 elif isinstance(real_type, mi.NoneType):
                     none_member = subtype
                 else:
@@ -348,10 +348,10 @@ class _SchemaGenerator:
             if len(structs) >= 2:
                 mapping = {
                     k: self.ref_template.format(name=self.name_map[v.cls])
-                    for k, v in structs.items()
+                    for k, (v, _) in structs.items()
                 }
                 struct_schema = {
-                    "anyOf": [self.to_schema(v) for v in structs.values()],
+                    "anyOf": [self.to_schema(s) for _, s in structs.values()],
                     "discriminator": {"propertyName": tag_field, "mapping": mapping},
                 }
                 if options:
@@ -364,7 +364,7 @@ class _SchemaGenerator:
                 else:
                     schema.update(struct_schema)
             elif len(structs) == 1:
-                _, subtype = structs.popitem()
+                _, (_, subtype) = structs.popitem()
                 options.append(self.to_schema(subtype))
                 if none_member is not None:
                     options.append(self.to_schema(none_member))
