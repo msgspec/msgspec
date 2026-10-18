@@ -808,7 +808,7 @@ class TestEnum:
     def test_random_enum_different_lengths(self, rand, nitems):
         def strgen():
             """Yields unique random strings"""
-            seen = {'mro'}  # names that `Enum` does not allow, see #1286
+            seen = {"mro"}  # names that `Enum` does not allow, see #1286
             while True:
                 x = rand.str(1, 32)
                 if x in seen:
