@@ -7,6 +7,7 @@ import decimal
 import enum
 import gc
 import inspect
+import subprocess
 import sys
 import textwrap
 import types
@@ -808,7 +809,7 @@ class TestEnum:
     def test_random_enum_different_lengths(self, rand, nitems):
         def strgen():
             """Yields unique random strings"""
-            seen = set()
+            seen = {"mro"}  # names that `Enum` does not allow, see #1286
             while True:
                 x = rand.str(1, 32)
                 if x in seen:
@@ -2791,6 +2792,87 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    def test_failed_recursive_type_releases_field_types(self):
+        source = """
+        from typing import TypedDict
+
+        class Custom:
+            pass
+
+        class A(TypedDict, total=False):
+            first: Custom
+            child: "B"
+            bad: list | tuple
+
+        class B(TypedDict):
+            parent: A
+        """
+        with temp_module(source) as mod:
+            ref = weakref.ref(mod.Custom)
+            with pytest.raises(TypeError, match="more than one array-like"):
+                msgspec.convert({}, mod.A)
+        del mod
+        gc.collect()
+        assert ref() is None
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("operation", ["json", "msgpack", "convert"])
+    @pytest.mark.parametrize("value", [{}, {"x": 1}, {"child": {}}])
+    def test_failed_recursive_type_does_not_decode_partial_cache(
+        self, module, operation, value
+    ):
+        if sys.platform == "emscripten":
+            pytest.skip("Subprocesses are not available on Emscripten")
+        ns = pytest.importorskip(module)
+        if not hasattr(ns, "NotRequired"):
+            pytest.skip(f"{module}.NotRequired is not available")
+
+        # Run against the real extension in a child process: on the broken
+        # implementation, nonempty objects can dereference uninitialized keys.
+        source = textwrap.dedent(
+            f"""
+            from {module} import TypedDict, NotRequired
+            import msgspec
+
+            class A(TypedDict):
+                child: NotRequired["B"]
+                bad: list | tuple
+
+            class B(TypedDict):
+                parent: A
+
+            try:
+                msgspec.convert({{}}, A)
+            except TypeError:
+                pass
+            else:
+                raise AssertionError("Unsupported union was accepted")
+
+            value = {{"parent": {value!r}}}
+            if {operation!r} == "convert":
+                def decode(value):
+                    return msgspec.convert(value, B)
+            else:
+                proto = getattr(msgspec, {operation!r})
+                def decode(value):
+                    return proto.decode(proto.encode(value), type=B)
+
+            for _ in range(2):
+                try:
+                    decode(value)
+                except TypeError:
+                    pass
+                else:
+                    raise AssertionError("Incomplete TypedDict was decoded")
+
+            assert msgspec.convert({{"x": 1}}, dict[str, int]) == {{"x": 1}}
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", source], capture_output=True, text=True, timeout=30
+        )
+        assert result.returncode == 0, result.stderr
+
     def test_postponed_annotations(self, proto):
         # Regression test for Python 3.12.0-3.12.3, where the fourth argument
         # to typing._eval_type is recursive_guard rather than type_params.
@@ -5571,7 +5653,7 @@ class TestLax:
             with pytest.raises(ValidationError, match="Invalid epoch timestamp"):
                 proto.decode(msg, type=datetime.datetime, strict=False)
 
-    @pytest.mark.parametrize("val", [-62135596801, 253402300801])
+    @pytest.mark.parametrize("val", [-62135596801, 253402300800, 253402300801])
     @pytest.mark.parametrize("type", [int, float, str])
     def test_lax_datetime_out_of_range(self, val, type, proto):
         msg = proto.encode(type(val))

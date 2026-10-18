@@ -25,7 +25,12 @@ import pytest
 
 import msgspec
 
-from .utils import emscripten_stack_limited
+from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -1468,12 +1473,18 @@ class TestTimestampExt:
             (b"\xd7\xff\x00\x00\x07\xcc\x00\x00\x00\x00", 0, 0),
             (b"\xd7\xff\xeek 0\x00\x00\x00\x00", 1, 0),
             (b"\xd7\xff\xeek ,\x00\x00\x00\x00", 0, 999999),
+            (b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A~", 59, 0),
         ],
     )
     def test_timestamp_rounds_nanos(self, msg, secs, micros):
         res = msgspec.msgpack.decode(msg)
         assert res.second == secs
         assert res.microsecond == micros
+
+    def test_timestamp_rounds_nanos_out_of_range(self):
+        msg = b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A\x7f"
+        with pytest.raises(msgspec.ValidationError, match="out of range"):
+            msgspec.msgpack.decode(msg)
 
 
 class CommonTypeTestBase:
@@ -1551,6 +1562,43 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         data = msgspec.msgpack.encode(orig)
         out = msgspec.msgpack.Decoder(dict[tuple[int, Test], list[int]]).decode(data)
         assert orig == out
+
+    @py315_or_later_only
+    def test_roundtrip_frozendict_dict_key(self):
+        orig = {frozendict({"a": 1}): 1}
+        data = msgspec.msgpack.encode(orig)
+        out = msgspec.msgpack.decode(data, type=dict[frozendict[str, int], int])
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is frozendict
+        assert type(out[key]) is int
+
+    @py315_or_later_only
+    def test_encode_frozendict_subclass_dict_key(self):
+        class MyFrozenDict(frozendict):
+            pass
+
+        orig = {MyFrozenDict({"a": 1}): 1}
+        data = msgspec.msgpack.encode(orig)
+        assert data == msgspec.msgpack.encode({frozendict({"a": 1}): 1})
+        out = msgspec.msgpack.decode(data, type=dict[frozendict[str, int], int])
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is frozendict
+        assert type(out[key]) is int
+
+        def dec_hook(typ, obj):
+            assert typ is MyFrozenDict
+            assert type(obj) is dict
+            return typ(obj)
+
+        out = msgspec.msgpack.decode(
+            data, type=dict[MyFrozenDict, int], dec_hook=dec_hook
+        )
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is MyFrozenDict
+        assert type(out[key]) is int
 
 
 class TestUntypedDecoder(CommonTypeTestBase):
