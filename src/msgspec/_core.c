@@ -15117,9 +15117,9 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
             if (ms_write(&state, "\n", 1) < 0) goto error;
         }
         if (PyErr_Occurred()) goto error;
+        Py_DECREF(iter);
     }
 
-    Py_XDECREF(iter);
     FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
     return state.output_buffer;
 
