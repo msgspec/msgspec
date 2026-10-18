@@ -10,8 +10,8 @@ class Rand:
     """Random source, pulled out into fixture with repr so the seed is
     displayed on failing tests"""
 
-    def __init__(self, seed=0):
-        self.seed = seed or random.randint(0, 2**32 - 1)
+    def __init__(self, seed):
+        self.seed = seed
         self.rand = random.Random(self.seed)
 
     def __repr__(self):
@@ -44,8 +44,8 @@ class Rand:
 
 
 @pytest.fixture
-def rand():
-    yield Rand()
+def rand(randomly_seed):
+    yield Rand(seed=randomly_seed)
 
 
 @pytest.fixture(scope="session")
