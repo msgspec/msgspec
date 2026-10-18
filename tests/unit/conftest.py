@@ -7,15 +7,12 @@ import pytest
 
 
 class Rand:
-    """Random source, pulled out into fixture with repr so the seed is
-    displayed on failing tests"""
+    """Random source controlled by `--randomly-seed`'s random state."""
 
-    def __init__(self, seed):
-        self.seed = seed
-        self.rand = random.Random(self.seed)
-
-    def __repr__(self):
-        return f"Rand({self.seed})"
+    def __init__(self, state):
+        self.state = state
+        self.rand = random.Random()
+        self.rand.setstate(self.state)
 
     def str(self, n, m=0):
         """
@@ -44,8 +41,9 @@ class Rand:
 
 
 @pytest.fixture
-def rand(randomly_seed):
-    yield Rand(seed=randomly_seed)
+def rand():
+    # State that is seeded with `pytest-randomly` already
+    yield Rand(state=random.getstate())
 
 
 @pytest.fixture(scope="session")
