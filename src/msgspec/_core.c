@@ -3091,6 +3091,7 @@ static PyTypeObject Ext_Type;
 static TypeNode* TypeNode_Convert(PyObject *type);
 static PyObject* StructInfo_Convert(PyObject*);
 static PyObject* TypedDictInfo_Convert(PyObject*);
+static int TypedDictInfo_clear(TypedDictInfo*);
 static PyObject* DataclassInfo_Convert(PyObject*);
 static PyObject* NamedTupleInfo_Convert(PyObject*);
 
@@ -8829,21 +8830,33 @@ TypedDictInfo_Convert(PyObject *obj) {
 
 cleanup:
     if (!succeeded) {
+        PyObject *err_type, *err_value, *err_tb;
+        PyErr_Fetch(&err_type, &err_value, &err_tb);
+        /* A cached recursive sibling may still reference this incomplete
+         * info. Release its fields to break cycles and leave it invalid. */
+        if (info != NULL) TypedDictInfo_clear(info);
         Py_CLEAR(info);
         if (cache_set) {
             /* An error occurred after the cache was created and set on the
             * TypedDict. We need to delete the attribute. Fetch and restore the
             * original exception to avoid DelAttr silently clearing it on rare
             * occasions. */
-            PyObject *err_type, *err_value, *err_tb;
-            PyErr_Fetch(&err_type, &err_value, &err_tb);
             PyObject_DelAttr(obj, mod->str___msgspec_cache__);
-            PyErr_Restore(err_type, err_value, err_tb);
         }
+        PyErr_Restore(err_type, err_value, err_tb);
     }
     Py_XDECREF(annotations);
     Py_XDECREF(required);
     return (PyObject *)info;
+}
+
+static MS_INLINE int
+TypedDictInfo_check_initialized(TypedDictInfo *info) {
+    if (MS_UNLIKELY(info->nrequired < 0)) {
+        PyErr_SetString(PyExc_TypeError, "TypedDict type is incomplete");
+        return -1;
+    }
+    return 0;
 }
 
 static MS_INLINE PyObject *
@@ -10982,7 +10995,7 @@ datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
 
 /* Python datetimes bounded between (inclusive)
  * [0001-01-01T00:00:00.000000, 9999-12-31T23:59:59.999999] UTC */
-#define MS_EPOCH_SECS_MAX 253402300800
+#define MS_EPOCH_SECS_MAX 253402300799
 #define MS_EPOCH_SECS_MIN -62135596800
 #define MS_DAYS_PER_400Y (365*400 + 97)
 #define MS_DAYS_PER_100Y (365*100 + 24)
@@ -11012,6 +11025,9 @@ datetime_from_epoch(
     if (micros == 1000000) {
         micros = 0;
         epoch_secs++;
+        if (epoch_secs > MS_EPOCH_SECS_MAX) {
+            return ms_error_with_path("Timestamp is out of range %U", path);
+        }
     }
 
     /* Start in Mar not Jan, so leap day is on end */
@@ -13872,6 +13888,11 @@ mpack_encode_dict_key_inline(EncoderState *self, PyObject *obj)
     else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
+#if PY315_PLUS
+    else if (PyFrozenDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+#endif
     else {
         return mpack_encode_uncommon(self, type, obj);
     }
@@ -15096,6 +15117,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
+    PyObject *iter = NULL;
     PyObject *input = args[0];
     if (MS_LIKELY(PyList_Check(input))) {
         for (Py_ssize_t i = 0; i < PyList_GET_SIZE(input); i++) {
@@ -15104,7 +15126,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         }
     }
     else {
-        PyObject *iter = PyObject_GetIter(input);
+        iter = PyObject_GetIter(input);
         if (iter == NULL) goto error;
 
         PyObject *item;
@@ -15115,12 +15137,14 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
             if (ms_write(&state, "\n", 1) < 0) goto error;
         }
         if (PyErr_Occurred()) goto error;
+        Py_DECREF(iter);
     }
 
     FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
     return state.output_buffer;
 
 error:
+    Py_XDECREF(iter);
     Py_DECREF(state.output_buffer);
     return NULL;
 }
@@ -16462,12 +16486,13 @@ static PyObject *
 mpack_decode_typeddict(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *res = PyDict_New();
     if (res == NULL) goto error;
 
-    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
     Py_ssize_t nrequired = 0, pos = 0;
     for (Py_ssize_t i = 0; i < size; i++) {
         char *key;
@@ -18967,6 +18992,7 @@ json_decode_typeddict(
     bool first = true;
     Py_ssize_t key_size, nrequired = 0, pos = 0;
     TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
 
     self->input_pos++; /* Skip '{' */
 
@@ -20703,6 +20729,11 @@ cleanup:
 static PyObject *
 to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     PyTypeObject *type = Py_TYPE(obj);
+    /* With `str_keys`, a key has to become a str, so a type listed in
+     * `builtin_types` is still converted when used as a dict key. */
+    uint32_t builtin_types = (
+        (is_key && self->str_keys) ? 0 : self->builtin_types
+    );
 
     if (
         obj == Py_None ||
@@ -20714,19 +20745,19 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         goto builtin;
     }
     else if (type == &PyBytes_Type) {
-        if (self->builtin_types & MS_BUILTIN_BYTES) goto builtin;
+        if (builtin_types & MS_BUILTIN_BYTES) goto builtin;
         return to_builtins_binary(
             self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
         );
     }
     else if (type == &PyByteArray_Type) {
-        if (self->builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
+        if (builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
         return to_builtins_binary(
             self, PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj)
         );
     }
     else if (type == &PyMemoryView_Type) {
-        if (self->builtin_types & MS_BUILTIN_MEMORYVIEW) goto builtin;
+        if (builtin_types & MS_BUILTIN_MEMORYVIEW) goto builtin;
         PyObject *out;
         Py_buffer buffer;
         if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return NULL;
@@ -20735,23 +20766,23 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return out;
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
-        if (self->builtin_types & MS_BUILTIN_DATETIME) goto builtin;
+        if (builtin_types & MS_BUILTIN_DATETIME) goto builtin;
         return to_builtins_datetime(self, obj);
     }
     else if (type == PyDateTimeAPI->DateType) {
-        if (self->builtin_types & MS_BUILTIN_DATE) goto builtin;
+        if (builtin_types & MS_BUILTIN_DATE) goto builtin;
         return to_builtins_date(self, obj);
     }
     else if (type == PyDateTimeAPI->TimeType) {
-        if (self->builtin_types & MS_BUILTIN_TIME) goto builtin;
+        if (builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
     }
     else if (type == PyDateTimeAPI->DeltaType) {
-        if (self->builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
+        if (builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
         return to_builtins_timedelta(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
-        if (self->builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
+        if (builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
         return to_builtins_decimal(self, obj);
     }
     else if (PyList_Check(obj)) {
@@ -20778,7 +20809,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return PyObject_Str(obj);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
-        if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
+        if (builtin_types & MS_BUILTIN_UUID) goto builtin;
         return to_builtins_uuid(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
@@ -21195,6 +21226,12 @@ convert_str_uncommon(
     ConvertState *self, PyObject *obj, const char *view, Py_ssize_t size,
     bool is_key, TypeNode *type, PathNode *path
 ) {
+    /* With `str_keys`, keys only ever arrive as strings, so a type listed in
+     * `builtin_types` must still be parsed from a str key. */
+    uint32_t builtin_types = (
+        (is_key && self->str_keys) ? 0 : self->builtin_types
+    );
+
     if (is_key && self->str_keys && (
             type->types & (
                 MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
@@ -21214,55 +21251,55 @@ convert_str_uncommon(
     }
     else if (
         (type->types & MS_TYPE_DATETIME)
-        && !(self->builtin_types & MS_BUILTIN_DATETIME)
+        && !(builtin_types & MS_BUILTIN_DATETIME)
     ) {
         return ms_decode_datetime_from_str(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_DATE)
-        && !(self->builtin_types & MS_BUILTIN_DATE)
+        && !(builtin_types & MS_BUILTIN_DATE)
     ) {
         return ms_decode_date(view, size, path);
     }
     else if (
         (type->types & MS_TYPE_TIME)
-        && !(self->builtin_types & MS_BUILTIN_TIME)
+        && !(builtin_types & MS_BUILTIN_TIME)
     ) {
         return ms_decode_time(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_TIMEDELTA)
-        && !(self->builtin_types & MS_BUILTIN_TIMEDELTA)
+        && !(builtin_types & MS_BUILTIN_TIMEDELTA)
     ) {
         return ms_decode_timedelta(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_UUID)
-        && !(self->builtin_types & MS_BUILTIN_UUID)
+        && !(builtin_types & MS_BUILTIN_UUID)
     ) {
         return ms_decode_uuid_from_str(view, size, path);
     }
     else if (
         (type->types & MS_TYPE_DECIMAL)
-        && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+        && !(builtin_types & MS_BUILTIN_DECIMAL)
     ) {
         return ms_decode_decimal_from_pystr(obj, path, self->mod);
     }
     else if (
         (type->types & MS_TYPE_BYTES)
-        && !(self->builtin_types & MS_BUILTIN_BYTES)
+        && !(builtin_types & MS_BUILTIN_BYTES)
     ) {
         return json_decode_binary(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_BYTEARRAY)
-        && !(self->builtin_types & MS_BUILTIN_BYTEARRAY)
+        && !(builtin_types & MS_BUILTIN_BYTEARRAY)
     ) {
         return json_decode_binary(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_MEMORYVIEW)
-        && !(self->builtin_types & MS_BUILTIN_MEMORYVIEW)
+        && !(builtin_types & MS_BUILTIN_MEMORYVIEW)
     ) {
         return json_decode_binary(view, size, type, path);
     }
@@ -22076,12 +22113,13 @@ static PyObject *
 convert_dict_to_typeddict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *out = PyDict_New();
     if (out == NULL) goto error;
 
-    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
     Py_ssize_t nrequired = 0, pos = 0, pos_obj = 0;
     PyObject *key_obj, *val_obj;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
