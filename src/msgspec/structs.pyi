@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, final
+from typing import Any, Final, TypeVar, final
 
 from . import NODEFAULT, Struct
 
@@ -21,19 +21,19 @@ def force_setattr(struct: Struct, name: str, value: Any, /) -> None: ...
 
 @final
 class StructConfig:
-    frozen: bool
-    eq: bool
-    order: bool
-    array_like: bool
-    gc: bool
-    repr_omit_defaults: bool
-    omit_defaults: bool
-    forbid_unknown_fields: bool
-    weakref: bool
-    dict: bool
-    cache_hash: bool
-    tag: str | int | None
-    tag_field: str | None
+    frozen: Final[bool]
+    eq: Final[bool]
+    order: Final[bool]
+    array_like: Final[bool]
+    gc: Final[bool]
+    repr_omit_defaults: Final[bool]
+    omit_defaults: Final[bool]
+    forbid_unknown_fields: Final[bool]
+    weakref: Final[bool]
+    dict: Final[bool]
+    cache_hash: Final[bool]
+    tag: Final[str | int | None]
+    tag_field: Final[str | None]
 
 class FieldInfo(Struct):
     name: str

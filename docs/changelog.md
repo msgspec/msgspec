@@ -4,12 +4,43 @@
 
 - Fix JSON Schema generation for distinct types sharing the same module and
   qualified name, such as dynamically generated structs.
-
+- Fix JSON Schema references for dynamically defined types with empty names,
+  including recursive types that previously raised `RecursionError`.
+- Fix generic `TypedDict` subclasses dropping the base type argument, so
+  `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
+  PEP 695 annotations on those subclasses resolve instead of raising
+  `NameError` ({issue}`1191`).
+- Fix invalid `json` that was produced when converting non-finite `Decimal`
+  objects with `decimal_format="number"` ({issue}`1262`)
+- Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
+  and partial inner state, now proper `AttributeError`
+  is raised instead ({pr}`1257`)
+- Fix the error state left set when looking up `ClassVar` on a module-level
+  `typing` name that is not the real `typing` module. On CPython builds with
+  assertions enabled this terminated the interpreter. The lookup error now
+  propagates as intended ({issue}`1221`)
+- Support converting non-dict mappings (such as `asyncpg.Record`) to `TypedDict`
+  types with `convert`, matching the existing support for structs and
+  dataclasses ({issue}`1239`)
 - Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
   type parameter syntax (`class Foo[T](TypedDict)`) under
   `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
   same-named module-level `TypeVar` from shadowing the PEP 695 type parameter,
   which could silently affect decoding on Python 3.12+ ({pr}`1130`).
+- Fix a typing false negative that allowed assigning attributes
+  to `READONLY` and C level getters ({pr}`1244`)
+- Support `TypeForm[]` type instead of `Type[]` in decoders,
+  requires `mypy>=2.1` ({pr}`1245`)
+- Fix how we detect `NamedTuple` subclasses,
+  now we also check `_fields` to exist and to be a `tuple`
+  and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
+- Fix a possible crash when `Meta(pattern='...')`
+  was used in loops ({pr}`1256`)
+- Fix a possible crash when too big ints are passed
+  into `Meta`'s constructor ({pr}`1260`)
+- Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
+  raised `TypeError` although the decoder produces such keys for
+  `dict[frozendict[K, V], T]` ({issue}`1280`)
 
 ## Version 0.22.0 (2026-09-29)
 

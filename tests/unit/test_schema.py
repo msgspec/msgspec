@@ -296,6 +296,7 @@ def test_enum():
         C = "x"
         B = "z"
         A = "y"
+        ALIAS = "x"
 
     assert msgspec.json.schema(Example) == {
         "$ref": "#/$defs/Example",
@@ -306,6 +307,99 @@ def test_enum():
                 "enum": ["x", "y", "z"],
             }
         },
+    }
+
+
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+def test_enum_zero_composite_and_alias_members(enum_type):
+    class Example(enum_type):
+        NONE = 0
+        READ = 1
+        WRITE = 2
+        BOTH = 3
+        BOTH_ALIAS = 3
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [0, 1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("value", [0, 3])
+def test_enum_single_flag_member(enum_type, value):
+    Example = enum_type("Example", {"MEMBER": value})
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("value_type,values", [(int, [1, 2]), (str, ["a", "b"])])
+def test_enum_unhashable_scalar_values(value_type, values):
+    class Value(value_type):
+        __hash__ = None
+
+    class Example(enum.Enum):
+        A = values[0]
+        B = Value(values[1])
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+@pytest.mark.parametrize("value", [10_000, 1 << 60])
+def test_enum_large_value_aliases(enum_type, value):
+    class Example(enum_type):
+        # Construct equal values separately instead of reusing an integer constant.
+        A = int(str(value))
+        ALIAS = int(str(value))
+        ALIAS2 = value
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("shift", [0, 60])
+def test_enum_flag_expressions(enum_type, shift):
+    class Example(enum_type):
+        A = 1 << shift
+        B = 2 << shift
+        C = A | B
+        D = ~A
+        C_ALIAS = A | B
+        D_ALIAS = ~A
+
+    # Python 3.15 normalizes negative flag declarations during class creation.
+    values = sorted({Example.D.value, 1 << shift, 2 << shift, 3 << shift})
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+def test_enum_unhashable_members():
+    class Example(enum.Enum):
+        __hash__ = None
+        A = 1
+        B = 2
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2]}},
     }
 
 
@@ -800,6 +894,7 @@ def test_dataclass_or_attrs(module):
                     "metadata": {
                         "type": "object",
                         "additionalProperties": {"type": "string"},
+                        "default": {},
                     },
                 },
                 "required": ["vertices"],
@@ -1326,6 +1421,38 @@ def test_generic_metadata():
         "examples": [1, 2, 3],
         "default": 1,
     }
+
+
+@pytest.mark.parametrize("name", ["", "Node"])
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+def test_component_name_references(name, recursive, ref_template):
+    fields = '[("child", "Node | None", None)]' if recursive else '[("value", int)]'
+    code = f"import msgspec\nNode = msgspec.defstruct({name!r}, {fields})"
+    ref = {"$ref": ref_template.format(name=name)}
+    properties = (
+        {"child": {"anyOf": [ref, {"type": "null"}], "default": None}}
+        if recursive
+        else {"value": {"type": "integer"}}
+    )
+    expected = {
+        name: {
+            "title": name,
+            "type": "object",
+            "properties": properties,
+            "required": [] if recursive else ["value"],
+        }
+    }
+    with temp_module(code) as mod:
+        obj = mod.Node(mod.Node()) if recursive else mod.Node(1)
+        assert msgspec.json.decode(msgspec.json.encode(obj), type=mod.Node) == obj
+        assert msgspec.json.schema_components(
+            [mod.Node], ref_template=ref_template
+        ) == ((ref,), expected)
+        assert msgspec.json.schema(mod.Node, ref_template=ref_template) == {
+            **ref,
+            "$defs": expected,
+        }
 
 
 def test_component_names_collide():

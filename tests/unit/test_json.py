@@ -1701,6 +1701,16 @@ class TestDecimal:
         msg = enc.encode(Decimal("1.3000"))
         assert msg == b"1.3000"
 
+    @pytest.mark.parametrize("decimal_format", ["string", "number", str, float])
+    def test_decimal_dict_keys_encoded_as_strings(self, decimal_format):
+        """JSON object keys must be strings, whatever `decimal_format` says
+        about values"""
+        enc = msgspec.json.Encoder(decimal_format=decimal_format)
+        msg = enc.encode({Decimal("1.5"): 1})
+        assert msg == b'{"1.5":1}'
+        res = msgspec.json.decode(msg, type=dict[Decimal, int])
+        assert res == {Decimal("1.5"): 1}
+
     @pytest.mark.parametrize(
         "msg",
         [
@@ -1780,6 +1790,27 @@ class TestDecimal:
         for msg, request_type, out_type in cases:
             out = msgspec.json.decode(msg, type=request_type)
             assert type(out) is out_type
+
+    @pytest.mark.parametrize(
+        "dec_value",
+        [
+            "NaN",
+            "nan",
+            "sNaN",
+            "snan",
+            "Infinity",
+            "infinity",
+            "-Infinity",
+            "-infinity",
+            "inf",
+            "-inf",
+        ],
+    )
+    def test_Encoder_encode_decimal_number_infinite(self, dec_value):
+        enc = msgspec.json.Encoder(decimal_format="number")
+        dec_num = decimal.Decimal(dec_value)
+        with pytest.raises(ValueError, match="non-finite"):
+            enc.encode(dec_num)
 
 
 class TestSequences:
@@ -1921,6 +1952,32 @@ class TestNamedTuple:
 
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=Test)
+
+    def test_namedtuple_like(self):
+        # This is not exactly a `NamedTuple`, but it passed the check:
+        class FieldsNotTuple(tuple):
+            _fields = ["a", "b"]
+            _default_fields = {}
+
+        class NotSequenceFields(tuple):
+            _fields = 1
+
+        class MissingDefaults(tuple):
+            _fields = ("a", "b")
+
+        class NotTupleSubclass:
+            _fields = ("a", "b")
+            _default_fields = {}
+
+        # It used to crash:
+        for klass in (
+            FieldsNotTuple,
+            NotSequenceFields,
+            MissingDefaults,
+            NotTupleSubclass,
+        ):
+            with pytest.raises(msgspec.ValidationError, match=klass.__name__):
+                msgspec.json.decode(b"[1, 2]", type=klass)
 
 
 class TestDict:

@@ -245,7 +245,7 @@ class _SchemaGenerator:
             t = t.type
 
         if check_ref and hasattr(t, "cls"):
-            if name := self.name_map.get(t.cls):
+            if (name := self.name_map.get(t.cls)) is not None:
                 schema["$ref"] = self.ref_template.format(name=name)
                 return schema
 
@@ -395,7 +395,11 @@ class _SchemaGenerator:
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):
                 schema.setdefault("description", doc)
-            schema["enum"] = sorted(e.value for e in t.cls)
+            # Flag iteration omits zero and composite members. Deduplicate by
+            # Enum member identity: aliases share a member even when their values
+            # are large or unhashable.
+            members = {id(member): member for member in t.cls.__members__.values()}
+            schema["enum"] = sorted(member.value for member in members.values())
         elif isinstance(t, mi.StructType):
             schema.setdefault("title", _get_class_name(t.cls))
             if doc := _get_doc(t):
@@ -452,6 +456,10 @@ class _SchemaGenerator:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
                     field_schema["default"] = to_builtins(field.default, str_keys=True)
+                elif field.default_factory in (list, dict, set, bytearray):
+                    field_schema["default"] = to_builtins(
+                        field.default_factory(), str_keys=True
+                    )
                 names.append(field.encode_name)
                 fields.append(field_schema)
             if isinstance(t, mi.NamedTupleType):
