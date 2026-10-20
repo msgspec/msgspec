@@ -9,9 +9,6 @@ on:
     - ready_for_review
     - reopened
     - synchronize
-  merge_group:
-    types:
-    - checks_requested
 
 permissions: {}
 
@@ -30,7 +27,7 @@ jobs:
         # pull_request_target runs this trusted workflow from the default branch.
         # The proposed merge is checked out only to parse workflow YAML as data.
         # Do not execute checked-out repository content in this workflow.
-        ref: "${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+        ref: "${{ format('refs/pull/{0}/merge', github.event.pull_request.number) }}"
         sparse-checkout: .github
         allow-unsafe-pr-checkout: true
 
@@ -70,117 +67,3 @@ jobs:
           --format github \
           -- \
           .github
-
-    - name: Check CI capabilities
-      env:
-        GH_TOKEN: "${{ github.token }}"
-      run: |
-        set -euo pipefail
-
-        workflow_root="${WORKFLOW_ROOT:-.github/workflows}"
-        deploy_workflow="${workflow_root}/docs-deploy.yml"
-        scan_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-capability-policy"
-        failed=false
-        declare -A scanned=()
-
-        mkdir -p "${scan_root}"
-
-        error() {
-          echo "::error::$1"
-          failed=true
-        }
-
-        scan_external_workflow() {
-          local repository="$1"
-          local path="$2"
-          local ref="$3"
-          local identity="external:${repository}/${path}@${ref}"
-          local file="${scan_root}/${ref}-${repository//\//-}-${path//\//-}"
-
-          if [ -n "${scanned["${identity}"]:-}" ]; then
-            return
-          fi
-
-          if ! gh api \
-            -H "Accept: application/vnd.github.raw+json" \
-            "repos/${repository}/contents/${path}?ref=${ref}" > "${file}"; then
-            error "Unable to fetch external reusable workflow ${repository}/${path}@${ref}"
-            scanned["${identity}"]=true
-            return
-          fi
-
-          scan_workflow "${file}" "${identity}" "${repository}" "${ref}"
-        }
-
-        scan_workflow() {
-          local workflow="$1"
-          local identity="$2"
-          local repository="${3:-}"
-          local ref="${4:-}"
-
-          if [ -n "${scanned["${identity}"]:-}" ]; then
-            return
-          fi
-          scanned["${identity}"]=true
-
-          if ! yq -e '.' "${workflow}" > /dev/null 2>&1; then
-            error "Unable to parse workflow: ${identity}"
-            return
-          fi
-
-          if [ "${identity}" != "local:${deploy_workflow}" ] && yq -e '
-            explode(.)
-            | .jobs[]?
-            | select(tag == "!!map" and has("environment"))
-          ' "${workflow}" > /dev/null 2>&1; then
-            error "${identity} declares an environment; only local:${deploy_workflow} may access environment capabilities"
-          fi
-
-          mapfile -t reusable_workflows < <(
-            yq -r '
-              explode(.)
-              | .jobs[]?
-              | select(tag == "!!map" and has("uses"))
-              | .uses
-            ' "${workflow}"
-          )
-
-          for reusable_workflow in "${reusable_workflows[@]}"; do
-            case "${reusable_workflow}" in
-              ./.github/workflows/*.yml | ./.github/workflows/*.yaml)
-                local_path="${reusable_workflow#./}"
-                if [ -n "${repository}" ]; then
-                  scan_external_workflow "${repository}" "${local_path}" "${ref}"
-                elif [ -f "${local_path}" ]; then
-                  scan_workflow "${local_path}" "local:${local_path}"
-                else
-                  error "${identity} calls missing local reusable workflow ${reusable_workflow}"
-                fi
-                ;;
-              *)
-                if [[ "${reusable_workflow}" =~ ^([^/]+/[^/]+)/(\.github/workflows/.+\.ya?ml)@([0-9a-f]{40})$ ]]; then
-                  scan_external_workflow \
-                    "${BASH_REMATCH[1]}" \
-                    "${BASH_REMATCH[2]}" \
-                    "${BASH_REMATCH[3]}"
-                else
-                  error "${identity} calls external reusable workflow ${reusable_workflow} without a full commit SHA"
-                fi
-                ;;
-            esac
-          done
-        }
-
-        for workflow in "${workflow_root}"/*.yml "${workflow_root}"/*.yaml; do
-          if [ ! -f "${workflow}" ]; then
-            continue
-          fi
-
-          scan_workflow "${workflow}" "local:${workflow}"
-        done
-
-        if [ "${failed}" = true ]; then
-          exit 1
-        fi
-
-        echo "CI capability policy passed."

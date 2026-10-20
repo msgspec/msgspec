@@ -1,6 +1,9 @@
 name: docs pr
 
 on:
+  push:
+    branches:
+    - main
   pull_request:
     branches:
     - main
@@ -12,7 +15,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: docs-pr-${{ github.event.pull_request.number }}
+  group: docs-pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,6 +26,6 @@ jobs:
       actions: read
       contents: read
     with:
-      cache-namespace: "pr-${{ github.event.pull_request.number }}"
-      ref: "${{ format('refs/pull/{0}/merge', github.event.pull_request.number) }}"
-      sha: "${{ github.event.pull_request.head.sha }}"
+      cache-namespace: "${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}"
+      ref: "${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}"
+      sha: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
