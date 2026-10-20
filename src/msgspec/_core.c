@@ -11163,7 +11163,7 @@ ms_encode_time_parts(
                 return -1;
             }
         }
-        if (MS_LIKELY(offset_secs == 0)) {
+        if (MS_LIKELY(offset_days == 0 && offset_secs == 0)) {
             *p++ = 'Z';
         }
         else {
@@ -11183,10 +11183,14 @@ ms_encode_time_parts(
                 if (offset_min == 60) {
                     offset_min = 0;
                     offset_hour++;
-                    if (offset_hour == 24) {
-                        offset_hour = 0;
-                    }
                 }
+            }
+            /* Offsets within a minute of +/-24:00 have no valid hour:min
+             * form. Use the closest valid one rather than wrapping to UTC,
+             * which would move the encoded instant by a full day. */
+            if (MS_UNLIKELY(offset_hour == 24)) {
+                offset_hour = 23;
+                offset_min = 59;
             }
             if (offset_hour == 0 && offset_min == 0) {
                 *p++ = 'Z';
