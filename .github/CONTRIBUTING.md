@@ -129,7 +129,7 @@ The HTML documentation can be viewed locally by running:
 just doc-serve
 ```
 
-Pull requests build and check the documentation before the separate [documentation publisher](https://github.com/msgspec/docs-deploy) publishes a preview. The `Docs preview` check reports publishing failures and links to the deployed preview. Fork workflows may require maintainer approval before the build and preview check can start. If the preview check times out while waiting for approval or a retried build, rerun that check after the documentation build succeeds.
+Pull requests build and check the documentation before the separate [documentation publisher](https://github.com/msgspec/docs-deploy) publishes a preview. The `Docs preview` check reports publishing failures and links to the deployed preview. Fork workflows may require maintainer approval before the build and preview check can start. If the preview check is missing after workflow approval, reopen the PR to start it without updating the branch. If the preview check times out while waiting for approval or a retried build, rerun that check after the documentation build succeeds.
 
 ## Benchmarking
 
