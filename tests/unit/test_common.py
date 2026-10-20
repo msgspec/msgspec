@@ -5260,6 +5260,28 @@ class TestSet:
 
         assert all(ref() is None for ref in refs)
 
+    @pytest.mark.parametrize("type", [set, frozenset])
+    def test_decode_unhashable_item(self, proto, type):
+        """Unhashable items can't be added to a set. This should raise a
+        `ValidationError` (a `DecodeError`), not a bare `TypeError`."""
+        msg = proto.encode([{"a": 1}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\[0\]`",
+        ):
+            proto.decode(msg, type=type)
+
+    def test_decode_unhashable_item_nested_path(self, proto):
+        class Ex(msgspec.Struct):
+            values: set
+
+        msg = proto.encode({"values": [{"a": 1}]})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            proto.decode(msg, type=Ex)
+
 
 class TestOrder:
     def test_encoder_order_attribute(self, proto):

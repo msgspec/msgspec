@@ -5399,6 +5399,19 @@ ms_validation_error(const char *got, TypeNode *type, PathNode *path) {
     return NULL;
 }
 
+/* `PySet_Add` raises a bare `TypeError` when the value isn't hashable, which
+ * escapes the documented `DecodeError` contract. Replace it with a
+ * `ValidationError` pointing at the offending value. Always returns -1 so it
+ * can be used directly in error handling branches. */
+static int
+ms_unhashable_error(PyObject *obj, PathNode *path) {
+    PyErr_Clear();
+    ms_raise_validation_error(
+        path, "Expected a hashable value, got `%s`%U", Py_TYPE(obj)->tp_name
+    );
+    return -1;
+}
+
 static void
 ms_missing_required_field(PyObject *field, PathNode *path) {
     ms_raise_validation_error(
@@ -15973,8 +15986,15 @@ mpack_decode_set(
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
         item = mpack_decode(self, el_type, &el_path, true);
-        if (MS_UNLIKELY(item == NULL || PySet_Add(res, item) < 0)) {
-            Py_XDECREF(item);
+        if (MS_UNLIKELY(item == NULL)) {
+            Py_CLEAR(res);
+            break;
+        }
+        if (MS_UNLIKELY(PySet_Add(res, item) < 0)) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                ms_unhashable_error(item, &el_path);
+            }
+            Py_DECREF(item);
             Py_CLEAR(res);
             break;
         }
@@ -18288,11 +18308,16 @@ json_decode_set(
         /* Parse item */
         item = json_decode(self, el_type, &el_path);
         if (item == NULL) goto error;
-        el_path.index++;
 
         /* Append item to set */
-        if (PySet_Add(out, item) < 0) goto error;
+        if (MS_UNLIKELY(PySet_Add(out, item) < 0)) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                ms_unhashable_error(item, &el_path);
+            }
+            goto error;
+        }
         Py_CLEAR(item);
+        el_path.index++;
     }
 
     if (MS_UNLIKELY(!ms_passes_array_constraints(PySet_GET_SIZE(out), type, path))) {
@@ -21550,8 +21575,15 @@ convert_seq_to_set(
     for (Py_ssize_t i = 0; i < size; i++) {
         PathNode item_path = {path, i};
         PyObject *val = convert(self, items[i], item_type, &item_path);
-        if (MS_UNLIKELY(val == NULL || PySet_Add(out, val) < 0)) {
-            Py_XDECREF(val);
+        if (MS_UNLIKELY(val == NULL)) {
+            Py_CLEAR(out);
+            break;
+        }
+        if (MS_UNLIKELY(PySet_Add(out, val) < 0)) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                ms_unhashable_error(val, &item_path);
+            }
+            Py_DECREF(val);
             Py_CLEAR(out);
             break;
         }

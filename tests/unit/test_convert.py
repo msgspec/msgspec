@@ -1006,6 +1006,33 @@ class TestSequences:
         with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
             assert convert(1, out_type)
 
+    @pytest.mark.parametrize(
+        "obj, out_annot, got",
+        [
+            ([{"a": 1}], set, "dict"),
+            ([{"a": 1}], frozenset, "dict"),
+            ([[1, 2]], set[list[int]], "list"),
+        ],
+    )
+    def test_unhashable_item(self, obj, out_annot, got):
+        """Unhashable items can't be added to a set, this should raise a
+        `ValidationError` rather than a bare `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            assert convert(obj, out_annot)
+
+    def test_unhashable_item_nested_path(self):
+        class Ex(msgspec.Struct):
+            values: set
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            convert({"values": [{"a": 1}]}, Ex)
+
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     @pytest.mark.skipif(
         PY312,
