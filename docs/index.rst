@@ -217,3 +217,5 @@ few:
     api.rst
     examples/index.rst
     changelog.md
+
+.. docs-publishing-intentional-failure::
