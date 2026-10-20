@@ -228,3 +228,5 @@ and fix any issues that come up.
 `msgspec` has a code of conduct that must be followed by all contributors to
 the project. You may read the code of conduct
 [here](https://github.com/msgspec/msgspec/blob/main/.github/CODE_OF_CONDUCT.md).
+
+<!-- Documentation publishing canary. -->
