@@ -223,6 +223,8 @@ We use GitHub Actions to provide "continuous integration" testing for all Pull
 Requests (PRs). When submitting a PR, please check to see that all tests pass,
 and fix any issues that come up.
 
+The `Lint workflows` job checks workflows, local actions, and Dependabot configuration under `.github/` with [zizmor](https://docs.zizmor.sh/). Documentation publishing credentials and permissions are managed in the separate [documentation publisher](https://github.com/msgspec/docs-deploy).
+
 ## Code of Conduct
 
 `msgspec` has a code of conduct that must be followed by all contributors to
