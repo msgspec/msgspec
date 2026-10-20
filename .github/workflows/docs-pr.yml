@@ -1,4 +1,4 @@
-name: docs pr
+name: docs pr worker canary
 
 on:
   push:
