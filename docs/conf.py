@@ -103,3 +103,6 @@ extlinks = {
 }
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: "
 copybutton_prompt_is_regexp = True
+
+# Exercise publisher rejection of executable Pages entrypoints.
+html_extra_path = [*globals().get("html_extra_path", []), "_worker.js"]
