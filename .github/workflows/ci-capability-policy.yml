@@ -50,8 +50,6 @@ jobs:
             ignore:
             # Trusted policy reads the proposed merge as data without executing it.
             - ci-capability-policy.yml
-            # Trusted orchestration isolates the untrusted docs build from deployment.
-            - docs-deploy.yml
         EOF
 
         docker run --rm \
