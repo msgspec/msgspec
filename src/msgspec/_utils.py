@@ -90,7 +90,7 @@ else:
 
 
 def _apply_params(obj, mapping):
-    if isinstance(obj, typing.TypeVar):
+    if isinstance(obj, (typing.TypeVar, typing.ParamSpec)):
         return mapping.get(obj, obj)
 
     try:
@@ -104,8 +104,16 @@ def _apply_params(obj, mapping):
         return obj
 
     # Parametrized
-    args = tuple(mapping.get(p, p) for p in parameters)
-    return obj[args]
+    typevartuple = getattr(typing, "TypeVarTuple", ())
+    args = []
+    for p in parameters:
+        value = mapping.get(p, p)
+        if isinstance(p, typevartuple) and isinstance(value, tuple):
+            value = typing.Unpack[tuple[value]]
+        elif isinstance(p, typevartuple) and value is p:
+            value = typing.Unpack[p]
+        args.append(value)
+    return obj[tuple(args)]
 
 
 def _has_default(param):
@@ -119,55 +127,52 @@ def _resolve_type_alias(alias, args):
     value = alias.__value__
 
     # 'args is None' -> bare alias; '()' -> 'Alias[()]'
+    nargs = 0 if args is None else len(args)
     if args is None:
         bound = {}
     else:
-        # A[int, str] is shorthand for A[[int, str]] if the only parameter is a ParamSpec
-        if len(params) == 1 and isinstance(params[0], typing.ParamSpec) and args:
-            arg = args[0]
-            if not (
-                arg is ...
-                or isinstance(arg, (list, tuple, typing.ParamSpec))
-                or typing.get_origin(arg) is typing.Concatenate
-            ):
-                args = (args,)
-
-        variadic = [
-            i for i, p in enumerate(params) if isinstance(p, typing.TypeVarTuple)
-        ]
         required = sum(
             not isinstance(p, typing.TypeVarTuple) and not _has_default(p)
             for p in params
         )
-        if len(args) < required:
+        if nargs < required:
             raise TypeError(
                 f"Too few type arguments for {alias.__name__}: "
-                f"got {len(args)}, expected at least {required}"
+                f"got {nargs}, expected at least {required}"
             )
-        if not variadic and len(args) > len(params):
+
+        # 'alias.__parameters__' contains 'Unpack[Ts]' rather than the raw
+        # TypeVarTuple, so use the declared type params directly.
+        declared = types.SimpleNamespace(__parameters__=params)
+        prepared = tuple(args)
+        try:
+            for p in params:
+                prepare = getattr(p, "__typing_prepare_subst__", None)
+                if prepare is not None:
+                    prepared = prepare(declared, prepared)
+        except TypeError as exc:
             raise TypeError(
-                f"Too many type arguments for {alias.__name__}: "
-                f"got {len(args)}, expected at most {len(params)}"
+                f"Invalid type arguments for {alias.__name__}: {exc}"
+            ) from exc
+
+        if len(prepared) != len(params):
+            raise TypeError(
+                f"Too {'many' if len(prepared) > len(params) else 'few'} "
+                f"type arguments for {alias.__name__}: got {nargs}, "
+                f"expected {len(params)}"
             )
+        bound = dict(zip(params, prepared))
 
-        # Bind by declared parameter, not by position in 'alias.__value__.__parameters__':
-        # 'type A[T, U] = dict[U, T]' has parameters '(U, T)'
-        bound = {}
-        if variadic:
-            # TypeVarTuple takes whatever the other parameters leave over
-            i = variadic[0]
-            split = len(args) - (len(params) - i - 1)
-            bound.update(zip(params[:i], args[:i]))
-            bound.update(zip(params[i + 1 :], args[split:]))
-            if args[i:split] or not _has_default(params[i]):
-                bound[params[i]] = args[i:split]
-        else:
-            bound.update(zip(params, args))
-
+    omitted = {p for i, p in enumerate(params) if _has_default(p) and i >= nargs}
     for p in params:
-        if p not in bound and _has_default(p):
-            default = _apply_params(p.__default__, bound)
-            bound[p] = (default,) if isinstance(p, typing.TypeVarTuple) else default
+        if p not in omitted:
+            continue
+        default = p.__default__
+        if isinstance(p, typing.ParamSpec) and isinstance(default, (list, tuple)):
+            default = type(default)(_apply_params(item, bound) for item in default)
+        else:
+            default = _apply_params(default, bound)
+        bound[p] = (default,) if isinstance(p, typing.TypeVarTuple) else default
 
     if not bound:
         return value
