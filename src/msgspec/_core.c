@@ -23245,7 +23245,6 @@ PyInit__core(void)
     SET_REF(rebuild, "rebuild");
     SET_REF(convert_generic_alias, "convert_generic_alias");
     SET_REF(resolve_type_alias, "_resolve_type_alias");
-    Py_DECREF(temp_module);
 
     IMPORT_TEMP_MODULE("types");
     SET_REF(types_uniontype, "UnionType");
