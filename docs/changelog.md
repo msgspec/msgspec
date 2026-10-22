@@ -36,6 +36,10 @@
   and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
 - Fix a possible crash when `Meta(pattern='...')`
   was used in loops ({pr}`1256`)
+- Fix a possible crash with `defstruct` with empty `module=`
+  and complex typing forms ({pr}`1271`)
+- Fix a possible crash when iterating over `@dataclass` instances
+  with complex `__dict__` objects ({pr}`1271`)
 - Fix a possible crash when too big ints are passed
   into `Meta`'s constructor ({pr}`1260`)
 - Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which

@@ -2320,6 +2320,28 @@ class TestDefStruct:
         assert Test.__struct_fields__ == ("x", "y", "z")
         assert Test.__annotations__ == {"x": int, "y": int, "z": int}
 
+    @pytest.mark.parametrize("spelling", ["ClassVar", "typing.ClassVar"])
+    @pytest.mark.parametrize("module", ["", "module=None"])
+    def test_defstruct_classvar_string_annotation_without_module(
+        self,
+        spelling,
+        module,
+    ):
+        source = f"""
+        import typing
+        from typing import ClassVar
+        from msgspec import defstruct
+
+        Ex = defstruct(
+            "Ex",
+            [("a", int), ("cv", "{spelling}[int]", 1)],
+            {module})
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
     def test_defstruct_errors(self):
         with pytest.raises(TypeError, match="must be str, not int"):
             defstruct(1)
@@ -2789,6 +2811,33 @@ class TestClassVar:
             assert mod.Ex.__struct_fields__ == ("a", "b")
             assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
+
+    def test_classvar_string_annotation_without_module(self):
+        source = """
+        from typing import ClassVar
+        from msgspec import Struct
+
+        namespace = {"__annotations__": {"a": int, "cv": "ClassVar[int]"}, "cv": 1}
+        Ex = type(Struct)("Ex", (Struct,), namespace)
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
+    def test_classvar_string_annotation_module_not_loaded(self):
+        with pytest.raises(KeyError, match="is not loaded"):
+
+            class Ex(Struct):
+                __module__ = "not_a_loaded_module"
+                cv: "ClassVar[int]" = 1  # noqa: F821
+
+    def test_classvar_string_annotation_unhashable_module(self):
+        with pytest.raises(TypeError, match="unhashable"):
+
+            class Ex(Struct):
+                __module__ = []
+                cv: "ClassVar[int]" = 1  # noqa: F821
 
     @pytest.mark.parametrize("default", ["", " = 1"])
     @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])

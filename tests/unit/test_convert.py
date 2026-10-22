@@ -2425,6 +2425,23 @@ class TestStructUnion:
         with pytest.raises(ValidationError, match="got `Ex3`"):
             convert(Ex3(1), typ)
 
+    def test_struct_union_tag_lookup_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("type")
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        class Ex1(Struct, tag=True):
+            x: int
+
+        class Ex2(Struct, tag=True):
+            x: int
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            convert({Key(): "Ex1", "x": 1}, Ex1 | Ex2)
+
 
 class TestGenericStruct:
     @mapcls_from_attributes_and_array_like
