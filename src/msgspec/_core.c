@@ -153,6 +153,15 @@ _PyFrozenDict_NewSteal(PyObject *dict) {
 #  define Py_END_CRITICAL_SECTION2() }
 #endif // PY_VERSION_HEX < 0x030D00B3
 
+// Reference counting for FT only, not to slow down the GIL builds.
+#ifdef Py_GIL_DISABLED
+#  define MS_FT_INCREF(op) Py_INCREF(op)
+#  define MS_FT_DECREF(op) Py_DECREF(op)
+#else
+#  define MS_FT_INCREF(op)
+#  define MS_FT_DECREF(op)
+#endif
+
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
 /* These macros are used to manually unroll some loops */
@@ -13089,23 +13098,41 @@ mpack_encode_empty_array(EncoderState *self) {
 static MS_NOINLINE int
 mpack_encode_list(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t i, len;
-    int status = 0;
+    int status = -1;
 
-    len = PyList_GET_SIZE(obj);
-    if (len == 0) return mpack_encode_empty_array(self);
-
-    if (mpack_encode_array_header(self, len, "list") < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     Py_BEGIN_CRITICAL_SECTION(obj);
-    for (i = 0; i < len; i++) {
-        if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
-            status = -1;
-            break;
-        }
+    Py_ssize_t len = PyList_GET_SIZE(obj);
+    if (len == 0) {
+        status = mpack_encode_empty_array(self);
+        goto cleanup;
     }
-    Py_END_CRITICAL_SECTION();
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup;
+    if (mpack_encode_array_header(self, len, "list") < 0) goto fullclean;
+
+    for (Py_ssize_t i = 0; i < len; i++) {
+#ifdef Py_GIL_DISABLED
+        // While working with nested lists, `obj` lock can / will be released.
+        // So, we need to add a sanity check for this corner case.
+        if (MS_UNLIKELY(i >= PyList_GET_SIZE(obj))) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "list changed size during encoding"
+            );
+            goto fullclean;
+        }
+#endif
+        PyObject *item = PyList_GET_ITEM(obj, i);
+        MS_FT_INCREF(item);
+        int encoded = mpack_encode_inline(self, item);
+        MS_FT_DECREF(item);
+        if (encoded < 0) goto fullclean;
+    }
+    status = 0;
+
+fullclean:
     Py_LeaveRecursiveCall();
+cleanup:;
+    Py_END_CRITICAL_SECTION();
     return status;
 }
 
