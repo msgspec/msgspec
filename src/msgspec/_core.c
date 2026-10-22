@@ -21314,6 +21314,9 @@ convert_str(
 ) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
         Py_INCREF(obj);
+        if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+            return ms_decode_custom(obj, self->dec_hook, type, path);
+        }
         return ms_check_str_constraints(obj, type, path);
     }
 
