@@ -3067,6 +3067,7 @@ typedef struct {
     int8_t gc;
     int8_t omit_defaults;
     int8_t forbid_unknown_fields;
+    PyObject *field_lookup;
 } StructMetaObject;
 
 typedef struct StructInfo {
@@ -5578,6 +5579,69 @@ StructMeta_get_field_name(PyObject *self, Py_ssize_t field_index) {
     );
 }
 
+static MS_NOINLINE Py_ssize_t
+StructMeta_get_field_index_hash(
+    StructMetaObject *self, const char *key, Py_ssize_t key_size
+) {
+    PyObject *index = StrLookup_Get((StrLookup *)self->field_lookup, key, key_size);
+    return index == NULL ? -1 : PyLong_AsSsize_t(index);
+}
+
+static MS_INLINE Py_ssize_t
+StructMeta_get_field_index_indexed(
+    StructMetaObject *self, const char * key, Py_ssize_t key_size, Py_ssize_t *pos
+) {
+    const char *field;
+    Py_ssize_t nfields, field_size, i, offset = *pos;
+    nfields = PyTuple_GET_SIZE(self->struct_encode_fields);
+    if (offset < nfields) {
+        field = unicode_str_and_size_nocheck(
+            PyTuple_GET_ITEM(self->struct_encode_fields, offset), &field_size
+        );
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = offset < nfields - 1 ? offset + 1 : 0;
+            return offset;
+        }
+    }
+    if (key_size <= 64 && self->field_lookup != NULL) {
+        Py_ssize_t found = StructMeta_get_field_index_hash(self, key, key_size);
+        if (found >= 0) {
+            *pos = found < nfields - 1 ? found + 1 : 0;
+            return found;
+        }
+        if (found == -1) goto check_tag;
+    }
+    for (i = offset + 1; i < nfields; i++) {
+        field = unicode_str_and_size_nocheck(
+            PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
+        );
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = i < nfields - 1 ? i + 1 : 0;
+            return i;
+        }
+    }
+    for (i = 0; i < offset; i++) {
+        field = unicode_str_and_size_nocheck(
+            PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
+        );
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = i + 1;
+            return i;
+        }
+    }
+check_tag:
+    /* Not a field, check if it matches the tag field (if present) */
+    if (MS_UNLIKELY(self->struct_tag_field != NULL)) {
+        Py_ssize_t tag_field_size;
+        const char *tag_field;
+        tag_field = unicode_str_and_size_nocheck(self->struct_tag_field, &tag_field_size);
+        if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
+            return -2;
+        }
+    }
+    return -1;
+}
+
 static MS_INLINE Py_ssize_t
 StructMeta_get_field_index(
     StructMetaObject *self, const char * key, Py_ssize_t key_size, Py_ssize_t *pos
@@ -7099,6 +7163,39 @@ static PyTypeObject StructInfo_Type = {
     .tp_dealloc = (destructor)StructInfo_dealloc,
 };
 
+static int
+StructMeta_ensure_field_lookup(StructMetaObject *class) {
+    if (PyTuple_GET_SIZE(class->struct_encode_fields) < 64 || class->array_like == OPT_TRUE) {
+        return 0;
+    }
+    int out = 0;
+    Py_BEGIN_CRITICAL_SECTION(class);
+    if (class->field_lookup == NULL) {
+        PyObject *mapping = PyDict_New();
+        if (mapping == NULL) { out = -1; goto done; }
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(class->struct_encode_fields); i++) {
+            PyObject *index = PyLong_FromSsize_t(i);
+            if (index == NULL) { Py_DECREF(mapping); out = -1; goto done; }
+            int status = PyDict_SetItem(mapping, PyTuple_GET_ITEM(class->struct_encode_fields, i), index);
+            Py_DECREF(index);
+            if (status < 0) { Py_DECREF(mapping); out = -1; goto done; }
+        }
+        PyObject *lookup = StrLookup_New(mapping, NULL, NULL, false);
+        Py_DECREF(mapping);
+        if (lookup == NULL) { out = -1; goto done; }
+        if (class->field_lookup == NULL) {
+            class->field_lookup = lookup;
+        }
+        else {
+            Py_DECREF(lookup);
+        }
+    }
+done:
+    ;
+    Py_END_CRITICAL_SECTION();
+    return out;
+}
+
 static PyObject *
 StructInfo_Convert_lock_held(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
@@ -7154,6 +7251,23 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     /* Extract annotations from the original type object */
     annotations = PyObject_CallOneArg(mod->get_class_annotations, obj);
     if (annotations == NULL) goto error;
+
+    if (StructMeta_ensure_field_lookup(class) < 0) goto error;
+
+    /* Allocations above may have prepared this type reentrantly. */
+    PyObject *cached = NULL;
+    if (is_struct) {
+        cached = (PyObject *)class->struct_info;
+        Py_XINCREF(cached);
+    }
+    else if (get_msgspec_cache(mod, obj, &StructInfo_Type, &cached) && cached == NULL) {
+        goto error;
+    }
+    if (cached != NULL) {
+        Py_DECREF(class);
+        Py_DECREF(annotations);
+        return cached;
+    }
 
     /* Allocate and zero-out a new StructInfo */
     Py_ssize_t nfields = PyTuple_GET_SIZE(class->struct_fields);
@@ -7233,6 +7347,7 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_VISIT(self->struct_fields);
     Py_VISIT(self->struct_defaults);
     Py_VISIT(self->struct_encode_fields);
+    Py_VISIT(self->field_lookup);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
     Py_VISIT(self->post_init);
@@ -7249,6 +7364,7 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
     Py_CLEAR(self->struct_encode_fields);
+    Py_CLEAR(self->field_lookup);
     Py_CLEAR(self->struct_tag_field);
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
@@ -16608,7 +16724,7 @@ mpack_decode_struct_map(
         key_size = mpack_decode_cstr(self, &key, &key_path);
         if (MS_UNLIKELY(key_size < 0)) goto error;
 
-        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        field_index = StructMeta_get_field_index_indexed(st_type, key, key_size, &pos);
         if (field_index < 0) {
             if (MS_UNLIKELY(field_index == -2)) {
                 PathNode tag_path = {path, PATH_STR, st_type->struct_tag_field};
@@ -19179,10 +19295,10 @@ error:
     return NULL;
 }
 
-static PyObject *
-json_decode_struct_map_inner(
+static MS_INLINE PyObject *
+json_decode_struct_map_inner_impl(
     JSONDecoderState *self, StructInfo *info, PathNode *path,
-    Py_ssize_t starting_index
+    Py_ssize_t starting_index, bool indexed
 ) {
     PyObject *out, *val = NULL;
     Py_ssize_t key_size, field_index, pos = 0;
@@ -19243,7 +19359,8 @@ json_decode_struct_map_inner(
         self->input_pos++;
 
         /* Parse value */
-        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        field_index = (indexed ? StructMeta_get_field_index_indexed(st_type, key, key_size, &pos)
+            : StructMeta_get_field_index(st_type, key, key_size, &pos));
         if (MS_LIKELY(field_index >= 0)) {
             field_path.index = field_index;
             TypeNode *type = info->types[field_index];
@@ -19278,6 +19395,33 @@ error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
     return NULL;
+}
+
+static MS_NOINLINE PyObject *
+json_decode_struct_map_inner_linear(
+    JSONDecoderState *self, StructInfo *info, PathNode *path,
+    Py_ssize_t starting_index
+) {
+    return json_decode_struct_map_inner_impl(self, info, path, starting_index, false);
+}
+
+static MS_NOINLINE PyObject *
+json_decode_struct_map_inner_indexed(
+    JSONDecoderState *self, StructInfo *info, PathNode *path,
+    Py_ssize_t starting_index
+) {
+    return json_decode_struct_map_inner_impl(self, info, path, starting_index, true);
+}
+
+static MS_INLINE PyObject *
+json_decode_struct_map_inner(
+    JSONDecoderState *self, StructInfo *info, PathNode *path,
+    Py_ssize_t starting_index
+) {
+    if (info->class->field_lookup == NULL) {
+        return json_decode_struct_map_inner_linear(self, info, path, starting_index);
+    }
+    return json_decode_struct_map_inner_indexed(self, info, path, starting_index);
 }
 
 static PyObject *
@@ -22030,10 +22174,10 @@ convert_is_str_key(PyObject *key, PathNode *path) {
 }
 
 
-static PyObject *
-convert_dict_to_struct(
+static MS_INLINE PyObject *
+convert_dict_to_struct_impl(
     ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
-    bool tag_already_read
+    bool tag_already_read, bool indexed
 ) {
     StructMetaObject *struct_type = info->class;
 
@@ -22051,7 +22195,8 @@ convert_dict_to_struct(
         const char *key = unicode_str_and_size(key_obj, &key_size);
         if (key == NULL) goto error;
 
-        Py_ssize_t field_index = StructMeta_get_field_index(struct_type, key, key_size, &pos);
+        Py_ssize_t field_index = (indexed ? StructMeta_get_field_index_indexed(struct_type, key, key_size, &pos)
+            : StructMeta_get_field_index(struct_type, key, key_size, &pos));
         if (field_index < 0) {
             if (MS_UNLIKELY(field_index == -2)) {
                 if (tag_already_read) continue;
@@ -22089,6 +22234,33 @@ error:
     Py_LeaveRecursiveCall();
     Py_XDECREF(out);
     return NULL;
+}
+
+static MS_NOINLINE PyObject *
+convert_dict_to_struct_linear(
+    ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
+    bool tag_already_read
+) {
+    return convert_dict_to_struct_impl(self, obj, info, path, tag_already_read, false);
+}
+
+static MS_NOINLINE PyObject *
+convert_dict_to_struct_indexed(
+    ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
+    bool tag_already_read
+) {
+    return convert_dict_to_struct_impl(self, obj, info, path, tag_already_read, true);
+}
+
+static MS_INLINE PyObject *
+convert_dict_to_struct(
+    ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
+    bool tag_already_read
+) {
+    if (info->class->field_lookup == NULL) {
+        return convert_dict_to_struct_linear(self, obj, info, path, tag_already_read);
+    }
+    return convert_dict_to_struct_indexed(self, obj, info, path, tag_already_read);
 }
 
 static PyObject *
