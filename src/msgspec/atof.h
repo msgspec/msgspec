@@ -27,6 +27,34 @@
  * License for the specific language governing permissions and limitations
  * under the License.  """
  *
+ * The subnormal extension is also informed by the error-bounded rounding in
+ * yyjson's read_num (YaoYuan), which credits Google's double-conversion:
+ * https://github.com/ibireme/yyjson/blob/6447536015f3d600f3d65323b10976103b337ca7/src/yyjson.c#L4343-L4469
+ * Here the bound comes from the existing Eisel-Lemire high-half product;
+ * yyjson's diy_fp/bigint fallback is not ported. Ambiguous results still use
+ * the Wuffs-derived HPD implementation above. The yyjson notice is retained
+ * below alongside the Wuffs notice:
+ *
+ * Copyright (c) 2020 YaoYuan <ibireme@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
  * */
 
 #ifndef MS_ATOF_H
@@ -116,16 +144,51 @@ eisel_lemire(uint64_t man, int32_t exp) {
      * https://nigeltao.github.io/blog/2020/eisel-lemire.html for a more
      * in-depth description of the algorithm */
 
-    /* Normalization */
-    const uint64_t* po10 = ms_atof_powers_of_10[exp + 307];
+    /* Normalization. The table starts at decimal exponent -342, hence
+     * the index offset. 217706 / 2**16 approximates log2(10); over the
+     * table's range, (217706 * exp) >> 16 equals floor(log2(10**exp)).
+     * 1087 = 1023 (the binary64 exponent bias) + 64 (product scaling).
+     * generate_atof_consts.py checks the exponent formula for every row. */
+    const uint64_t* po10 = ms_atof_powers_of_10[exp + 342];
     uint32_t clz = ms_clzll(man);
     man <<= clz;
-    uint64_t ret_exp2 = ((uint64_t)(((217706 * exp) >> 16) + 1087)) - ((uint64_t)clz);
+    int64_t ret_exp2 = (((217706 * exp) >> 16) + 1087) - (int64_t)clz;
 
     /* Multiplication */
     ms_uint128 x = ms_mulu64(man, po10[1]);
     uint64_t x_hi = x.hi;
     uint64_t x_lo = x.lo;
+
+    /* Subnormal performance: https://github.com/msgspec/msgspec/issues/1232
+     * Round small values directly in units of 2**-1074, without first
+     * rounding to a normal float (which would risk double rounding).
+     * x_hi has binary weight 2**(ret_exp2 - 1086), so conversion to these
+     * units shifts right by 1086 - 1074 - ret_exp2 = 12 - ret_exp2.
+     * ret_exp2 <= 1 includes subnormals and the smallest-normal boundary.
+     * po10[1] is the floor of the normalized power of ten. Since man is
+     * less than 2**64, the exact product divided by 2**64 lies strictly
+     * between x_hi and x_hi + 2 for these negative decimal exponents:
+     * discarding x_lo loses less than 1, as does the table approximation.
+     * Only accept the approximation when that entire interval rounds to
+     * the same integer; otherwise leave the tie to the exact fallback. */
+    if (ret_exp2 <= 1) {
+        uint32_t shift = (uint32_t)(12 - ret_exp2);
+        if (shift > 64) {
+            return 0;
+        }
+        uint64_t halfway = (uint64_t)1 << (shift - 1);
+        uint64_t remainder = x_hi;
+        uint64_t rounded = 0;
+        if (shift < 64) {
+            rounded = x_hi >> shift;
+            remainder &= ((uint64_t)1 << shift) - 1;
+        }
+        if ((remainder <= halfway) && (halfway - remainder <= 2)) {
+            return -1;
+        }
+        /* Carry into the smallest normal value has the same bit pattern. */
+        return (int64_t)(rounded + (remainder > halfway));
+    }
 
     /* Apply a wider Approximation if needed */
 	if (((x_hi & 0x1FF) == 0x1FF) && ((x_lo + man) < man)) {

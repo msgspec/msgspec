@@ -12666,7 +12666,13 @@ end_parsing:
         return json_float_hook((char *)start, p - start, path, float_hook);
     }
     else {
-        if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
+        /* These bounds match the table in scripts/generate_atof_consts.py.
+         * Below -342, even UINT64_MAX * 10**-343 < 2**-1075 (half the
+         * smallest subnormal), so no nonzero result is lost from this path.
+         * The existing upper bound 288 is conservative: even
+         * UINT64_MAX * 10**288 is finite. Larger exponents still use the
+         * exact fallback, which also handles overflow. */
+        if (MS_UNLIKELY(exponent > 288 || exponent < -342)) {
             /* Exponent is out of bounds */
             goto fallback;
         }
