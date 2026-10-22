@@ -466,3 +466,152 @@ def convert_generic_alias(origin, args):
     # 'alias[int, str]'), so generics with more than one type var work
     alias = _GenericAlias(origin, params)
     return alias[args]
+
+
+def _pattern_char(s, pos, end):
+    if pos >= end:
+        return None
+    c = s[pos]
+    pos += 1
+    if c == "\\":
+        if pos >= end:
+            return None
+        c = s[pos]
+        pos += 1
+        if not " " <= c <= "~" or c.isalnum():
+            return None
+    elif not " " <= c <= "~":
+        return None
+    return pos, c
+
+
+def _pattern_bound(s, pos, end):
+    start = pos
+    value = 0
+    while pos < end and "0" <= s[pos] <= "9":
+        value = value * 10 + ord(s[pos]) - 48
+        pos += 1
+        if value >= 65536:
+            return None
+    return (pos, value) if pos != start else None
+
+
+def _pattern_eligible(s):
+    """Check the conservative ASCII grammar supported by the accelerator."""
+    if type(s) is not str or not s.isascii():
+        return False
+    end = len(s) - 1
+    if end < 1 or s[0] != "^" or s[end] != "$":
+        return False
+    pos = 1
+    while pos < end:
+        c = s[pos]
+        if c == "[":
+            pos += 1
+            if pos >= end or s[pos] in "^]":
+                return False
+            first = True
+            while pos < end and s[pos] != "]":
+                if s[pos] == "[":
+                    return False
+                if pos + 1 < end and s[pos] == s[pos + 1] and s[pos] in "&-~|":
+                    return False
+                item = _pattern_char(s, pos, end)
+                if item is None:
+                    return False
+                pos, left = item
+                if left == "-" and not first and s[pos] != "]":
+                    return False
+                if pos + 1 < end and s[pos] == "-" and s[pos + 1] != "]":
+                    pos += 1
+                    if s[pos] in "[]":
+                        return False
+                    item = _pattern_char(s, pos, end)
+                    if item is None:
+                        return False
+                    pos, right = item
+                    if left > right:
+                        return False
+                first = False
+            if pos >= end or first:
+                return False
+            pos += 1
+        else:
+            if c != "\\" and c in ".^$*+?{}()[]|":
+                return False
+            item = _pattern_char(s, pos, end)
+            if item is None:
+                return False
+            pos, _ = item
+        if pos < end and s[pos] in "?*+":
+            pos += 1
+            if pos < end and s[pos] == "?":
+                pos += 1
+        elif pos < end and s[pos] == "{":
+            item = _pattern_bound(s, pos + 1, end)
+            if item is None:
+                return False
+            pos, lower = item
+            if pos < end and s[pos] == ",":
+                pos += 1
+                if pos < end and s[pos] != "}":
+                    item = _pattern_bound(s, pos, end)
+                    if item is None:
+                        return False
+                    pos, upper = item
+                    if upper < lower:
+                        return False
+            if pos >= end or s[pos] != "}":
+                return False
+            pos += 1
+            if pos < end and s[pos] == "?":
+                pos += 1
+    return True
+
+
+def _prepare_pattern(pattern):
+    if not _pattern_eligible(pattern):
+        return None
+    from importlib import import_module
+
+    try:
+        provider = import_module("pcre2._cy")
+    except ModuleNotFoundError as exc:
+        if exc.name != "pcre2":
+            raise
+        return None
+    try:
+        capsule = provider._MATCHER_API_v1
+    except AttributeError:
+        if type(provider) is not types.ModuleType or "__getattr__" in vars(provider):
+            raise
+        return None
+    return provider, capsule
+
+
+def _compile_pattern(pattern, error_type):
+    import pcre2
+
+    try:
+        # Preserve Python's final-LF $ behavior across PCRE2 build defaults.
+        return (pcre2.compile("(*LF)" + pattern),)
+    except error_type as exc:
+        try:
+            code = exc.code
+        except BaseException:
+            code = None
+        # Known PCRE2 10.x compilation limits permit Python re fallback.
+        if type(code) is int and code in (
+            120,
+            132,
+            145,
+            174,
+            175,
+            186,
+            188,
+            201,
+            -45,
+            -68,
+        ):
+            return None
+        raise

@@ -54,6 +54,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+pcre2 = ["pcre2>=0.7.1"]
 toml = [
   "tomli ; python_version < '3.11'",
   "tomli_w",
@@ -137,6 +138,7 @@ msgspec = [
 [tool.setuptools_scm]
 version_file = "src/msgspec/_version.py"
 parentdir_prefix_version = "msgspec-"
+
 
 [tool.uv.config-settings]
 editable_mode = "compat"

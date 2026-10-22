@@ -541,6 +541,8 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
+    PyObject *prepare_pattern;
+    PyObject *compile_pattern;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -1671,6 +1673,8 @@ static PyTypeObject Raw_Type = {
  * Meta                                                                  *
  *************************************************************************/
 
+#include "pcre2_regex.h"
+
 static PyTypeObject Meta_Type;
 
 typedef struct Meta {
@@ -1804,8 +1808,8 @@ PyDoc_STRVAR(Meta__doc__,
 "    The annotated value must be a multiple of ``multiple_of``.\n"
 "pattern : str, optional\n"
 "    A regex pattern that the annotated value must match against. Note that\n"
-"    the pattern is treated as **unanchored**, meaning the ``re.search``\n"
-"    method is used when matching.\n"
+"    the pattern is treated as **unanchored**, using search semantics from\n"
+"    Python ``re``.\n"
 "min_length: int, optional\n"
 "    The annotated value must have a length greater than or equal to\n"
 "    ``min_length``.\n"
@@ -1954,7 +1958,10 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     /* regex compile pattern if provided */
     if (pattern != NULL) {
         MsgspecState *mod = msgspec_get_global_state();
-        regex = PyObject_CallOneArg(mod->re_compile, pattern);
+        PyObject *reference = PyObject_CallOneArg(mod->re_compile, pattern);
+        if (reference == NULL) return NULL;
+        regex = ms_pattern_compile(pattern, reference);
+        Py_DECREF(reference);
         if (regex == NULL) return NULL;
     }
 
@@ -10677,10 +10684,8 @@ _ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     }
     if (type->types & MS_CONSTR_STR_REGEX) {
         PyObject *regex = TypeNode_get_constr_str_regex(type);
-        PyObject *res = PyObject_CallMethod(regex, "search", "O", obj);
-        if (res == NULL) goto error;
-        bool ok = (res != Py_None);
-        Py_DECREF(res);
+        int ok = ms_pattern_match(regex, obj);
+        if (ok < 0) goto error;
         if (!ok) {
             PyObject *pattern = PyObject_GetAttrString(regex, "pattern");
             if (pattern == NULL) goto error;
@@ -22975,6 +22980,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_typealiastype);
 #endif
     Py_CLEAR(st->astimezone);
+    Py_CLEAR(st->prepare_pattern);
+    Py_CLEAR(st->compile_pattern);
     Py_CLEAR(st->re_compile);
     return 0;
 }
@@ -23053,6 +23060,8 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->uuid_safeuuid_unknown);
     Py_VISIT(st->DecimalType);
     Py_VISIT(st->astimezone);
+    Py_VISIT(st->prepare_pattern);
+    Py_VISIT(st->compile_pattern);
     Py_VISIT(st->re_compile);
     return 0;
 }
@@ -23104,6 +23113,8 @@ PyInit__core(void)
     if (PyType_Ready(&NamedTupleInfo_Type) < 0)
         goto error;
     if (PyType_Ready(&StructInfo_Type) < 0)
+        goto error;
+    if (ms_pattern_init() < 0)
         goto error;
     if (PyType_Ready(&Meta_Type) < 0)
         goto error;
@@ -23237,6 +23248,8 @@ PyInit__core(void)
 #endif
 
     IMPORT_TEMP_MODULE("msgspec._utils");
+    SET_REF(prepare_pattern, "_prepare_pattern");
+    SET_REF(compile_pattern, "_compile_pattern");
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
