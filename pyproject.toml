@@ -71,7 +71,7 @@ Source = "https://github.com/msgspec/msgspec"
 bench = [
   "cattrs==26.2.1",
   "mashumaro==3.23",
-  "msgpack==1.2.2",
+  "msgpack*",
   "orjson==3.13.0",
   "ormsgpack==1.12.2",
   "pydantic==2.14.1",
