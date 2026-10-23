@@ -58,7 +58,10 @@ def gen_row(e):
     return "{0x%s, 0x%s},  // 1e%-04d" % (h[16:], h[:16], e)
 
 
-table_rows = [gen_row(e) for e in range(-307, 289)]
+MIN_EXP = -342
+MAX_EXP = 308
+
+table_rows = [gen_row(e) for e in range(MIN_EXP, MAX_EXP + 1)]
 
 f64_powers = [f"1e{i}" for i in range(23)]
 
@@ -69,6 +72,9 @@ text = """\
 
 #ifndef MSGSPEC_ATOF_CONSTS_H
 #define MSGSPEC_ATOF_CONSTS_H
+
+#define MS_ATOF_MIN_EXP10 (%d)
+#define MS_ATOF_MAX_EXP10 (%d)
 
 static const uint64_t ms_atof_powers_of_10[%d][2] = {
 %s
@@ -88,6 +94,8 @@ static const uint8_t ms_atof_powers_of_5[%d] = {
 
 #endif
 """ % (
+    MIN_EXP,
+    MAX_EXP,
     len(table_rows),
     "\n".join(table_rows),
     len(f64_powers),

@@ -12666,11 +12666,6 @@ end_parsing:
         return json_float_hook((char *)start, p - start, path, float_hook);
     }
     else {
-        if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
-            /* Exponent is out of bounds */
-            goto fallback;
-        }
-
         double val;
         if (MS_LIKELY((-22 <= exponent) && (exponent <= 22) && ((mantissa >> 53) == 0))) {
             /* If both `mantissa` and `10 ** exponent` can be exactly
@@ -12682,10 +12677,15 @@ end_parsing:
                 val /= ms_atof_f64_powers_of_10[-exponent];
             }
         }
-        else if (MS_UNLIKELY(mantissa == 0)) {
-            /* Special case 0 handling. This is only hit if the mantissa is 0
-             * and the exponent is out of bounds above (i.e. rarely) */
+        else if (MS_UNLIKELY(mantissa == 0 || exponent < MS_ATOF_MIN_EXP10)) {
+            /* Zero, or too small to be represented as a double. Since
+             * `mantissa < 2**64`, `mantissa * 10**exponent` is less than half
+             * the smallest subnormal and rounds to 0 */
             val = 0.0;
+        }
+        else if (MS_UNLIKELY(exponent > MS_ATOF_MAX_EXP10)) {
+            /* Non-zero and too large to be represented as a double */
+            return ms_error_with_path("Number out of range%U", path);
         }
         else {
             int64_t r1 = eisel_lemire(mantissa, exponent);

@@ -1408,7 +1408,18 @@ class TestFloat:
         x = msgspec.json.decode(s)
         assert x == float(s)
 
-    @pytest.mark.parametrize("s", [b"123e308", b"-123e308", b"123e50000", b"123e50000"])
+    @pytest.mark.parametrize(
+        "s",
+        [
+            b"123e308",
+            b"-123e308",
+            b"123e50000",
+            b"123e50000",
+            b"1e309",
+            b"-1e309",
+            b"1.7976931348623159e308",
+        ],
+    )
     def test_decode_float_boundaries_errors(self, s):
         with pytest.raises(msgspec.ValidationError, match="Number out of range"):
             msgspec.json.decode(s)
@@ -1559,6 +1570,53 @@ class TestFloat:
         https://github.com/fastfloat/fast_float/blob/main/tests/basictest.cpp"""
         x = msgspec.json.decode(s.encode(), type=float)
         assert x == float(s)
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "5e-324",
+            "-5e-324",
+            "2e-324",
+            "3e-324",
+            "2.4703282292062327e-324",
+            "2.4703282292062328e-324",
+            "1e-330",
+            "9999999999999999999e-343",
+            "1e-342",
+            "1.2345e-310",
+            "2.5e-320",
+            "2.225073858507201e-308",
+            "2.2250738585072011e-308",
+            "4.9406564584124654e-324",
+            "123456789012345678901234e-350",
+            "1e300",
+            "1.7976931348623157e308",
+            "1.7976931348623158e308",
+            "1e-343",
+            "0e500",
+            "0." + "0" * 323 + "5",
+        ],
+    )
+    def test_decode_float_subnormal_and_extreme_exponents(self, s):
+        x = msgspec.json.decode(s.encode())
+        x2 = msgspec.json.decode(s.encode(), type=float)
+        assert x == x2 == float(s)
+        assert math.copysign(1.0, x) == math.copysign(1.0, float(s))
+
+    @pytest.mark.parametrize("k", [0, 1, 2, 3, (1 << 52) - 1, 1 << 52])
+    @pytest.mark.parametrize("tail", ["", "000", "001"])
+    def test_decode_float_subnormal_halfway(self, k, tail):
+        # (2k + 1) * 2**-1075 lies exactly halfway between two subnormals
+        mid = (2 * k + 1) * 5**1075
+        for m in [mid - 1, mid, mid + 1]:
+            s = f"{m}{tail}e-{1075 + len(tail)}"
+            assert msgspec.json.decode(s) == float(s)
+
+    def test_decode_float_subnormal_random_checks(self, rand):
+        for _ in range(1000):
+            x = rand.float() * 2.0**-1022
+            s = msgspec.json.encode(x)
+            assert msgspec.json.decode(s) == x
 
     @pytest.mark.parametrize("negative", [True, False])
     def test_decode_long_float_rounds_to_zero(self, negative):

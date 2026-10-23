@@ -117,10 +117,10 @@ eisel_lemire(uint64_t man, int32_t exp) {
      * in-depth description of the algorithm */
 
     /* Normalization */
-    const uint64_t* po10 = ms_atof_powers_of_10[exp + 307];
+    const uint64_t* po10 = ms_atof_powers_of_10[exp - MS_ATOF_MIN_EXP10];
     uint32_t clz = ms_clzll(man);
     man <<= clz;
-    uint64_t ret_exp2 = ((uint64_t)(((217706 * exp) >> 16) + 1087)) - ((uint64_t)clz);
+    int64_t ret_exp2 = ((int64_t)(((217706 * exp) >> 16) + 1087)) - ((int64_t)clz);
 
     /* Multiplication */
     ms_uint128 x = ms_mulu64(man, po10[1]);
@@ -151,12 +151,33 @@ eisel_lemire(uint64_t man, int32_t exp) {
     /* Shift to 54 bits */
 	uint64_t msb = x_hi >> 63;
 	uint64_t ret_mantissa = x_hi >> (msb + 9);
-	ret_exp2 -= 1 ^ msb;
+	ret_exp2 -= (int64_t)(1 ^ msb);
 
     /* Check for a half-way ambiguity, and abort if present */
 	if ((x_lo == 0) && ((x_hi & 0x1FF) == 0) && ((ret_mantissa & 3) == 1)) {
 		return -1;
 	}
+
+    /* Handle subnormals */
+    if (ret_exp2 <= 0) {
+        /* Shift the 54 bit mantissa right so the result has a biased exponent
+         * of 0, then round. A subnormal result implies `exp < -289`, and
+         * since `5**289 > 2**64` the value `man * 10**exp` can never lie
+         * exactly halfway between two doubles. The computed product is a
+         * lower bound on the true value, and the ambiguous case where the
+         * error could carry into the rounding bit was already rejected above,
+         * so the rounding bit alone decides the direction. */
+        int64_t shift = 1 - ret_exp2;
+        if (shift >= 64) {
+            return 0;
+        }
+        ret_mantissa >>= shift;
+        ret_mantissa += ret_mantissa & 1;
+        ret_mantissa >>= 1;
+        /* If rounding carried into bit 52 the result is the smallest normal
+         * number, which this bit pattern already represents */
+        return ((int64_t)ret_mantissa);
+    }
 
     /* From 54 to 53 bits */
 	ret_mantissa += ret_mantissa & 1;
@@ -166,9 +187,14 @@ eisel_lemire(uint64_t man, int32_t exp) {
 		ret_exp2++;
 	}
 
+    /* Overflow, let the fallback path handle it */
+    if (ret_exp2 >= 0x7FF) {
+        return -1;
+    }
+
     /* Construct final output */
 	ret_mantissa &= 0x000FFFFFFFFFFFFF;
-    return ((int64_t)(ret_mantissa | (ret_exp2 << 52)));
+    return ((int64_t)(ret_mantissa | (((uint64_t)ret_exp2) << 52)));
 }
 
 /* Fallback parsing method using a High Precision Double (HPD) */

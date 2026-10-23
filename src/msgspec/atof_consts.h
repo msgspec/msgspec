@@ -3,7 +3,45 @@
 #ifndef MSGSPEC_ATOF_CONSTS_H
 #define MSGSPEC_ATOF_CONSTS_H
 
-static const uint64_t ms_atof_powers_of_10[596][2] = {
+#define MS_ATOF_MIN_EXP10 (-342)
+#define MS_ATOF_MAX_EXP10 (308)
+
+static const uint64_t ms_atof_powers_of_10[651][2] = {
+{0x113faa2906a13b3f, 0xeef453d6923bd65a},  // 1e-342
+{0x4ac7ca59a424c507, 0x9558b4661b6565f8},  // 1e-341
+{0x5d79bcf00d2df649, 0xbaaee17fa23ebf76},  // 1e-340
+{0xf4d82c2c107973dc, 0xe95a99df8ace6f53},  // 1e-339
+{0x79071b9b8a4be869, 0x91d8a02bb6c10594},  // 1e-338
+{0x9748e2826cdee284, 0xb64ec836a47146f9},  // 1e-337
+{0xfd1b1b2308169b25, 0xe3e27a444d8d98b7},  // 1e-336
+{0xfe30f0f5e50e20f7, 0x8e6d8c6ab0787f72},  // 1e-335
+{0xbdbd2d335e51a935, 0xb208ef855c969f4f},  // 1e-334
+{0xad2c788035e61382, 0xde8b2b66b3bc4723},  // 1e-333
+{0x4c3bcb5021afcc31, 0x8b16fb203055ac76},  // 1e-332
+{0xdf4abe242a1bbf3d, 0xaddcb9e83c6b1793},  // 1e-331
+{0xd71d6dad34a2af0d, 0xd953e8624b85dd78},  // 1e-330
+{0x8672648c40e5ad68, 0x87d4713d6f33aa6b},  // 1e-329
+{0x680efdaf511f18c2, 0xa9c98d8ccb009506},  // 1e-328
+{0x0212bd1b2566def2, 0xd43bf0effdc0ba48},  // 1e-327
+{0x014bb630f7604b57, 0x84a57695fe98746d},  // 1e-326
+{0x419ea3bd35385e2d, 0xa5ced43b7e3e9188},  // 1e-325
+{0x52064cac828675b9, 0xcf42894a5dce35ea},  // 1e-324
+{0x7343efebd1940993, 0x818995ce7aa0e1b2},  // 1e-323
+{0x1014ebe6c5f90bf8, 0xa1ebfb4219491a1f},  // 1e-322
+{0xd41a26e077774ef6, 0xca66fa129f9b60a6},  // 1e-321
+{0x8920b098955522b4, 0xfd00b897478238d0},  // 1e-320
+{0x55b46e5f5d5535b0, 0x9e20735e8cb16382},  // 1e-319
+{0xeb2189f734aa831d, 0xc5a890362fddbc62},  // 1e-318
+{0xa5e9ec7501d523e4, 0xf712b443bbd52b7b},  // 1e-317
+{0x47b233c92125366e, 0x9a6bb0aa55653b2d},  // 1e-316
+{0x999ec0bb696e840a, 0xc1069cd4eabe89f8},  // 1e-315
+{0xc00670ea43ca250d, 0xf148440a256e2c76},  // 1e-314
+{0x380406926a5e5728, 0x96cd2a865764dbca},  // 1e-313
+{0xc605083704f5ecf2, 0xbc807527ed3e12bc},  // 1e-312
+{0xf7864a44c633682e, 0xeba09271e88d976b},  // 1e-311
+{0x7ab3ee6afbe0211d, 0x93445b8731587ea3},  // 1e-310
+{0x5960ea05bad82964, 0xb8157268fdae9e4c},  // 1e-309
+{0x6fb92487298e33bd, 0xe61acf033d1a45df},  // 1e-308
 {0xa5d3b6d479f8e056, 0x8fd0c16206306bab},  // 1e-307
 {0x8f48a4899877186c, 0xb3c4f1ba87bc8696},  // 1e-306
 {0x331acdabfe94de87, 0xe0b62e2929aba83c},  // 1e-305
@@ -600,6 +638,26 @@ static const uint64_t ms_atof_powers_of_10[596][2] = {
 {0x49ed8eabcccc485d, 0x867f59a9d4bed6c0},  // 1e286 
 {0x5c68f256bfff5a74, 0xa81f301449ee8c70},  // 1e287 
 {0x73832eec6fff3111, 0xd226fc195c6a2f8c},  // 1e288 
+{0xc831fd53c5ff7eab, 0x83585d8fd9c25db7},  // 1e289 
+{0xba3e7ca8b77f5e55, 0xa42e74f3d032f525},  // 1e290 
+{0x28ce1bd2e55f35eb, 0xcd3a1230c43fb26f},  // 1e291 
+{0x7980d163cf5b81b3, 0x80444b5e7aa7cf85},  // 1e292 
+{0xd7e105bcc332621f, 0xa0555e361951c366},  // 1e293 
+{0x8dd9472bf3fefaa7, 0xc86ab5c39fa63440},  // 1e294 
+{0xb14f98f6f0feb951, 0xfa856334878fc150},  // 1e295 
+{0x6ed1bf9a569f33d3, 0x9c935e00d4b9d8d2},  // 1e296 
+{0x0a862f80ec4700c8, 0xc3b8358109e84f07},  // 1e297 
+{0xcd27bb612758c0fa, 0xf4a642e14c6262c8},  // 1e298 
+{0x8038d51cb897789c, 0x98e7e9cccfbd7dbd},  // 1e299 
+{0xe0470a63e6bd56c3, 0xbf21e44003acdd2c},  // 1e300 
+{0x1858ccfce06cac74, 0xeeea5d5004981478},  // 1e301 
+{0x0f37801e0c43ebc8, 0x95527a5202df0ccb},  // 1e302 
+{0xd30560258f54e6ba, 0xbaa718e68396cffd},  // 1e303 
+{0x47c6b82ef32a2069, 0xe950df20247c83fd},  // 1e304 
+{0x4cdc331d57fa5441, 0x91d28b7416cdd27e},  // 1e305 
+{0xe0133fe4adf8e952, 0xb6472e511c81471d},  // 1e306 
+{0x58180fddd97723a6, 0xe3d8f9e563a198e5},  // 1e307 
+{0x570f09eaa7ea7648, 0x8e679c2f5e44ff8f},  // 1e308 
 };
 
 static const double ms_atof_f64_powers_of_10[23] = {
