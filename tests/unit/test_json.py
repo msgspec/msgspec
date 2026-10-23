@@ -490,6 +490,17 @@ class TestDecoderMisc:
         res = msgspec.json.Decoder(Ex).decode_lines(buf)
         assert res == sol
 
+    def test_decode_lines_pattern(self):
+        typ = Annotated[str, msgspec.Meta(pattern=r"^\w+$")]
+        dec = msgspec.json.Decoder(typ)
+        values = ["\u03b1\u03b2\u03b3", "ascii"]
+        buf = msgspec.json.Encoder().encode_lines(values)
+
+        assert dec.decode_lines(buf) == values
+        with pytest.raises(msgspec.ValidationError, match=r"\$\[1\]"):
+            dec.decode_lines(b'"ok"\n"!"\n')
+        assert dec.decode_lines(buf) == values
+
     def test_decode_lines_typed_error(self):
         class Ex(msgspec.Struct):
             x: int
