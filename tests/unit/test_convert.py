@@ -146,7 +146,6 @@ mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
         (GetAttrObj, True, False),
         (GetAttrOrItemObj, True, True),
         (GetAttrOrItemObj, True, False),
-        (GetAttrOrItemObj, False, False),
         (GetItemObj, False, False),
     ],
 )
@@ -1618,6 +1617,34 @@ class TestDataclass:
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
 
+        msg2 = GetAttrOrItemObj(x=1, y=2)
+
+        @dataclass
+        class Ex2:
+            x: int
+            y: int
+
+        with pytest.raises(ValidationError, match="Object missing required field `x`"):
+            convert(msg2, Ex2)
+
+        assert convert(msg2, Ex2, from_attributes=True) == Ex2(1, 2)
+
+    def test_dataclass_mapping_ignores_attributes(self):
+        class PropMapping(GetItemObj):
+            @property
+            def get(self):
+                return 99
+
+        @dataclass
+        class Ex:
+            keys: int
+            items: int = 2
+            get: int = 3
+
+        assert convert(GetItemObj(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1, get=4), Ex) == Ex(keys=1, items=2, get=4)
+
     @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_from_attributes
@@ -1957,6 +1984,35 @@ class TestStruct:
             convert(msg, Ex)
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
+
+        msg2 = GetAttrOrItemObj(x=1, y=2)
+
+        class Ex2(Struct):
+            x: int
+            y: int
+
+        with pytest.raises(ValidationError, match="Object missing required field `x`"):
+            convert(msg2, Ex2)
+
+        assert convert(msg2, Ex2, from_attributes=True) == Ex2(1, 2)
+
+    def test_struct_mapping_ignores_attributes(self):
+        class PropMapping(GetItemObj):
+            @property
+            def get(self):
+                return 99
+
+        class Ex(Struct, tag="Ex", tag_field="values"):
+            keys: int
+            items: int = 2
+            get: int = 3
+
+        assert convert(GetItemObj(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(GetItemObj(values="Ex", keys=1), Ex) == Ex(
+            keys=1, items=2, get=3
+        )
+        assert convert(PropMapping(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1, get=4), Ex) == Ex(keys=1, items=2, get=4)
 
     @pytest.mark.parametrize("mapcls", [GetAttrObj, GetItemObj])
     def test_object_to_struct_with_renamed_fields(self, mapcls):
@@ -2346,6 +2402,21 @@ class TestStructUnion:
         with pytest.raises(ValidationError) as rec:
             decode({"type": unknown, "a": 1, "b": 2})
         assert f"Invalid value {unknown!r} - at `$.type`" == str(rec.value)
+
+    def test_struct_union_mapping_ignores_attributes(self):
+        class Test1(Struct, tag="Test1", tag_field="keys"):
+            items: int
+            get: int = 2
+
+        class Test2(Struct, tag="Test2", tag_field="keys"):
+            values: int
+
+        typ = Test1 | Test2
+        assert convert(GetItemObj(keys="Test1", items=1), typ) == Test1(items=1, get=2)
+        with pytest.raises(
+            ValidationError, match="Object missing required field `keys`"
+        ):
+            convert(GetItemObj(items=1), typ)
 
     @pytest.mark.parametrize(
         "tag1, tag2, tag3, unknown",
