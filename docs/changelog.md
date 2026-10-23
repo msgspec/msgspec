@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
+  `offset` inside the buffer. An `offset` past the end of the buffer now fills
+  the gap with zeros instead of leaving it uninitialized.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,
