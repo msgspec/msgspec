@@ -1630,6 +1630,11 @@ class TestDataclass:
         assert convert(msg2, Ex2, from_attributes=True) == Ex2(1, 2)
 
     def test_dataclass_mapping_ignores_attributes(self):
+        class PropMapping(GetItemObj):
+            @property
+            def get(self):
+                return 99
+
         @dataclass
         class Ex:
             keys: int
@@ -1637,6 +1642,8 @@ class TestDataclass:
             get: int = 3
 
         assert convert(GetItemObj(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1, get=4), Ex) == Ex(keys=1, items=2, get=4)
 
     @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
@@ -1990,6 +1997,11 @@ class TestStruct:
         assert convert(msg2, Ex2, from_attributes=True) == Ex2(1, 2)
 
     def test_struct_mapping_ignores_attributes(self):
+        class PropMapping(GetItemObj):
+            @property
+            def get(self):
+                return 99
+
         class Ex(Struct, tag="Ex", tag_field="values"):
             keys: int
             items: int = 2
@@ -1999,6 +2011,8 @@ class TestStruct:
         assert convert(GetItemObj(values="Ex", keys=1), Ex) == Ex(
             keys=1, items=2, get=3
         )
+        assert convert(PropMapping(keys=1), Ex) == Ex(keys=1, items=2, get=3)
+        assert convert(PropMapping(keys=1, get=4), Ex) == Ex(keys=1, items=2, get=4)
 
     @pytest.mark.parametrize("mapcls", [GetAttrObj, GetItemObj])
     def test_object_to_struct_with_renamed_fields(self, mapcls):
