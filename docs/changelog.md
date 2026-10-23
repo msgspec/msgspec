@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Include string Literal and Enum dictionary key constraints in generated JSON
+  Schema `propertyNames`.
+- Fix JSON Schema references for dynamically defined types with empty names,
+  including recursive types that previously raised `RecursionError`.
+- Fix generic `TypedDict` subclasses dropping the base type argument, so
+  `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
+  PEP 695 annotations on those subclasses resolve instead of raising
+  `NameError` ({issue}`1191`).
 - Fix invalid `json` that was produced when converting non-finite `Decimal`
   objects with `decimal_format="number"` ({issue}`1262`)
 - Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
@@ -30,6 +38,9 @@
   was used in loops ({pr}`1256`)
 - Fix a possible crash when too big ints are passed
   into `Meta`'s constructor ({pr}`1260`)
+- Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
+  raised `TypeError` although the decoder produces such keys for
+  `dict[frozendict[K, V], T]` ({issue}`1280`)
 
 ## Version 0.22.0 (2026-09-29)
 

@@ -1355,6 +1355,73 @@ def test_dict_key_metadata_with_schema_metadata(meta, property_names):
     }
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_literal_key_schema(annotated):
+    key_type = Literal["apple", "banana"]
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"enum": ["apple", "banana"]}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["additionalProperties"] == {"type": "integer"}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {"apple": 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+@pytest.mark.parametrize("base", [enum.Enum, str])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_enum_key_schema(base, annotated):
+    if base is str:
+
+        class Fruit(str, enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    else:
+
+        class Fruit(enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    key_type = Fruit
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"$ref": "#/$defs/Fruit"}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["$defs"]["Fruit"]["enum"] == ["apple", "banana"]
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {Fruit.APPLE: 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+def test_dict_integer_keys_do_not_use_string_property_names():
+    class Number(enum.IntEnum):
+        ONE = 1
+        TWO = 2
+
+    for key_type in (int, Literal[1, 2], Number):
+        schema = msgspec.json.schema(dict[key_type, int])
+        assert "propertyNames" not in schema
+
+
+@py315_or_later_only
+def test_frozendict_string_literal_key_schema():
+    typ = frozendict[Literal["apple", "banana"], int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == {"enum": ["apple", "banana"]}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == frozendict(apple=1)
+
+
 @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
 @pytest.mark.parametrize(
     "field, n, constraint",
@@ -1421,6 +1488,38 @@ def test_generic_metadata():
         "examples": [1, 2, 3],
         "default": 1,
     }
+
+
+@pytest.mark.parametrize("name", ["", "Node"])
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+def test_component_name_references(name, recursive, ref_template):
+    fields = '[("child", "Node | None", None)]' if recursive else '[("value", int)]'
+    code = f"import msgspec\nNode = msgspec.defstruct({name!r}, {fields})"
+    ref = {"$ref": ref_template.format(name=name)}
+    properties = (
+        {"child": {"anyOf": [ref, {"type": "null"}], "default": None}}
+        if recursive
+        else {"value": {"type": "integer"}}
+    )
+    expected = {
+        name: {
+            "title": name,
+            "type": "object",
+            "properties": properties,
+            "required": [] if recursive else ["value"],
+        }
+    }
+    with temp_module(code) as mod:
+        obj = mod.Node(mod.Node()) if recursive else mod.Node(1)
+        assert msgspec.json.decode(msgspec.json.encode(obj), type=mod.Node) == obj
+        assert msgspec.json.schema_components(
+            [mod.Node], ref_template=ref_template
+        ) == ((ref,), expected)
+        assert msgspec.json.schema(mod.Node, ref_template=ref_template) == {
+            **ref,
+            "$defs": expected,
+        }
 
 
 def test_component_names_collide():
