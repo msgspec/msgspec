@@ -1447,6 +1447,46 @@ class TestFrozenDict:
 
 
 class TestTypedDict:
+    @pytest.mark.parametrize("inherited", [False, True])
+    @pytest.mark.parametrize("mapping", [dict, GetItemObj])
+    def test_closed(self, inherited, mapping):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Base(TypedDict, closed=True):
+            keys: int
+
+        if inherited:
+
+            class Example(Base):
+                pass
+        else:
+            Example = Base
+
+        assert convert(mapping(keys=1), Example) == {"keys": 1}
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            convert(mapping(keys=1, extra=2), Example)
+        with pytest.raises(
+            ValidationError, match="Object missing required field `keys`"
+        ):
+            convert(mapping(), Example)
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            convert(mapping(keys="bad"), Example)
+        with pytest.raises(ValidationError, match="Expected `str`"):
+            convert(mapping({1: 2}), Example)
+
+    def test_closed_mapping_iteration_error(self):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+        Example = TypedDict("Example", {}, closed=True)
+
+        class Bad(GetItemObj):
+            def __iter__(self):
+                raise ZeroDivisionError("cannot enumerate")
+
+        with pytest.raises(ZeroDivisionError, match="cannot enumerate"):
+            convert(Bad(extra=1), Example)
+
     def test_typeddict_total_true(self, dictcls):
         class Ex(TypedDict):
             a: int

@@ -2792,6 +2792,78 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("inherited", [False, True])
+    @pytest.mark.parametrize("total", [False, True])
+    def test_closed(self, proto, module, inherited, total):
+        if module == "typing" and sys.version_info < (3, 15):
+            pytest.skip("closed TypedDict requires Python 3.15")
+        TypedDict = pytest.importorskip(module).TypedDict
+
+        class Base(TypedDict, closed=True, total=total):
+            value: int
+
+        if inherited:
+
+            class Example(Base):
+                pass
+        else:
+            Example = Base
+
+        assert proto.decode(proto.encode({"value": 1}), type=Example) == {"value": 1}
+        if total:
+            with pytest.raises(
+                ValidationError, match="Object missing required field `value`"
+            ):
+                proto.decode(proto.encode({}), type=Example)
+        else:
+            assert proto.decode(proto.encode({}), type=Example) == {}
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example)
+
+    @pytest.mark.skipif(
+        sys.version_info >= (3, 14), reason="legacy typing_extensions syntax"
+    )
+    def test_closed_with_legacy_typed_extras(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Example(TypedDict, closed=True):
+            __extra_items__: int
+            value: int
+
+        assert proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example) == {
+            "value": 1
+        }
+        assert msgspec.inspect.type_info(Example).forbid_unknown_fields is False
+        assert (
+            "additionalProperties"
+            not in msgspec.json.schema(Example)["$defs"]["Example"]
+        )
+
+    def test_closed_generic_nested(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Example(TypedDict, Generic[T], closed=True):
+            value: T
+
+        with pytest.raises(ValidationError) as rec:
+            proto.decode(proto.encode([{"value": 1, "é": 2}]), type=list[Example[int]])
+        assert str(rec.value) == "Object contains unknown field `é` - at `$[0]`"
+
+    @pytest.mark.parametrize("readonly", [False, True])
+    def test_closed_never(self, proto, readonly):
+        tex = pytest.importorskip("typing_extensions")
+        extra = tex.ReadOnly[tex.Never] if readonly else tex.Never
+        Example = tex.TypedDict("Example", {}, extra_items=extra)
+
+        assert proto.decode(proto.encode({}), type=Example) == {}
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            proto.decode(proto.encode({"extra": 1}), type=Example)
+
     def test_failed_recursive_type_releases_field_types(self):
         source = """
         from typing import TypedDict

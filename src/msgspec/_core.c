@@ -3017,6 +3017,7 @@ typedef struct {
 typedef struct {
     PyObject_VAR_HEAD
     Py_ssize_t nrequired;
+    bool forbid_unknown_fields;
     TypedDictField fields[];
 } TypedDictInfo;
 
@@ -8789,6 +8790,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     Py_INCREF(annotations);
     required = PyTuple_GET_ITEM(temp, 1);
     Py_INCREF(required);
+    bool forbid_unknown_fields = PyTuple_GET_ITEM(temp, 2) == Py_True;
     Py_DECREF(temp);
 
     /* Allocate and zero-out a new TypedDictInfo object */
@@ -8802,6 +8804,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     /* Initialize nrequired to -1 as a flag in case of a recursive TypedDict
     * definition. */
     info->nrequired = -1;
+    info->forbid_unknown_fields = forbid_unknown_fields;
 
     /* If not already cached, then cache on TypedDict object _before_
     * traversing fields. This is to ensure self-referential TypedDicts work. */
@@ -16522,6 +16525,10 @@ mpack_decode_typeddict(
             }
         }
         else {
+            if (info->forbid_unknown_fields) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
             /* Unknown field, skip */
             if (mpack_skip(self) < 0) goto error;
         }
@@ -19068,6 +19075,10 @@ json_decode_typeddict(
             }
         }
         else {
+            if (info->forbid_unknown_fields) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
             /* Skip unknown fields */
             if (json_skip(self) < 0) goto error;
         }
@@ -22143,6 +22154,10 @@ convert_dict_to_typeddict(
             Py_DECREF(val);
             if (status < 0) goto error;
         }
+        else if (info->forbid_unknown_fields) {
+            ms_error_unknown_field(key, key_size, path);
+            goto error;
+        }
     }
     if (nrequired < info->nrequired) {
         /* A required field is missing, determine which one and raise */
@@ -22462,6 +22477,31 @@ convert_mapping_to_typeddict(
             "TypedDict type is incomplete: a recursively referenced type failed to initialize"
         );
         goto error;
+    }
+    if (info->forbid_unknown_fields) {
+        PyObject *keys = PyMapping_Keys(obj);
+        if (keys == NULL) goto error;
+        Py_ssize_t pos = 0;
+        for (Py_ssize_t i = 0; i < PyList_GET_SIZE(keys); i++) {
+            PyObject *key_obj = PyList_GET_ITEM(keys, i);
+            if (!convert_is_str_key(key_obj, path)) {
+                Py_DECREF(keys);
+                goto error;
+            }
+            Py_ssize_t key_size;
+            const char *key = unicode_str_and_size(key_obj, &key_size);
+            if (key == NULL) {
+                Py_DECREF(keys);
+                goto error;
+            }
+            TypeNode *field_type;
+            if (TypedDictInfo_lookup_key(info, key, key_size, &field_type, &pos) == NULL) {
+                ms_error_unknown_field(key, key_size, path);
+                Py_DECREF(keys);
+                goto error;
+            }
+        }
+        Py_DECREF(keys);
     }
     Py_ssize_t nrequired = 0;
     for (Py_ssize_t i = 0; i < Py_SIZE(info); i++) {

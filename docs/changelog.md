@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Support closed `TypedDict` types when decoding and converting, and reflect
+  their unknown-field restriction in JSON Schema and type inspection
+  ({issue}`1304`). Typed extra-item values are not yet supported.
+
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,

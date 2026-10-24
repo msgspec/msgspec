@@ -905,3 +905,23 @@ def test_is_struct_type_runtime():
     assert mi.is_struct_type(Custom)
     assert not mi.is_struct_type(NotStruct)
     assert not mi.is_struct_type(object)
+
+
+@pytest.mark.parametrize("closed", [False, True])
+@pytest.mark.parametrize("inherited", [False, True])
+def test_closed_typeddict(closed, inherited):
+    TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+    class Base(TypedDict, closed=closed):
+        value: int
+
+    if inherited:
+
+        class Example(Base):
+            pass
+    else:
+        Example = Base
+
+    info = mi.type_info(Example)
+    assert info.forbid_unknown_fields is closed
+    assert info.fields == (mi.Field("value", "value", mi.IntType()),)
