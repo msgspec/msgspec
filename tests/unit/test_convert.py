@@ -1219,6 +1219,87 @@ class TestDict:
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
             assert convert(1, dict)
 
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_dict_getitem_without_keys(self, strict):
+        class Table:
+            def __getitem__(self, key):
+                pytest.fail("Should not access non-mapping items")
+
+        class Ex(Struct):
+            table: dict[str, Any]
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"table": Table()}, Ex, strict=strict)
+        assert str(rec.value) == "Expected `object`, got `Table` - at `$.table`"
+
+    @pytest.mark.parametrize("keys_type", [list, tuple, iter])
+    def test_dict_duck_mapping(self, keys_type):
+        class DuckMapping:
+            def keys(self):
+                return keys_type(["x", "y", "x"])
+
+            def __getitem__(self, key):
+                return {"x": 1, "y": 2}[key]
+
+        res = convert(DuckMapping(), dict[str, float])
+        assert res == {"x": 1.0, "y": 2.0}
+
+    def test_dict_mapping_keys_lookup_error(self):
+        class BadMapping:
+            @property
+            def keys(self):
+                raise RuntimeError("boom")
+
+            def __getitem__(self, key):
+                pytest.fail("Should not access items when keys lookup fails")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_keys_call_error_propagates(self):
+        class BadMapping:
+            def keys(self):
+                raise RuntimeError("boom")
+
+            def __getitem__(self, key):
+                pytest.fail("Should not access items when keys call fails")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_keys_iteration_error_propagates(self):
+        class BadMapping:
+            def keys(self):
+                yield "x"
+                raise RuntimeError("boom")
+
+            def __getitem__(self, key):
+                return 1
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_getitem_error_propagates(self):
+        class BadMapping:
+            def keys(self):
+                return ["x"]
+
+            def __getitem__(self, key):
+                raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_keys_not_callable(self):
+        class BadMapping:
+            keys = None
+
+            def __getitem__(self, key):
+                return 1
+
+        with pytest.raises(TypeError, match="not callable"):
+            convert(BadMapping(), dict)
+
     def test_str_formatted_keys(self):
         msg = {uuid.uuid4(): 1, uuid.uuid4(): 2}
         res = convert(to_builtins(msg), dict[uuid.UUID, int])
@@ -1325,6 +1406,29 @@ class TestDict:
 
 @py315_or_later_only
 class TestFrozenDict:
+    def test_getitem_without_keys(self):
+        class DuckMapping:
+            def __getitem__(self, key):
+                return 1
+
+        with pytest.raises(
+            ValidationError, match="Expected `object`, got `DuckMapping`"
+        ):
+            convert(DuckMapping(), frozendict[str, float])
+
+    def test_duck_mapping(self):
+        class DuckMapping:
+            def keys(self):
+                return ["x"]
+
+            def __getitem__(self, key):
+                return 1
+
+        result = convert(DuckMapping(), frozendict[str, float])
+        assert type(result) is frozendict
+        assert result == frozendict({"x": 1.0})
+        assert type(result["x"]) is float
+
     def check_frozen(self, val, expected):
         assert isinstance(expected, frozendict)
         assert type(val) is type(expected)

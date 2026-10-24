@@ -22011,6 +22011,17 @@ static PyObject *
 convert_mapping_to_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    PyObject *keys_method = PyObject_GetAttrString(obj, "keys");
+    if (keys_method == NULL) {
+        if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+            PyErr_Clear();
+            return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
+        }
+        return NULL;
+    }
+
+    Py_DECREF(keys_method);
+
     PyObject *out = NULL;
     PyObject *temp = PyDict_New();
     if (temp == NULL) return NULL;
