@@ -301,6 +301,37 @@ if sys.version_info >= (3, 15):
     _CONCRETE_TYPES.update({frozendict: frozendict})  # noqa: F821
 
 
+def _typeddict_is_closed(cls):
+    if not isinstance(cls, type):
+        cls = cls.__origin__
+    tex = sys.modules.get("typing_extensions")
+    extra = getattr(cls, "__extra_items__", None)
+    origin = typing.get_origin(extra)
+    if origin is not None and origin in (
+        getattr(typing, "ReadOnly", None),
+        getattr(tex, "ReadOnly", None),
+    ):
+        extra = typing.get_args(extra)[0]
+    never = getattr(typing, "Never", None) or getattr(tex, "Never", None)
+    if extra is not None and extra is never:
+        return True
+    if (
+        extra is not None
+        and extra is not getattr(typing, "NoExtraItems", None)
+        and extra is not getattr(tex, "NoExtraItems", None)
+    ):
+        # Older typing_extensions allowed typed extras together with closed=True.
+        return False
+    if getattr(cls, "__closed__", False):
+        return True
+    # PEP 728 metadata records local arguments, so inspect the original bases too.
+    return any(
+        _typeddict_is_closed(base)
+        for base in getattr(cls, "__orig_bases__", ())
+        if _is_typeddict(getattr(base, "__origin__", base))
+    )
+
+
 def get_typeddict_info(obj):
     if isinstance(obj, type):
         cls = obj
@@ -340,7 +371,7 @@ def get_typeddict_info(obj):
         raise RuntimeError(
             f"Required set {required} contains keys that are no in hints: {hints.keys()}"
         )
-    return hints, required
+    return hints, required, _typeddict_is_closed(cls)
 
 
 def get_dataclass_info(obj):

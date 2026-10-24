@@ -533,10 +533,13 @@ class TypedDictType(Type):
         The corresponding TypedDict type.
     fields: tuple[Field, ...]
         A tuple of fields in the TypedDict.
+    forbid_unknown_fields: bool, default False
+        Whether unknown fields are rejected during decoding.
     """
 
     cls: type
     fields: tuple[Field, ...]
+    forbid_unknown_fields: bool = False
 
 
 class NamedTupleType(Type):
@@ -970,7 +973,7 @@ class _Translator:
             if cls in self.cache:
                 return self.cache[cls]
             self.cache[cls] = out = TypedDictType(cls, ())
-            hints, required = _get_typeddict_info(cls)
+            hints, required, out.forbid_unknown_fields = _get_typeddict_info(cls)
             out.fields = tuple(
                 Field(
                     name=name,
