@@ -4299,10 +4299,6 @@ class TestTime:
         "offset",
         [
             datetime.timedelta(0),
-            datetime.timedelta(days=1, microseconds=-1),
-            datetime.timedelta(days=-1, microseconds=1),
-            datetime.timedelta(days=1, seconds=-29),
-            datetime.timedelta(days=-1, seconds=29),
             datetime.timedelta(days=0, seconds=30),
             datetime.timedelta(days=0, seconds=-30),
         ],
@@ -4327,6 +4323,22 @@ class TestTime:
             (
                 datetime.timedelta(minutes=19, seconds=32, microseconds=130000),
                 "14:56:27.123456+00:20",
+            ),
+            (
+                datetime.timedelta(days=1, seconds=-29),
+                "14:56:27.123456+23:59",
+            ),
+            (
+                datetime.timedelta(days=-1, seconds=29),
+                "14:56:27.123456-23:59",
+            ),
+            (
+                datetime.timedelta(days=1, microseconds=-1),
+                "14:56:27.123456+23:59",
+            ),
+            (
+                datetime.timedelta(days=-1, microseconds=1),
+                "14:56:27.123456-23:59",
             ),
         ],
     )
