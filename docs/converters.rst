@@ -71,6 +71,9 @@ could add support by wrapping the standard library's `json` module as follows:
     ValidationError: Expected `int`, got `str` - at `$.x`
 
 
+When converting into a `dict`, `convert` also accepts mapping objects providing
+a ``keys()`` method and ``__getitem__`` for retrieving each key's value.
+
 Since all protocols are different, `to_builtins` and `convert` have a few
 configuration options:
 
