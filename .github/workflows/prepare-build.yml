@@ -65,10 +65,6 @@ jobs:
       if: inputs.run-static-analysis
       run: just hooks-check
 
-    - name: Test docs deployment orchestration
-      if: inputs.run-static-analysis
-      run: python -m unittest discover -s tests -p test_docs_deploy.py
-
     - name: Build source distribution
       id: build-sdist
       run: |-

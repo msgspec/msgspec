@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include string Literal and Enum dictionary key constraints in generated JSON
+  Schema `propertyNames`.
 - Fix encoding of `datetime` and `time` values whose UTC offset is within a
   minute of +/-24 hours. These were written as `Z`, moving the instant by a
   full day; they now round to the closest valid offset (`+23:59`/`-23:59`).
