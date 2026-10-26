@@ -508,6 +508,8 @@ typedef struct {
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
+    PyObject *str___msgspec_encode__;
+    PyObject *str___msgspec_decode__;
 #if PY312_PLUS
     PyObject *str___value__;
 #endif
@@ -10262,6 +10264,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
 
     if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
 
+    MsgspecState *st = msgspec_get_global_state();
     custom_obj = TypeNode_get_custom(type);
 
     if (dec_hook != NULL) {
@@ -10272,13 +10275,20 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
             return NULL;
         }
     }
+    else if (PyObject_HasAttr(custom_obj, st->str___msgspec_decode__)){
+        /* Check if msgspec can decode it. */
+        out = PyObject_CallMethodObjArgs(custom_obj, st->str___msgspec_decode__, obj, NULL);
+        Py_DECREF(obj);
+        if (out == NULL) {
+            ms_maybe_wrap_validation_error(path);
+            return NULL;
+        }
+    }
     else {
         out = obj;
     }
-
     /* Generic classes must be checked based on __origin__ */
     if (generic) {
-        MsgspecState *st = msgspec_get_global_state();
         custom_cls = PyObject_GetAttr(custom_obj, st->str___origin__);
         if (custom_cls == NULL) {
             Py_DECREF(out);
@@ -13761,6 +13771,7 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 static MS_NOINLINE int
 mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
 {
+    PyObject* built_in_encoder;
     if (obj == Py_None) {
         return mpack_encode_none(self);
     }
@@ -13836,6 +13847,18 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
         Py_DECREF(temp);
         return status;
     }
+    if (PyObject_HasAttr(obj, self->mod->str___msgspec_encode__)){
+        int status = -1;
+        PyObject* temp;
+        temp = PyObject_CallMethodNoArgs(obj, self->mod->str___msgspec_encode__);
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = mpack_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
+
     return ms_encode_err_type_unsupported(type);
 }
 
@@ -15015,6 +15038,17 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
         PyObject *temp;
         temp = PyObject_CallOneArg(self->enc_hook, obj);
         if (temp == NULL) return -1;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = json_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
+    if (PyObject_HasAttr(obj, self->mod->str___msgspec_encode__)){
+        int status = -1;
+        PyObject* temp;
+        temp = PyObject_CallMethodNoArgs(obj, self->mod->str___msgspec_encode__);
         if (!Py_EnterRecursiveCall(" while serializing an object")) {
             status = json_encode(self, temp);
             Py_LeaveRecursiveCall();
@@ -22943,6 +22977,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
+    Py_CLEAR(st->str___msgspec_encode__);
+    Py_CLEAR(st->str___msgspec_decode__);
 #if PY312_PLUS
     Py_CLEAR(st->str___value__);
 #endif
@@ -23314,6 +23350,9 @@ PyInit__core(void)
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
+    CACHED_STRING(str___msgspec_encode__, "__msgspec_encode__");
+    CACHED_STRING(str___msgspec_decode__, "__msgspec_decode__");
+
 #if PY312_PLUS
     CACHED_STRING(str___value__, "__value__");
 #endif
