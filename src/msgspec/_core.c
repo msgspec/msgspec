@@ -11355,6 +11355,10 @@ end_decimal:
             if (tz == NULL) goto error;
         }
     }
+    else if (buf[-1] == '\0') {
+        /* The '\0' is a NUL byte read from the input, not the end of input */
+        goto invalid;
+    }
     else {
         tz = Py_None;
         Py_INCREF(tz);
@@ -11529,6 +11533,10 @@ end_decimal:
             tz = timezone_from_offset(offset);
             if (tz == NULL) goto error;
         }
+    }
+    else if (buf[-1] == '\0') {
+        /* The '\0' is a NUL byte read from the input, not the end of input */
+        goto invalid;
     }
     else {
         tz = Py_None;
