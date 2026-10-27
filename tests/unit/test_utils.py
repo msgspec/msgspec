@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 
 import pytest
 
-from msgspec._utils import get_class_annotations
+from msgspec._utils import _resolve_type_alias, get_class_annotations
 
 from .utils import temp_module
 
@@ -317,3 +317,48 @@ class TestGetClassAnnotations:
             (uvar,) = Sub.__type_params__
             assert get_class_annotations(Sub) == {"x": uvar, "y": list[uvar]}
             assert get_class_annotations(Sub[int]) == {"x": int, "y": list[int]}
+
+
+@py312_plus
+def test_resolve_type_alias_paramspec_forms():
+    source = """
+    from typing import Callable, Concatenate
+    type Fn[**P] = Callable[Concatenate[int, P], str]
+    """
+    with temp_module(source) as mod:
+        # Shorthand for Fn[[bytes, float]]
+        assert (
+            _resolve_type_alias(mod.Fn, (bytes, float))
+            == mod.Callable[[int, bytes, float], str]
+        )
+        assert (
+            _resolve_type_alias(mod.Fn, ([bytes, float],))
+            == mod.Callable[[int, bytes, float], str]
+        )
+        assert (
+            _resolve_type_alias(mod.Fn, (...,))
+            == mod.Callable[mod.Concatenate[int, ...], str]
+        )
+        # Concatenate is a parameter expression, not shorthand
+        args = (mod.Concatenate[bytes, ...],)
+        assert (
+            _resolve_type_alias(mod.Fn, args)
+            == mod.Callable[mod.Concatenate[int, bytes, ...], str]
+        )
+
+
+@py312_plus
+def test_resolve_type_alias_empty_args():
+    source = """
+    type Var[*Ts] = tuple[*Ts]
+    type Lead[T, *Ts] = tuple[T, *Ts]
+    type Swap[A, B] = dict[B, A]
+    """
+    with temp_module(source) as mod:
+        # An empty subscript binds a TypeVarTuple to nothing
+        assert _resolve_type_alias(mod.Var, ()) == tuple[()]
+        assert _resolve_type_alias(mod.Var, None) is mod.Var.__value__
+        # An empty subscript is zero arguments
+        for alias in (mod.Lead, mod.Swap):
+            with pytest.raises(TypeError):
+                _resolve_type_alias(alias, ())
