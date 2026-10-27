@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import textwrap
 from collections.abc import Callable, Iterable
@@ -213,6 +214,29 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     return {v: k for k, v in names.items()}
 
 
+def _to_json_default(value: Any) -> Any:
+    result = [to_builtins(value, str_keys=True)]
+    pending = [(result, 0, False)]
+    while pending:
+        parent, key, restore_tuple = pending.pop()
+        obj = parent[key]
+        if restore_tuple:
+            parent[key] = tuple(obj)
+            continue
+        if isinstance(obj, tuple):
+            obj = list(obj)
+            parent[key] = obj
+            pending.append((parent, key, True))
+        if isinstance(obj, list):
+            pending.extend((obj, index, False) for index in range(len(obj)))
+        elif isinstance(obj, dict):
+            pending.extend((obj, name, False) for name in obj)
+        elif isinstance(obj, float) and not math.isfinite(obj):
+            # Match the JSON encoder's representation of non-finite floats.
+            parent[key] = None
+    return result[0]
+
+
 class _SchemaGenerator:
     def __init__(
         self,
@@ -415,7 +439,7 @@ class _SchemaGenerator:
                 if field.required:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
-                    field_schema["default"] = to_builtins(field.default, str_keys=True)
+                    field_schema["default"] = _to_json_default(field.default)
                 elif field.default_factory in (list, dict, set, bytearray):
                     field_schema["default"] = to_builtins(
                         field.default_factory(), str_keys=True
@@ -452,7 +476,7 @@ class _SchemaGenerator:
                 if field.required:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
-                    field_schema["default"] = to_builtins(field.default, str_keys=True)
+                    field_schema["default"] = _to_json_default(field.default)
                 elif field.default_factory in (list, dict, set, bytearray):
                     field_schema["default"] = to_builtins(
                         field.default_factory(), str_keys=True
