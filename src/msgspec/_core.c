@@ -3067,6 +3067,7 @@ typedef struct {
     int8_t gc;
     int8_t omit_defaults;
     int8_t forbid_unknown_fields;
+    bool has_deferred_annotations;
 } StructMetaObject;
 
 typedef struct StructInfo {
@@ -5831,6 +5832,35 @@ structmeta_check_namespace(PyObject *namespace) {
     return 0;
 }
 
+static int
+structmeta_has_deferred_annotations(PyTypeObject *cls) {
+#if PY314_PLUS
+    /* An annotation function can retain module globals, which may refer back
+     * to instances. Their edge to the class must remain visible to the GC.
+     * Check the full MRO, since inherited annotation functions retain globals
+     * even when a subclass has no annotations of its own. */
+    PyObject *mro = cls->tp_mro;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro); i++) {
+        PyTypeObject *base = (PyTypeObject *)PyTuple_GET_ITEM(mro, i);
+        PyObject *namespace = MS_GET_TYPE_DICT(base);
+        if (namespace == NULL) {
+            PyErr_SetString(PyExc_RuntimeError, "Cannot read base class annotations");
+            return -1;
+        }
+        PyObject *annotate;
+        Py_BEGIN_CRITICAL_SECTION(namespace);
+        annotate = ms_get_annotate_from_class_namespace(namespace);
+        Py_END_CRITICAL_SECTION();
+        MS_RELEASE_TYPE_DICT(namespace);
+        if (annotate == NULL) return -1;
+        bool found = annotate != Py_None;
+        Py_DECREF(annotate);
+        if (found) return 1;
+    }
+#endif
+    return 0;
+}
+
 static PyObject *
 structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
     PyObject *name = PyDict_GetItemString(info->namespace, "__module__");
@@ -6728,6 +6758,10 @@ StructMeta_new_inner(
     cls = (StructMetaObject *) PyType_Type.tp_new(type, args, NULL);
     Py_CLEAR(args);
     if (cls == NULL) goto cleanup;
+
+    int has_deferred_annotations = structmeta_has_deferred_annotations((PyTypeObject *)cls);
+    if (has_deferred_annotations < 0) goto cleanup;
+    cls->has_deferred_annotations = has_deferred_annotations;
 
     /* If the metaclass participates in abc.ABCMeta, initialise ABC
      * bookkeeping so issubclass/isinstance work correctly when the
@@ -7715,7 +7749,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
     nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     is_gc = MS_TYPE_IS_GC(st_type);
-    should_untrack = is_gc;
+    should_untrack = is_gc && !st_type->has_deferred_annotations;
 
     for (i = 0; i < nfields; i++) {
         PyObject *val = Struct_get_index_noerror(obj, i);
@@ -7822,7 +7856,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
     }
 
     bool is_gc = MS_TYPE_IS_GC(cls);
-    bool should_untrack = is_gc;
+    bool should_untrack = is_gc && !st_type->has_deferred_annotations;
 
     PyObject *self = Struct_alloc(cls);
     if (self == NULL) return NULL;
@@ -8170,7 +8204,7 @@ Struct_replace(
     PyObject *fields = struct_type->struct_fields;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool should_untrack = is_gc;
+    bool should_untrack = is_gc && !struct_type->has_deferred_annotations;
 
     PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
     if (out == NULL) return NULL;
@@ -16242,7 +16276,7 @@ mpack_decode_struct_array_inner(
     if (res == NULL) goto error;
 
     is_gc = MS_TYPE_IS_GC(st_type);
-    should_untrack = is_gc;
+    should_untrack = is_gc && !st_type->has_deferred_annotations;
 
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
@@ -18518,7 +18552,7 @@ json_decode_struct_array_inner(
     nrequired = nfields - st_type->n_trailing_defaults;
     npos = nfields - ndefaults;
     is_gc = MS_TYPE_IS_GC(st_type);
-    should_untrack = is_gc;
+    should_untrack = is_gc && !st_type->has_deferred_annotations;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
@@ -21797,7 +21831,7 @@ convert_seq_to_struct_array_inner(
     if (out == NULL) goto error;
 
     bool is_gc = MS_TYPE_IS_GC(st_type);
-    bool should_untrack = is_gc;
+    bool should_untrack = is_gc && !st_type->has_deferred_annotations;
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *val;
@@ -22269,7 +22303,7 @@ convert_object_to_struct(
     if (out == NULL) goto error;
 
     bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool should_untrack = is_gc;
+    bool should_untrack = is_gc && !struct_type->has_deferred_annotations;
 
     /* If no fields are renamed we only have one fields tuple to choose from */
     PyObject *fields = NULL;

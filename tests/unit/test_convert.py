@@ -2036,10 +2036,9 @@ class TestStruct:
     def test_struct_gc_maybe_untracked_on_decode(
         self, mapcls, from_attributes, array_like
     ):
-        class Test(Struct, array_like=array_like):
-            x: Any
-            y: Any
-            z: tuple = ()
+        Test = msgspec.defstruct(
+            "Test", [("x", Any), ("y", Any), ("z", tuple, ())], array_like=array_like
+        )
 
         ts = [
             mapcls(x=1, y=2),

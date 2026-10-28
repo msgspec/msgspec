@@ -1059,7 +1059,16 @@ reference to a tracked object themselves. This means that structs referencing
 only scalar values (ints, strings, bools, ...) won't contribute to GC load, but
 structs referencing containers (lists, dicts, structs, ...) will.
 
+On Python 3.14 and later, classes with deferred annotations (including inherited
+annotations) remain tracked even when all their fields are scalars. Their
+annotation functions can retain module globals, which may refer back to struct
+instances. Keeping these instances tracked allows such cycles to be collected.
+Structs defined with stringized annotations or ``msgspec.defstruct`` retain the
+scalar optimization, provided none of their bases has deferred annotations.
+
 .. code-block:: python
+
+    >>> from __future__ import annotations
 
     >>> import msgspec
 
