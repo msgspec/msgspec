@@ -94,7 +94,7 @@ doc = [
 hooks = [
   "codespell==2.4.3",
   "prek>=0.2.13",
-  "ruff==0.17.0",
+  "ruff==0.17.1",
 ]
 test-base = [
   "pytest>=9",
