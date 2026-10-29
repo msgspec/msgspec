@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix decoding ISO 8601 durations with very large day counts, which could
+  overflow and return an incorrect `timedelta` or raise `OverflowError` instead
+  of `ValidationError`.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,

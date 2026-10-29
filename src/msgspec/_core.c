@@ -11761,7 +11761,9 @@ ms_decode_timedelta(
             if (p == end) goto invalid;  /* missing unit */
             if (!is_digit(*p)) break;
             x = x * 10 + (uint64_t)(*p - '0');
-            if (x > (1ULL << 47)) goto out_of_range;
+            /* Larger values are out of range for any unit. Checking here also
+             * keeps `scale * x` below from overflowing int64. */
+            if (x > (uint64_t)MS_TIMEDELTA_MAX_SECONDS) goto out_of_range;
             p++;
         }
 
