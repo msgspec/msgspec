@@ -3143,6 +3143,70 @@ class TestTypedDict:
                 dec.decode(proto.encode({"a": 2}))
             assert "Object missing required field `d`" == str(rec.value)
 
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            "{qualifier}[Annotated[int, Meta(ge=0), Meta(le=10, title='Bounded')]]",
+            "Annotated[{qualifier}[int], Meta(ge=0), Meta(le=10, title='Bounded')]",
+            "Annotated[{qualifier}[Annotated[int, Meta(ge=0)]], Meta(le=10, title='Bounded')]",
+        ],
+        ids=["inner", "outer", "both"],
+    )
+    def test_annotated_required_and_notrequired(
+        self, proto, module, future_annotations, annotation
+    ):
+        ns = pytest.importorskip(module)
+        if not hasattr(ns, "Required"):
+            pytest.skip(f"{module}.Required is not available")
+
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from typing import Annotated
+        from {module} import TypedDict, Required, NotRequired
+        from msgspec import Meta
+
+        class Base(TypedDict):
+            x: {annotation.format(qualifier="NotRequired")}
+
+        class Ex(Base, total=False):
+            y: {annotation.format(qualifier="Required")}
+            z: Annotated[int, Meta(ge=0)]
+        """
+
+        with temp_module(source) as mod:
+            dec = proto.Decoder(mod.Ex)
+            for value in ({"y": 1}, {"x": 0, "y": 10, "z": 2}):
+                assert dec.decode(proto.encode(value)) == value
+                assert msgspec.convert(value, mod.Ex) == value
+
+            with pytest.raises(ValidationError, match="missing required field `y`"):
+                dec.decode(proto.encode({"x": 1}))
+
+            for field in ("x", "y"):
+                for invalid in (-1, 11):
+                    value = {"y": 1, field: invalid}
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        dec.decode(proto.encode(value))
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        msgspec.convert(value, mod.Ex)
+
+            schema = msgspec.json.schema(mod.Ex)["$defs"]["Ex"]
+            assert schema["required"] == ["y"]
+            field_schema = {
+                "title": "Bounded",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10,
+            }
+            assert schema["properties"] == {
+                "x": field_schema,
+                "y": field_schema,
+                "z": {"type": "integer", "minimum": 0},
+            }
+
     def test_keys_are_their_interned_values(self, proto):
         """Ensure that we're not allocating new keys here, but reusing the
         existing keys on the TypedDict schema"""

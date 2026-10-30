@@ -324,15 +324,24 @@ def get_typeddict_info(obj):
     # `Required`/`NotRequired` wrappers.
     hints = {}
     for k, v in raw_hints.items():
+        annotation = v
+        if isinstance(v, _AnnotatedAlias):
+            v = v.__origin__
         origin = getattr(v, "__origin__", False)
         if origin is Required:
             required.add(k)
-            hints[k] = v.__args__[0]
+            v = v.__args__[0]
         elif origin is NotRequired:
             required.discard(k)
-            hints[k] = v.__args__[0]
+            v = v.__args__[0]
         else:
-            hints[k] = v
+            hints[k] = annotation
+            continue
+        # PEP 655 allows Annotated outside Required/NotRequired. Preserve its
+        # metadata, including any Annotated nested inside the qualifier.
+        if isinstance(annotation, _AnnotatedAlias):
+            v = typing.Annotated[(v, *annotation.__metadata__)]
+        hints[k] = v
 
     # This can happen if there is a bug in the TypedDict implementation;
     # such a bug was present in Python 3.14.
