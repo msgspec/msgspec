@@ -155,6 +155,55 @@ class Custom:
         return self.x == other.x and self.y == other.y
 
 
+class StrEnumUTF8(enum.Enum):
+    A = "a"
+    B = "b"
+
+
+class StructForbidUTF8(Struct, forbid_unknown_fields=True):
+    x: int = 0
+
+
+class TestInvalidUTF8:
+    """Invalid UTF-8 in the input is malformed data and raises DecodeError"""
+
+    @staticmethod
+    def payloads(proto):
+        if proto is msgspec.json:
+            return {
+                "value": b'"\xff"',
+                "key": b'{"\xff": 1}',
+                "nested": b'[1, "a\xc3"]',
+            }
+        return {
+            "value": b"\xa1\xff",
+            "key": b"\x81\xa1\xff\x01",
+            "nested": b"\x92\x01\xa2a\xc3",
+        }
+
+    @pytest.mark.parametrize(
+        "kind, typ",
+        [
+            ("value", Any),
+            ("value", str),
+            ("value", decimal.Decimal),
+            ("key", Any),
+            ("key", dict[str, int]),
+            ("nested", Any),
+            ("nested", list[Union[int, str]]),
+            ("value", Literal["a", "b"]),
+            ("value", StrEnumUTF8),
+            ("key", dict[Literal["a", "b"], int]),
+            ("key", StructForbidUTF8),
+        ],
+    )
+    def test_invalid_utf8_raises_decode_error(self, proto, kind, typ):
+        msg = self.payloads(proto)[kind]
+        with pytest.raises(msgspec.DecodeError, match="invalid UTF-8") as rec:
+            proto.decode(msg, type=typ)
+        assert isinstance(rec.value.__cause__, UnicodeDecodeError)
+
+
 class TestEncodeSubclasses:
     def test_encode_dict_subclass(self, proto):
         class subclass(dict):
