@@ -3585,6 +3585,38 @@ class TestDataclass:
             res = proto.decode(proto.encode(x))
             assert res == sol
 
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    @pytest.mark.parametrize("custom_getattr", [False, True])
+    def test_encode_dataclass_getattr_error(self, proto, order, custom_getattr):
+        if custom_getattr:
+
+            @dataclass
+            class Test:
+                x: int = 1
+
+                def __getattribute__(self, name):
+                    if name == "x":
+                        raise ValueError("field unavailable")
+                    return object.__getattribute__(self, name)
+
+        else:
+
+            class Descriptor:
+                def __get__(self, obj, owner=None):
+                    if obj is None:
+                        return self
+                    raise ValueError("field unavailable")
+
+                def __set__(self, obj, value):
+                    pass
+
+            @dataclass
+            class Test:
+                x: int = Descriptor()
+
+        with pytest.raises(ValueError, match="field unavailable"):
+            proto.encode(Test(), order=order)
+
     @pytest.mark.parametrize("slots_base", [True, False])
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_dataclass_subclasses(self, proto, slots_base, slots):

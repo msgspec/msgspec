@@ -547,6 +547,37 @@ class TestToBuiltins:
             del sol[key]
             assert to_builtins(x) == sol
 
+    @pytest.mark.parametrize("custom_getattr", [False, True])
+    def test_dataclass_getattr_error(self, custom_getattr):
+        if custom_getattr:
+
+            @dataclass
+            class Ex:
+                x: int = 1
+
+                def __getattribute__(self, name):
+                    if name == "x":
+                        raise ValueError("field unavailable")
+                    return object.__getattribute__(self, name)
+
+        else:
+
+            class Descriptor:
+                def __get__(self, obj, owner=None):
+                    if obj is None:
+                        return self
+                    raise ValueError("field unavailable")
+
+                def __set__(self, obj, value):
+                    pass
+
+            @dataclass
+            class Ex:
+                x: int = Descriptor()
+
+        with pytest.raises(ValueError, match="field unavailable"):
+            to_builtins(Ex())
+
     @pytest.mark.parametrize("slots_base", slots_params)
     @pytest.mark.parametrize("slots", slots_params)
     def test_dataclass_subclasses(self, slots_base, slots):

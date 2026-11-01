@@ -9599,6 +9599,10 @@ next_field:
                 val = get(descr, iter->obj, (PyObject *)type);
                 Py_DECREF(descr);
                 if (val != NULL) goto found_val;
+                if (
+                    !PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                    !PyErr_ExceptionMatches(PyExc_KeyError)
+                ) return false;
                 PyErr_Clear();
             }
         }
@@ -9607,6 +9611,10 @@ next_field:
     else {
         val = type->tp_getattro(iter->obj, name);
         if (val == NULL) {
+            if (
+                !PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                !PyErr_ExceptionMatches(PyExc_KeyError)
+            ) return false;
             PyErr_Clear();
             goto next_field;
         }
@@ -9642,6 +9650,7 @@ AssocList_FromDataclass(PyObject *obj, PyObject *fields)
         Py_DECREF(val);
         if (status < 0) goto cleanup;
     }
+    if (PyErr_Occurred()) goto cleanup;
     ok = true;
 
 cleanup:
@@ -13289,6 +13298,7 @@ mpack_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
         Py_DECREF(val);
         if (errored) goto cleanup;
     }
+    if (PyErr_Occurred()) goto cleanup;
 
     if (MS_UNLIKELY(size != max_size)) {
         /* Some fields were skipped, need to adjust header. We write the header
@@ -14714,6 +14724,7 @@ json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
         Py_DECREF(val);
         if (errored) goto cleanup;
     }
+    if (PyErr_Occurred()) goto cleanup;
 
     /* If any fields written, overwrite trailing comma with }, otherwise append } */
     if (MS_LIKELY(self->output_len != start_offset)) {
@@ -20620,6 +20631,7 @@ to_builtins_dataclass(ToBuiltinsState *self, PyObject *obj, PyObject *fields)
         Py_XDECREF(val2);
         if (status < 0) goto cleanup;
     }
+    if (PyErr_Occurred()) goto cleanup;
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
         sort_dict_inplace(&out);
     }
