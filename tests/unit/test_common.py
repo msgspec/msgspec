@@ -36,6 +36,8 @@ from typing import (
 import pytest
 
 from .utils import (
+    CustomRow,
+    DescriptorRow,
     emscripten_stack_limited,
     max_call_depth,
     py315_or_later_only,
@@ -3529,6 +3531,90 @@ class TestNamedTuple:
 
 
 class TestDataclass:
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_partial_values_released(self, proto, order):
+        class Payload(list):
+            pass
+
+        class Leaf:
+            pass
+
+        leaf = Leaf()
+        first = Payload([leaf])
+        first_ref = weakref.ref(first)
+        leaf_ref = weakref.ref(leaf)
+        error = RuntimeError("field failure")
+        row = DescriptorRow(first, error)
+        with pytest.raises(RuntimeError) as caught:
+            proto.encode(row, order=order, enc_hook=lambda obj: None)
+        assert caught.value is error
+        # Tracebacks retain the call's frame and its arguments until cleared.
+        error.__traceback__ = None
+        del caught, error, row, first, leaf
+        gc.collect()
+        assert first_ref() is None
+        assert leaf_ref() is None
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize(
+        "error_type", [ValueError, RuntimeError, MemoryError, KeyboardInterrupt]
+    )
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_field_exception_identity(self, proto, row_type, error_type, order):
+        error = error_type("field access failed")
+        row = row_type([1, 2], error)
+        with pytest.raises(error_type) as caught:
+            proto.encode(row, order=order)
+        assert caught.value is error
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_attribute_error_key_error_and_unset_still_omitted(
+        self, proto, row_type, order
+    ):
+        for value in [AttributeError("missing"), KeyError("missing"), msgspec.UNSET]:
+            assert proto.decode(proto.encode(row_type(1, value), order=order)) == {
+                "first": 1,
+                "last": 3,
+            }
+
+    @pytest.mark.parametrize("slots", [False, True])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_deleted_fields_still_omitted(self, proto, slots, order):
+        row_type = make_dataclass(
+            "DeletedRow", [("first", int), ("value", int)], slots=slots
+        )
+        row = row_type(1, 2)
+        del row.value
+        assert proto.decode(proto.encode(row, order=order)) == {"first": 1}
+
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_encoder_reuse_after_partial_field_failure(self, proto, order):
+        encoder = proto.Encoder(order=order)
+        error = RuntimeError("field failure")
+        row = DescriptorRow(list(range(100)), error)
+        for _ in range(3):
+            with pytest.raises(RuntimeError) as caught:
+                encoder.encode(row)
+            assert caught.value is error
+            assert proto.decode(encoder.encode(DescriptorRow([1], 2))) == {
+                "first": [1],
+                "value": 2,
+                "last": 3,
+            }
+            error.__traceback__ = None
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_key_error_subclass_compatibility(self, proto, row_type, order):
+
+        class MissingKey(KeyError):
+            pass
+
+        assert proto.decode(
+            proto.encode(row_type(1, MissingKey("missing")), order=order)
+        ) == {"first": 1, "last": 3}
+
     def test_encode_dataclass_err_invalid_dataclass_fields(self, proto):
         @dataclass
         class Ex:
