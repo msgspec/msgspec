@@ -3059,6 +3059,7 @@ typedef struct {
      * JSON encoders/decoders and by `to_builtins`/`convert`. All NULL when unused. */
     PyObject *struct_int_keys;         /* merged dict {field_name: PyLong} or NULL */
     PyObject *struct_encode_int_keys;  /* tuple parallel to struct_encode_fields; PyLong or None per field, or NULL */
+    PyObject *struct_encode_int_key_strs;  /* tuple parallel to struct_encode_int_keys; the key's decimal string (PyUnicode) or None per field, or NULL */
     PyObject *struct_int_key_lookup;   /* IntLookup int64 -> PyLong(field_index) or NULL */
     PyObject *post_init;
     Py_ssize_t hash_offset;  /* 0 for no caching, otherwise offset */
@@ -5772,6 +5773,7 @@ typedef struct {
     /* int_keys outputs. All owned references. */
     PyObject *int_keys;            /* merged dict {field_name: PyLong} or NULL */
     PyObject *encode_int_keys;     /* tuple or NULL */
+    PyObject *encode_int_key_strs; /* tuple or NULL */
     PyObject *int_key_lookup;      /* IntLookup or NULL */
     Py_ssize_t *offsets;
     Py_ssize_t nkwonly;
@@ -6431,9 +6433,11 @@ structmeta_construct_encode_fields(StructMetaInfo *info)
     return 0;
 }
 
-/* Construct `encode_int_keys` (tuple parallel to encode_fields, PyLong or None)
- * and `int_key_lookup` (IntLookup int64 -> PyLong(field_index)) from the merged
- * `int_keys` mapping. No-op (leaves outputs NULL) when `int_keys` is unused. */
+/* Construct `encode_int_keys` (tuple parallel to encode_fields, PyLong or None),
+ * `encode_int_key_strs` (the same keys as their canonical decimal strings, for
+ * looking them up in non-dict mappings during `convert`) and `int_key_lookup`
+ * (IntLookup int64 -> PyLong(field_index)) from the merged `int_keys` mapping.
+ * No-op (leaves outputs NULL) when `int_keys` is unused. */
 static int
 structmeta_construct_int_keys(StructMetaInfo *info)
 {
@@ -6472,15 +6476,20 @@ structmeta_construct_int_keys(StructMetaInfo *info)
         }
     }
 
-    PyObject *encode_int_keys = NULL, *reverse = NULL, *seen = NULL;
+    PyObject *encode_int_keys = NULL, *encode_int_key_strs = NULL;
+    PyObject *reverse = NULL, *seen = NULL;
     int ok = -1;
 
-    /* encode tuple: default all None */
+    /* encode tuples: default all None */
     encode_int_keys = PyTuple_New(nfields);
     if (encode_int_keys == NULL) goto done;
+    encode_int_key_strs = PyTuple_New(nfields);
+    if (encode_int_key_strs == NULL) goto done;
     for (Py_ssize_t i = 0; i < nfields; i++) {
         Py_INCREF(Py_None);
         PyTuple_SET_ITEM(encode_int_keys, i, Py_None);
+        Py_INCREF(Py_None);
+        PyTuple_SET_ITEM(encode_int_key_strs, i, Py_None);
     }
 
     /* reverse lookup dict: {int_key: PyLong(field_index)} */
@@ -6563,12 +6572,15 @@ structmeta_construct_int_keys(StructMetaInfo *info)
                 goto done;
             }
         }
-        Py_DECREF(key_str);
 
-        /* place PyLong key in encode tuple at the field's index */
+        /* place the PyLong key and its decimal string in the encode tuples at
+         * the field's index */
         Py_INCREF(key);
         PyObject *old = PyTuple_GET_ITEM(encode_int_keys, idx);
         PyTuple_SET_ITEM(encode_int_keys, idx, key);
+        Py_DECREF(old);
+        old = PyTuple_GET_ITEM(encode_int_key_strs, idx);
+        PyTuple_SET_ITEM(encode_int_key_strs, idx, key_str);  /* steals key_str */
         Py_DECREF(old);
 
         /* reverse[int_key] = PyLong(field_index) */
@@ -6581,12 +6593,15 @@ structmeta_construct_int_keys(StructMetaInfo *info)
 
     info->encode_int_keys = encode_int_keys;
     encode_int_keys = NULL;  /* ownership transferred */
+    info->encode_int_key_strs = encode_int_key_strs;
+    encode_int_key_strs = NULL;  /* ownership transferred */
     info->int_key_lookup = lookup;
     ok = 0;
 
 done:
     Py_XDECREF(field_index_lk);
     Py_XDECREF(encode_int_keys);
+    Py_XDECREF(encode_int_key_strs);
     Py_XDECREF(reverse);
     Py_XDECREF(seen);
     return ok;
@@ -6793,6 +6808,7 @@ StructMeta_new_inner(
         .tag_value = NULL,
         .int_keys = NULL,
         .encode_int_keys = NULL,
+        .encode_int_key_strs = NULL,
         .int_key_lookup = NULL,
         .offsets = NULL,
         .nkwonly = 0,
@@ -6989,6 +7005,8 @@ StructMeta_new_inner(
     cls->struct_int_keys = info.int_keys;
     Py_XINCREF(info.encode_int_keys);
     cls->struct_encode_int_keys = info.encode_int_keys;
+    Py_XINCREF(info.encode_int_key_strs);
+    cls->struct_encode_int_key_strs = info.encode_int_key_strs;
     Py_XINCREF(info.int_key_lookup);
     cls->struct_int_key_lookup = info.int_key_lookup;
     cls->hash_offset = info.hash_offset;
@@ -7021,6 +7039,7 @@ cleanup:
     Py_XDECREF(info.tag_value);
     Py_XDECREF(info.int_keys);
     Py_XDECREF(info.encode_int_keys);
+    Py_XDECREF(info.encode_int_key_strs);
     Py_XDECREF(info.int_key_lookup);
     if (!ok) {
         if (info.offsets != NULL) {
@@ -7434,6 +7453,7 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_VISIT(self->rename);  /* May be a function */
     Py_VISIT(self->struct_int_keys);
     Py_VISIT(self->struct_encode_int_keys);
+    Py_VISIT(self->struct_encode_int_key_strs);
     Py_VISIT(self->struct_int_key_lookup);
     Py_VISIT(self->post_init);
     Py_VISIT(self->struct_info);
@@ -7455,6 +7475,7 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->rename);
     Py_CLEAR(self->struct_int_keys);
     Py_CLEAR(self->struct_encode_int_keys);
+    Py_CLEAR(self->struct_encode_int_key_strs);
     Py_CLEAR(self->struct_int_key_lookup);
     Py_CLEAR(self->post_init);
     Py_CLEAR(self->struct_info);
@@ -22875,20 +22896,25 @@ convert_object_to_struct(
         fields = struct_type->struct_fields;
     }
 
-    /* int_keys: for mapping inputs, a field's integer key is tried before its
-     * name (mirroring `convert_dict_to_struct`). Attribute lookups have no
-     * integer form, so this is skipped under `from_attributes`. */
+    /* int_keys: for mapping inputs, a field's integer key is tried first, then
+     * its canonical decimal string ("1", as emitted by `json.encode` /
+     * `to_builtins(str_keys=True)`), then its name (mirroring
+     * `convert_dict_to_struct`). Attribute lookups have no integer form, so
+     * this is skipped under `from_attributes`. */
     PyObject *int_keys = self->from_attributes ? NULL : struct_type->struct_encode_int_keys;
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field, *attr, *val;
 
         if (MS_UNLIKELY(int_keys != NULL) && PyTuple_GET_ITEM(int_keys, i) != Py_None) {
+            field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
             attr = getter(obj, PyTuple_GET_ITEM(int_keys, i));
-            if (attr != NULL) {
-                field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
-                goto got_attr;
-            }
+            if (attr != NULL) goto got_attr;
+            PyErr_Clear();
+            attr = getter(
+                obj, PyTuple_GET_ITEM(struct_type->struct_encode_int_key_strs, i)
+            );
+            if (attr != NULL) goto got_attr;
             PyErr_Clear();
         }
 
