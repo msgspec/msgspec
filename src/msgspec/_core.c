@@ -5000,7 +5000,7 @@ typenode_origin_args_metadata(
         }
     }
 
-    if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+    if (args == NULL && Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
         /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
         if (args == NULL) goto error;
