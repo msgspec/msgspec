@@ -4953,6 +4953,13 @@ class TestDecimal:
         ):
             proto.Encoder(decimal_format=decimal_format)
 
+    def test_encoder_failed_reinit_keeps_decimal_format(self, proto):
+        enc = proto.Encoder(decimal_format=str)
+        with pytest.raises(ValueError, match="must be 'string', 'number'"):
+            enc.__init__(decimal_format="bad")
+        assert enc.encode(decimal.Decimal("1")) == proto.encode("1")
+        assert enc.decimal_format is str
+
     @pytest.mark.parametrize(
         ("value", "expected"),
         [
@@ -5281,6 +5288,12 @@ class TestOrder:
 
         with pytest.raises(ValueError, match="`order` must be one of"):
             proto.encode(1, order="bad")
+
+    def test_encoder_failed_reinit_keeps_order(self, proto):
+        enc = proto.Encoder()
+        with pytest.raises(ValueError, match="`order` must be one of"):
+            enc.__init__(order="bad")
+        assert enc.order is None
 
     @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
     @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
