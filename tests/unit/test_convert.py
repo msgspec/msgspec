@@ -2134,6 +2134,108 @@ class TestStruct:
         res = convert(msg, self.Account, from_attributes=from_attributes)
         assert res == self.Account(first="alice", last="munro", age=91)
 
+    @pytest.mark.parametrize("mapcls", [dict, SubDict, GetItemObj])
+    def test_struct_int_keys(self, mapcls):
+        class Ex(Struct, int_keys={"x": 1, "y": 2}, rename={"z": "zed"}):
+            x: int
+            y: int = 0
+            z: int = 0
+
+        sol = Ex(1, 2, 3)
+        # Integer keys, as produced by `to_builtins` / a msgpack-like protocol
+        assert convert(mapcls({1: 1, 2: 2, "zed": 3}), Ex) == sol
+        # Field names are still accepted as an alias
+        assert convert(mapcls({"x": 1, "y": 2, "zed": 3}), Ex) == sol
+        # Mixed
+        assert convert(mapcls({1: 1, "y": 2, "zed": 3}), Ex) == sol
+        # Round trips through `to_builtins`, with both int and decimal-string keys
+        assert convert(mapcls(to_builtins(sol)), Ex) == sol
+        assert convert(mapcls(to_builtins(sol, str_keys=True)), Ex) == sol
+
+    def test_struct_int_keys_decimal_strings(self):
+        """Canonical decimal strings ("1") resolve to the int-keyed field, as
+        emitted by `to_builtins(..., str_keys=True)` / `json.encode`. Any other
+        string is matched as a field name."""
+
+        class Ex(Struct, int_keys={"x": 1, "y": -2}):
+            x: int
+            y: int = 0
+
+        assert convert({"1": 1, "-2": 2}, Ex) == Ex(1, 2)
+        # Non-canonical spellings are unknown field names, not int keys
+        assert convert({"01": 5, "x": 1}, Ex) == Ex(1)
+        assert convert({"-0": 5, "x": 1}, Ex) == Ex(1)
+        assert convert({"9223372036854775808": 5, "x": 1}, Ex) == Ex(1)
+
+    @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+    @pytest.mark.parametrize("key", [99, -1, 2**63, 2**70, -(2**70)])
+    def test_struct_int_keys_unknown_int_key(self, forbid_unknown_fields, key):
+        class Ex(
+            Struct, int_keys={"x": 1}, forbid_unknown_fields=forbid_unknown_fields
+        ):
+            x: int
+
+        msg = {1: 1, key: 2}
+        if forbid_unknown_fields:
+            with pytest.raises(ValidationError, match=f"unknown field `{key}`"):
+                convert(msg, Ex)
+        else:
+            assert convert(msg, Ex) == Ex(1)
+
+    def test_struct_int_keys_bool_key_rejected(self):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int
+
+        with pytest.raises(ValidationError, match="Expected `str` - at `key` in `\\$`"):
+            convert({True: 1}, Ex)
+
+    def test_struct_without_int_keys_rejects_int_key(self):
+        class Ex(Struct):
+            x: int
+
+        with pytest.raises(ValidationError, match="Expected `str` - at `key` in `\\$`"):
+            convert({1: 1}, Ex)
+
+    def test_struct_int_keys_from_attributes_uses_names(self):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int
+
+        assert convert(GetAttrObj(x=1), Ex, from_attributes=True) == Ex(1)
+
+    @pytest.mark.parametrize("mapcls", [UserDict, GetItemObj])
+    def test_struct_int_keys_mapping_falls_back_to_name(self, mapcls):
+        class Ex(Struct, int_keys={"x": 1, "y": -2}):
+            x: int
+            y: int = 0
+
+        # Non-dict mappings: the integer key is tried first, then its canonical
+        # decimal string, then the field name
+        assert convert(mapcls({1: 1, "y": 2}), Ex) == Ex(1, 2)
+        assert convert(mapcls({"1": 1, "-2": 2}), Ex) == Ex(1, 2)
+        assert convert(mapcls({"x": 1}), Ex) == Ex(1)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            convert(mapcls({"y": 2}), Ex)
+
+    @pytest.mark.parametrize("mapcls", [UserDict, GetItemObj])
+    def test_struct_int_keys_mapping_decimal_string_precedence(self, mapcls):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+            y: int = 0
+
+        # The decimal string is not silently ignored in favor of a default
+        # (regression test), and is preferred over the field name
+        assert convert(mapcls({"1": 5}), Ex) == Ex(5)
+        assert convert(mapcls({"1": 5, "x": 6}), Ex) == Ex(5)
+        # The integer key wins over the decimal string
+        assert convert(mapcls({1: 4, "1": 5, "x": 6}), Ex) == Ex(4)
+        # Non-canonical spellings are not int keys
+        assert convert(mapcls({"01": 5}), Ex) == Ex(0)
+        # A required field supplied only as its decimal string is not missing
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        assert convert(mapcls({"1": 5}), Req) == Req(5)
+
     @mapcls_from_attributes_and_array_like
     def test_struct_gc_maybe_untracked_on_decode(
         self, mapcls, from_attributes, array_like
@@ -2399,6 +2501,18 @@ class TestStructArray:
 
 
 class TestStructUnion:
+    @pytest.mark.parametrize("mapcls", [dict, GetItemObj])
+    def test_struct_union_int_keys(self, mapcls):
+        class A(Struct, tag=True, int_keys={"a": 1}):
+            a: int
+
+        class B(Struct, tag=True, int_keys={"b": 1}):
+            b: int
+
+        assert convert(mapcls({"type": "A", 1: 1}), A | B) == A(1)
+        assert convert(mapcls({"type": "B", 1: 2}), A | B) == B(2)
+        assert convert(mapcls(to_builtins(B(3))), A | B) == B(3)
+
     @pytest.mark.parametrize(
         "tag1, tag2, unknown",
         [
