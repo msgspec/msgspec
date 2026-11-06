@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Render non-finite float values in generated JSON Schema field defaults as
+  `null`, matching their JSON-encoded form, including nested defaults.
+
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,

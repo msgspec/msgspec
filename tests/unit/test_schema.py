@@ -2,6 +2,7 @@ import datetime
 import decimal
 import enum
 import json
+import math
 import sys
 import typing
 import uuid
@@ -536,6 +537,130 @@ def test_struct_array_like_all_fields_optional(tag, min_items, payload):
     schema = msgspec.json.schema(Example)["$defs"]["Example"]
     assert msgspec.json.decode(payload, type=Example) == Example()
     assert schema["minItems"] == min_items
+
+
+@pytest.mark.parametrize(
+    "value", [float("nan"), float("inf"), -float("inf"), 1.5, -0.0, 1e300]
+)
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize(
+    "kind", ["struct", "struct-array", "dataclass", "attrs", "namedtuple"]
+)
+def test_field_default_json_values(value, nested, kind):
+    if nested:
+
+        class Inner(msgspec.Struct, frozen=True):
+            data: Any
+
+        default = Inner(
+            {"items": [value, (value,)], "finite": 0, "text": "nan", "null": None}
+        )
+    else:
+        default = value
+
+    if kind.startswith("struct"):
+        Example = msgspec.defstruct(
+            "Example", [("value", Any, default)], array_like=kind == "struct-array"
+        )
+    elif kind == "dataclass":
+
+        @dataclass
+        class Example:
+            value: Any = default
+    elif kind == "attrs":
+        attrs = pytest.importorskip("attrs")
+        Example = attrs.make_class(
+            "Example", {"value": attrs.field(default=default, type=Any)}
+        )
+    else:
+        Example = namedtuple("Example", ["value"], defaults=[default])
+
+    schema = msgspec.json.schema(Example)
+    component = schema["$defs"]["Example"]
+    field = (
+        component["prefixItems"][0]
+        if kind in ("struct-array", "namedtuple")
+        else component["properties"]["value"]
+    )
+    assert "default" in field
+    assert json.loads(
+        json.dumps(field["default"], allow_nan=False)
+    ) == msgspec.json.decode(msgspec.json.encode(default))
+    json.dumps(schema, allow_nan=False)
+    assert Example().value is default
+
+
+@pytest.mark.parametrize("value", [1.5, float("nan"), float("inf"), -float("inf")])
+def test_field_default_deep_json_values(value):
+    default = value
+    for _ in range(200):
+        default = [{"item": (default,)}]
+
+    class Inner(msgspec.Struct, frozen=True):
+        data: Any
+
+    class Example(msgspec.Struct):
+        value: Inner = Inner(default)
+
+    schema = msgspec.json.schema(Example)
+    result = schema["$defs"]["Example"]["properties"]["value"]["default"]["data"]
+    original = default
+    for _ in range(200):
+        assert isinstance(result[0]["item"], tuple)
+        result = result[0]["item"][0]
+        original = original[0]["item"][0]
+    assert original is value
+    assert result == (value if math.isfinite(value) else None)
+    json.dumps(schema, allow_nan=False)
+
+
+def test_nonfinite_schema_default_does_not_change_value_conversion():
+    value = float("nan")
+    default = {"items": [value, (float("inf"),)]}
+
+    class Inner(msgspec.Struct, frozen=True):
+        data: Any
+
+    class Example(msgspec.Struct):
+        value: Inner = Inner(default)
+
+    msgspec.json.schema(Example)
+    assert math.isnan(default["items"][0])
+    assert default["items"][1] == (float("inf"),)
+    builtins = msgspec.to_builtins(Example())
+    assert math.isnan(builtins["value"]["data"]["items"][0])
+    assert msgspec.json.decode(msgspec.json.encode(Example())) == {
+        "value": {"data": {"items": [None, [None]]}}
+    }
+
+
+@pytest.mark.parametrize("source", ["metadata", "schema-hook"])
+def test_schema_default_conversion_does_not_rewrite_user_schema(source):
+    value = float("inf")
+    custom_schema = {"default": value}
+    if source == "metadata":
+        schema = msgspec.json.schema(
+            Annotated[int, Meta(extra_json_schema=custom_schema)]
+        )
+    else:
+        schema = msgspec.json.schema(complex, schema_hook=lambda cls: custom_schema)
+    assert schema["default"] is value
+    assert custom_schema == {"default": value}
+
+
+def test_schema_does_not_call_custom_default_factory():
+    calls = []
+
+    def factory():
+        calls.append(True)
+        return float("nan")
+
+    class Example(msgspec.Struct):
+        value: float = msgspec.field(default_factory=factory)
+
+    schema = msgspec.json.schema(Example)
+    assert "default" not in schema["$defs"]["Example"]["properties"]["value"]
+    assert calls == []
 
 
 def test_struct_no_fields():
