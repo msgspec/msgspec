@@ -308,3 +308,21 @@ def test_decode_convert_type_non_strict(
     )
 
     assert res == data
+
+
+@pytest.mark.parametrize("nfields", [8, 64, 256])
+@pytest.mark.parametrize("order", ["ordered", "reverse", "shuffle"])
+def test_decode_struct_field_order(benchmark: BenchmarkFixture, proto, nfields, order):
+    names = [f"field_{i:04d}" for i in range(nfields)]
+    cls = msgspec.defstruct("Record", [(name, int) for name in names])
+    keys = names.copy()
+    if order == "reverse":
+        keys.reverse()
+    elif order == "shuffle":
+        random.Random(42).shuffle(keys)
+    values = dict.fromkeys(keys, 1)
+    payload = proto.encode(values)
+    decoder = proto.Decoder(cls)
+    expected = cls(*([1] * nfields))
+    assert decoder.decode(payload) == expected
+    assert benchmark(decoder.decode, payload) == expected
