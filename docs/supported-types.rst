@@ -808,8 +808,16 @@ information during decoding. Note that ``msgspec`` supports both
 `typing.TypedDict` and ``typing_extensions.TypedDict`` (a backport).
 
 `typing.TypedDict` types map to objects/maps in all protocols. During decoding,
-any extra fields are ignored. An error is raised during decoding if the type
-doesn't match or if any required fields are missing.
+extra fields are ignored by default. With ``closed=True``, unknown fields raise
+`msgspec.ValidationError`. This also applies to inherited closed types and to
+``extra_items=Never`` (including ``ReadOnly[Never]``). An error is raised if a
+field's type does not match or a required field is missing.
+
+Closed TypedDicts are available in Python 3.15 and in ``typing_extensions``.
+They generate JSON schemas with ``additionalProperties: false``. When using
+`msgspec.convert` with a non-dict mapping and a closed TypedDict, the mapping
+must provide ``keys()`` so that unknown keys can be checked. Typed extra values
+(``extra_items=T`` for types other than ``Never``) are not yet supported.
 
 When possible we recommend using `msgspec.Struct` instead of ``TypedDict`` for
 specifying schemas - :doc:`structs` are faster, more ergonomic, and support

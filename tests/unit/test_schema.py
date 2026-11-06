@@ -1677,3 +1677,27 @@ def test_multiline_docstring():
             }
         },
     }
+
+
+@pytest.mark.parametrize("closed", [False, True])
+@pytest.mark.parametrize("inherited", [False, True])
+def test_closed_typeddict(closed, inherited):
+    TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+    class Base(TypedDict, closed=closed):
+        value: int
+
+    if inherited:
+
+        class Example(Base):
+            pass
+    else:
+        Example = Base
+
+    schema = msgspec.json.schema(Example)["$defs"][Example.__name__]
+    if closed:
+        assert schema["additionalProperties"] is False
+    else:
+        assert "additionalProperties" not in schema
+    assert schema["required"] == ["value"]
+    assert schema["properties"] == {"value": {"type": "integer"}}
