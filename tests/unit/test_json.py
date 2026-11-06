@@ -369,6 +369,47 @@ class TestEncoderMisc:
         with pytest.raises(ValueError, match="Oh no!"):
             enc.encode_lines(gen())
 
+    def test_dunder_encoder(self):
+        enc = msgspec.json.Encoder()
+
+        class Custom:
+            def __init__(self, value: int):
+                self._value = value
+
+            def __msgspec_encode__(self) -> str:
+                return str(self._value)
+
+        class Object(msgspec.Struct):
+            custom: Custom
+
+        obj = Object(Custom(1))
+
+        result = enc.encode(obj)
+        assert result == b'{"custom":"1"}'
+
+    def test_dunder_encoder_skipped_when_user_provided_callback(self):
+        class Custom:
+            def __init__(self, value: int):
+                self._value = value
+
+            def __msgspec_encode__(self) -> str:
+                return str(self._value)
+
+        def on_encode(obj: Any | Custom) -> Any | int:
+            if isinstance(obj, Custom):
+                return obj._value
+            return obj
+
+        enc = msgspec.json.Encoder(enc_hook=on_encode)
+
+        class Object(msgspec.Struct):
+            custom: Custom
+
+        obj = Object(Custom(1))
+
+        result = enc.encode(obj)
+        assert result == b'{"custom":1}'
+
 
 class TestDecodeFunction:
     def test_decode(self):
