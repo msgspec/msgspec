@@ -23,18 +23,31 @@ if sys.platform == "win32" and sys.maxsize == (2**31 - 1):
     exit(1)
 
 
-SANITIZE = os.environ.get("MSGSPEC_SANITIZE", False)
-COVERAGE = os.environ.get("MSGSPEC_COVERAGE", False)
-DEBUG = os.environ.get("MSGSPEC_DEBUG", SANITIZE or COVERAGE)
+def _env_flag(name, default=False):
+    val = os.environ.get(name)
+    if val is None or not val.strip():
+        return default
+    return val.strip().lower() not in ("0", "false", "no", "off")
+
+
+SANITIZE = _env_flag("MSGSPEC_SANITIZE")
+COVERAGE = _env_flag("MSGSPEC_COVERAGE")
+TSAN = _env_flag("MSGSPEC_TSAN")
+DEBUG = _env_flag("MSGSPEC_DEBUG", SANITIZE or TSAN or COVERAGE)
 
 extra_compile_args = []
 extra_link_args = []
+if TSAN and SANITIZE:
+    raise SystemExit("MSGSPEC_TSAN and MSGSPEC_SANITIZE are mutually exclusive")
 if SANITIZE:
     extra_compile_args.extend(["-fsanitize=address", "-fsanitize=undefined"])
     extra_link_args.extend(["-lasan", "-lubsan"])
 if COVERAGE:
     extra_compile_args.append("--coverage")
     extra_link_args.append("-lgcov")
+if TSAN:
+    extra_compile_args.extend(["-fsanitize=thread", "-fno-omit-frame-pointer"])
+    extra_link_args.append("-fsanitize=thread")
 if DEBUG:
     extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 elif sys.platform != "win32":
