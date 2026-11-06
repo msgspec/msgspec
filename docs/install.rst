@@ -17,6 +17,33 @@ is required. The basic install has no required dependencies.
     conda install msgspec -c conda-forge
 
 
+.. _install-without-pcre2:
+
+Optional PCRE2 acceleration
+---------------------------
+
+The basic ``msgspec`` wheel and source distribution contain no PCRE2 code.
+The optional extra installs the external `pcre2 package`_::
+
+    python -m pip install "msgspec[pcre2]"
+
+Acceleration requires ``pcre2._cy._MATCHER_API_v1`` from that package.
+The API is implemented in `pcre2.py pull request 30`_ and is not present in
+the published pcre2 0.7.1 release. Installing that release therefore preserves
+Python ``re`` matching without acceleration.
+
+If the matcher API is absent, or on free-threaded Python, all patterns use
+Python ``re``. With a compatible API, eligible patterns are accelerated automatically,
+as described in :ref:`pattern-acceleration`. A broken installed package or an
+incompatible API raises an error instead of silently disabling acceleration.
+
+Restart Python after changing the optional package. Existing matchers retain
+owned references to their original provider and compiled pattern.
+
+.. _pcre2 package: https://github.com/grtetrault/pcre2.py
+.. _pcre2.py pull request 30: https://github.com/grtetrault/pcre2.py/pull/30
+
+
 Optional Dependencies
 ---------------------
 
