@@ -1254,6 +1254,37 @@ class TestLiteral:
 
 
 class TestFloat:
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("exponent", range(-343, -306))
+    @pytest.mark.parametrize(
+        "mantissa",
+        ["0", "1", "2", "5", "99", "1234567890123456789", "9999999999999999999"],
+    )
+    def test_decode_small_float_shared_paths(self, sign, exponent, mantissa):
+        text = f"{sign}{mantissa}e{exponent}"
+        expected = float(text).hex()
+        assert msgspec.json.decode(text).hex() == expected
+        assert msgspec.json.decode(text, type=float).hex() == expected
+        key = next(
+            iter(msgspec.json.decode(f'{{"{text}": null}}', type=dict[float, None]))
+        )
+        assert key.hex() == expected
+        assert msgspec.convert(text, type=float, strict=False).hex() == expected
+        assert msgspec.json.decode(text, type=Decimal) == Decimal(text)
+        assert msgspec.json.Decoder(float_hook=str).decode(text) == text
+
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("lower", [0, 1, 2, 2**51 - 1, 2**52 - 1, 2**52])
+    def test_decode_subnormal_rounding_boundaries(self, sign, lower):
+        # Exact decimal halfway between adjacent multiples of 2**-1074, plus
+        # neighbours one decimal digit below/above it. No Decimal context rounding.
+        halfway = (2 * lower + 1) * 5**1075
+        for offset in [-1, 0, 1]:
+            text = f"{sign}{halfway + offset}e-1075"
+            expected = float(text).hex()
+            assert msgspec.json.decode(text).hex() == expected
+            assert msgspec.convert(text, type=float, strict=False).hex() == expected
+
     @pytest.mark.parametrize(
         "x",
         [
