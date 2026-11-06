@@ -1044,9 +1044,7 @@ def test_struct_definition_does_not_leak_non_struct_base_dict():
 def test_struct_gc_not_added_if_not_needed():
     """Structs aren't tracked by GC until/unless they reference a container type"""
 
-    class Test(Struct):
-        x: object
-        y: object
+    Test = defstruct("Test", [("x", object), ("y", object)])
 
     assert not gc.is_tracked(Test(1, 2))
     assert not gc.is_tracked(Test("hello", "world"))
@@ -1140,11 +1138,8 @@ class TestStructGC:
         assert not gc.is_tracked(x)
 
     def test_gc_true_inherit_from_gc_false(self):
-        class NoGC(Struct, gc=False):
-            y: object
-
-        class HasGC(NoGC, gc=True):
-            x: object
+        NoGC = defstruct("NoGC", [("y", object)], gc=False)
+        HasGC = defstruct("HasGC", [("x", object)], bases=(NoGC,), gc=True)
 
         assert gc.is_tracked(HasGC(1, []))
         assert gc.is_tracked(HasGC([], 1))
@@ -1157,9 +1152,7 @@ class TestStructGC:
     def test_struct_gc_set_on_copy(self, has_gc):
         """Copying doesn't go through the struct constructor"""
 
-        class Test(Struct, gc=has_gc):
-            x: object
-            y: object
+        Test = defstruct("Test", [("x", object), ("y", object)], gc=has_gc)
 
         assert not gc.is_tracked(copy.copy(Test(1, 2)))
         assert not gc.is_tracked(copy.copy(Test(1, ())))
@@ -1759,7 +1752,7 @@ class TestSetAttr:
         t.x = 2
         assert called
         if has_gc:
-            assert not gc.is_tracked(t)
+            assert gc.is_tracked(t) == (sys.version_info >= (3, 14))
             t.x = [1]
             assert gc.is_tracked(t)
 
@@ -1784,7 +1777,7 @@ class TestSetAttr:
         t.x = 2
         assert called
         if has_gc:
-            assert not gc.is_tracked(t)
+            assert gc.is_tracked(t) == (sys.version_info >= (3, 14))
             t.x = [1]
             assert gc.is_tracked(t)
 
@@ -2508,9 +2501,7 @@ class TestReplace:
         assert replace(Test(1, 2), x=3) == Test(3, 2)
 
     def test_replace_gc_delayed_tracking(self, replace):
-        class Test(msgspec.Struct):
-            x: int
-            y: list[int] | None
+        Test = defstruct("Test", [("x", int), ("y", list[int] | None)])
 
         obj = Test(1, None)
         assert not gc.is_tracked(replace(obj))
