@@ -515,6 +515,7 @@ typedef struct {
     PyObject *str___constraints__;
     PyObject *str_int;
     PyObject *str_is_safe;
+    PyObject *str_search;
     PyObject *UUIDType;
     PyObject *uuid_safeuuid_unknown;
     PyObject *DecimalType;
@@ -10656,7 +10657,9 @@ _err_py_ssize_t_constraint(const char *msg, Py_ssize_t c, PathNode *path) {
 }
 
 static MS_NOINLINE PyObject *
-_ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+_ms_check_str_constraints(
+    PyObject *obj, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
     if (obj == NULL) return NULL;
 
     Py_ssize_t len = PyUnicode_GET_LENGTH(obj);
@@ -10681,7 +10684,7 @@ _ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     }
     if (type->types & MS_CONSTR_STR_REGEX) {
         PyObject *regex = TypeNode_get_constr_str_regex(type);
-        PyObject *res = PyObject_CallMethod(regex, "search", "O", obj);
+        PyObject *res = PyObject_CallMethodOneArg(regex, mod->str_search, obj);
         if (res == NULL) goto error;
         bool ok = (res != Py_None);
         Py_DECREF(res);
@@ -10703,9 +10706,11 @@ error:
 }
 
 static MS_INLINE PyObject *
-ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+ms_check_str_constraints(
+    PyObject *obj, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
     if (MS_LIKELY(!(type->types & MS_STR_CONSTRS))) return obj;
-    return _ms_check_str_constraints(obj, type, path);
+    return _ms_check_str_constraints(obj, type, path, mod);
 }
 
 static bool
@@ -15234,6 +15239,7 @@ msgspec_json_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 
 typedef struct DecoderState {
     /* Configuration */
+    MsgspecState *mod;
     TypeNode *type;
     PyObject *dec_hook;
     PyObject *ext_hook;
@@ -15249,6 +15255,7 @@ typedef struct DecoderState {
 typedef struct Decoder {
     PyObject_HEAD
     PyObject *orig_type;
+    MsgspecState *mod;
 
     /* Configuration */
     TypeNode *type;
@@ -15341,6 +15348,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     }
     Py_INCREF(type);
     self->orig_type = type;
+    self->mod = st;
     return 0;
 }
 
@@ -15833,7 +15841,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
 
     if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
         return ms_check_str_constraints(
-            PyUnicode_DecodeUTF8(s, size, NULL), type, path
+            PyUnicode_DecodeUTF8(s, size, NULL), type, path, self->mod
         );
     }
     else if (MS_UNLIKELY(!self->strict)) {
@@ -16985,6 +16993,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
     }
 
     DecoderState state = {
+        .mod = self->mod,
         .type = self->type,
         .strict = self->strict,
         .dec_hook = self->dec_hook,
@@ -17142,6 +17151,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     }
 
     DecoderState state = {
+        .mod = mod,
         .strict = strict,
         .dec_hook = dec_hook,
         .ext_hook = ext_hook
@@ -17196,6 +17206,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 
 typedef struct JSONDecoderState {
     /* Configuration */
+    MsgspecState *mod;
     TypeNode *type;
     PyObject *dec_hook;
     PyObject *float_hook;
@@ -17216,6 +17227,7 @@ typedef struct JSONDecoderState {
 typedef struct JSONDecoder {
     PyObject_HEAD
     PyObject *orig_type;
+    MsgspecState *mod;
 
     /* Configuration */
     TypeNode *type;
@@ -17306,6 +17318,7 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     if (self->type == NULL) return -1;
     Py_INCREF(type);
     self->orig_type = type;
+    self->mod = st;
 
     return 0;
 }
@@ -18038,7 +18051,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         else {
             out = PyUnicode_DecodeUTF8(view, size, NULL);
         }
-        return ms_check_str_constraints(out, type, path);
+        return ms_check_str_constraints(out, type, path, self->mod);
     }
     else if (MS_UNLIKELY(!self->strict)) {
         bool invalid = false;
@@ -18095,7 +18108,7 @@ json_decode_dict_key_fallback(
         if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
             return ms_decode_custom(out, self->dec_hook, type, path);
         }
-        return ms_check_str_constraints(out, type, path);
+        return ms_check_str_constraints(out, type, path, self->mod);
     }
     if (type->types & (
             MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
@@ -19959,6 +19972,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
     }
 
     JSONDecoderState state = {
+        .mod = self->mod,
         .type = self->type,
         .strict = self->strict,
         .dec_hook = self->dec_hook,
@@ -20026,6 +20040,7 @@ JSONDecoder_decode_lines(JSONDecoder *self, PyObject *const *args, Py_ssize_t na
     }
 
     JSONDecoderState state = {
+        .mod = self->mod,
         .type = self->type,
         .strict = self->strict,
         .dec_hook = self->dec_hook,
@@ -20200,6 +20215,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     }
 
     JSONDecoderState state = {
+        .mod = mod,
         .strict = strict,
         .dec_hook = dec_hook,
         .float_hook = NULL,
@@ -21318,7 +21334,7 @@ convert_str(
 ) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
         Py_INCREF(obj);
-        return ms_check_str_constraints(obj, type, path);
+        return ms_check_str_constraints(obj, type, path, self->mod);
     }
 
     Py_ssize_t size;
@@ -22976,6 +22992,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___constraints__);
     Py_CLEAR(st->str_int);
     Py_CLEAR(st->str_is_safe);
+    Py_CLEAR(st->str_search);
     Py_CLEAR(st->UUIDType);
     Py_CLEAR(st->uuid_safeuuid_unknown);
     Py_CLEAR(st->DecimalType);
@@ -23347,6 +23364,7 @@ PyInit__core(void)
     CACHED_STRING(str___constraints__, "__constraints__");
     CACHED_STRING(str_int, "int");
     CACHED_STRING(str_is_safe, "is_safe");
+    CACHED_STRING(str_search, "search");
 
     /* Initialize the Struct Type */
     if (PyState_AddModule(m, &msgspecmodule) < 0) {
