@@ -60,9 +60,11 @@ UTC = datetime.timezone.utc
 
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
+PY313 = sys.version_info[:2] >= (3, 13)
 
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
+py313_plus = pytest.mark.skipif(not PY313, reason="3.13+ only")
 
 T = TypeVar("T")
 
@@ -4926,6 +4928,67 @@ class TestTypeAlias:
         with temp_module("type Pair[T] = tuple[T, T]") as mod:
             with pytest.raises(TypeError):
                 msgspec.json.Decoder(mod.Pair[int, int])
+
+    @py312_plus
+    def test_parametrized_generic_binds_by_name(self, proto):
+        with temp_module("type Swap[A, B] = dict[B, A]") as mod:
+            dec = proto.Decoder(mod.Swap[int, str])  # dict[str, int]
+            assert dec.decode(proto.encode({"x": 1})) == {"x": 1}
+            with pytest.raises(ValidationError):
+                dec.decode(proto.encode({"x": "y"}))
+
+    @py313_plus
+    def test_parametrized_generic_nested_defaults(self, proto):
+        src = """
+        type Inner[T = int] = list[T]
+        type Outer[U] = dict[U, Inner]
+        """
+        with temp_module(src) as mod:
+            dec = proto.Decoder(mod.Outer[str])
+            for good in [{"a": [1, 2]}, {"b": []}]:
+                assert dec.decode(proto.encode(good)) == good
+            for bad in [{"a": ["x"]}, {"a": 1}, {"a": [1, "x"]}]:
+                with pytest.raises(ValidationError):
+                    dec.decode(proto.encode(bad))
+
+    @py312_plus
+    def test_parametrized_generic_paramspec(self, proto):
+        with temp_module("type Box[T, **P] = list[T]") as mod:
+            dec = proto.Decoder(mod.Box[int, [str, float]])  # list[int]
+            assert dec.decode(proto.encode([1, 2])) == [1, 2]
+            with pytest.raises(ValidationError):
+                dec.decode(proto.encode(["a"]))
+
+    @py312_plus
+    def test_parametrized_generic_typevartuple(self, proto):
+        with temp_module("type Row[T, *Ts] = tuple[*Ts, T]") as mod:
+            dec = proto.Decoder(mod.Row[int, str, float])  # tuple[str, float, int]
+            assert dec.decode(proto.encode(("a", 1.5, 2))) == ("a", 1.5, 2)
+            for bad in [(2, 1.5, "a"), ("a", 1.5), ("a", 1.5, 2, 3)]:
+                with pytest.raises(ValidationError):
+                    dec.decode(proto.encode(bad))
+
+    @py312_plus
+    def test_parametrized_generic_empty_typevartuple(self, proto):
+        with temp_module("type Var[*Ts] = tuple[*Ts]") as mod:
+            dec = proto.Decoder(mod.Var[()])  # tuple[()]
+            assert dec.decode(proto.encode(())) == ()
+            with pytest.raises(ValidationError):
+                dec.decode(proto.encode((1,)))
+
+    @py312_plus
+    @pytest.mark.parametrize(
+        "src, name",
+        [
+            ("type Lead[T, *Ts] = tuple[T, *Ts]", "Lead"),
+            ("type Swap[A, B] = dict[B, A]", "Swap"),
+            ("type Last[T, *Ts] = tuple[*Ts, T]", "Last"),
+        ],
+    )
+    def test_parametrized_generic_empty_args_too_few(self, src, name):
+        with temp_module(src) as mod:
+            with pytest.raises(TypeError):
+                msgspec.json.Decoder(getattr(mod, name)[()])
 
     @py312_plus
     @pytest.mark.parametrize(
