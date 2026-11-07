@@ -570,6 +570,19 @@ ms_err_truncated(void)
     return -1;
 }
 
+static PyObject *
+ms_decode_utf8(const char *buf, Py_ssize_t size) {
+    PyObject *out = PyUnicode_DecodeUTF8(buf, size, NULL);
+    if (out == NULL && PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)) {
+        PyErr_Clear();
+        PyErr_SetString(
+            msgspec_get_global_state()->DecodeError,
+            "Invalid UTF-8 encoded string"
+        );
+    }
+    return out;
+}
+
 static int
 ms_decimal_format_error(void)
 {
@@ -1414,7 +1427,7 @@ StrLookup_GetOrError(
         return out;
     }
     return _Lookup_OnMissing(
-        (Lookup *)self, PyUnicode_FromStringAndSize(key, size), path
+        (Lookup *)self, ms_decode_utf8(key, size), path
     );
 }
 
@@ -5414,7 +5427,7 @@ ms_missing_required_field(PyObject *field, PathNode *path) {
 
 static PyObject *
 ms_invalid_cstr_value(const char *cstr, Py_ssize_t size, PathNode *path) {
-    PyObject *str = PyUnicode_DecodeUTF8(cstr, size, NULL);
+    PyObject *str = ms_decode_utf8(cstr, size);
     if (str == NULL) return NULL;
     ms_raise_validation_error(path, "Invalid value '%U'%U", str);
     Py_DECREF(str);
@@ -5435,7 +5448,7 @@ ms_invalid_cuint_value(uint64_t val, PathNode *path) {
 
 static MS_NOINLINE PyObject *
 ms_error_unknown_field(const char *key, Py_ssize_t key_size, PathNode *path) {
-    PyObject *field = PyUnicode_FromStringAndSize(key, key_size);
+    PyObject *field = ms_decode_utf8(key, key_size);
     if (field == NULL) return NULL;
     ms_raise_validation_error(
         path, "Object contains unknown field `%U`%U", field
@@ -12089,7 +12102,7 @@ ms_decode_decimal(
         memcpy(ascii_get_buffer(str), view, size);
     }
     else {
-        str = PyUnicode_DecodeUTF8(view, size, NULL);
+        str = ms_decode_utf8(view, size);
         if (str == NULL) return NULL;
     }
     PyObject *out = ms_decode_decimal_from_pystr(str, path, mod);
@@ -15833,7 +15846,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
 
     if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
         return ms_check_str_constraints(
-            PyUnicode_DecodeUTF8(s, size, NULL), type, path
+            ms_decode_utf8(s, size), type, path
         );
     }
     else if (MS_UNLIKELY(!self->strict)) {
@@ -16410,7 +16423,7 @@ mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
         }
 #endif
         /* Cache miss, create a new string */
-        PyObject *new = PyUnicode_DecodeUTF8(str, size, NULL);
+        PyObject *new = ms_decode_utf8(str, size);
         if (new == NULL) return NULL;
 
         /* If ascii, add it to the cache */
@@ -18036,7 +18049,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             memcpy(ascii_get_buffer(out), view, size);
         }
         else {
-            out = PyUnicode_DecodeUTF8(view, size, NULL);
+            out = ms_decode_utf8(view, size);
         }
         return ms_check_str_constraints(out, type, path);
     }
@@ -18090,7 +18103,7 @@ json_decode_dict_key_fallback(
             memcpy(ascii_get_buffer(out), view, size);
         }
         else {
-            out = PyUnicode_DecodeUTF8(view, size, NULL);
+            out = ms_decode_utf8(view, size);
         }
         if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
             return ms_decode_custom(out, self->dec_hook, type, path);

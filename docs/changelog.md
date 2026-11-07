@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
+  decoded from JSON or MessagePack ({issue}`714`).
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,
