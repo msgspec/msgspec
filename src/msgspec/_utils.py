@@ -122,6 +122,15 @@ def _has_default(param):
     return has_default is not None and has_default()
 
 
+def _param_default(param, mapping):
+    default = param.__default__
+    if isinstance(param, typing.ParamSpec) and isinstance(default, (list, tuple)):
+        default = type(default)(_apply_params(item, mapping) for item in default)
+    else:
+        default = _apply_params(default, mapping)
+    return (default,) if isinstance(param, typing.TypeVarTuple) else default
+
+
 def _resolve_type_alias(alias, args):
     params = alias.__type_params__
     value = alias.__value__
@@ -167,12 +176,7 @@ def _resolve_type_alias(alias, args):
     for p in params:
         if p not in omitted:
             continue
-        default = p.__default__
-        if isinstance(p, typing.ParamSpec) and isinstance(default, (list, tuple)):
-            default = type(default)(_apply_params(item, bound) for item in default)
-        else:
-            default = _apply_params(default, bound)
-        bound[p] = (default,) if isinstance(p, typing.TypeVarTuple) else default
+        bound[p] = _param_default(p, bound)
 
     if not bound:
         return value
@@ -185,8 +189,15 @@ def _resolve_type_alias(alias, args):
 
     new_args = []
     for p in value_params:
+        if p not in bound and _has_default(p):
+            # A nested bare alias may leave 'p' unbound; apply its default
+            # rather than substituting 'p' for itself.
+            bound[p] = _param_default(p, bound)
         if isinstance(p, typing.TypeVarTuple):
-            new_args.extend(bound.get(p, (typing.Unpack[p],)))
+            if p in bound:
+                new_args.extend(bound[p])
+            else:
+                new_args.append(typing.Unpack[p])
         else:
             new_args.append(bound.get(p, p))
     return value[tuple(new_args)]

@@ -60,9 +60,11 @@ UTC = datetime.timezone.utc
 
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
+PY313 = sys.version_info[:2] >= (3, 13)
 
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
+py313_plus = pytest.mark.skipif(not PY313, reason="3.13+ only")
 
 T = TypeVar("T")
 
@@ -4934,6 +4936,20 @@ class TestTypeAlias:
             assert dec.decode(proto.encode({"x": 1})) == {"x": 1}
             with pytest.raises(ValidationError):
                 dec.decode(proto.encode({"x": "y"}))
+
+    @py313_plus
+    def test_parametrized_generic_nested_defaults(self, proto):
+        src = """
+        type Inner[T = int] = list[T]
+        type Outer[U] = dict[U, Inner]
+        """
+        with temp_module(src) as mod:
+            dec = proto.Decoder(mod.Outer[str])
+            for good in [{"a": [1, 2]}, {"b": []}]:
+                assert dec.decode(proto.encode(good)) == good
+            for bad in [{"a": ["x"]}, {"a": 1}, {"a": [1, "x"]}]:
+                with pytest.raises(ValidationError):
+                    dec.decode(proto.encode(bad))
 
     @py312_plus
     def test_parametrized_generic_paramspec(self, proto):

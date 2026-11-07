@@ -17,6 +17,8 @@ PY311 = sys.version_info[:2] >= (3, 11)
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
+PY313 = sys.version_info[:2] >= (3, 13)
+py313_plus = pytest.mark.skipif(not PY313, reason="3.13+ only")
 
 
 class Base(Generic[T]):
@@ -344,6 +346,20 @@ def test_resolve_type_alias_paramspec_forms():
         assert (
             _resolve_type_alias(mod.Fn, args)
             == mod.Callable[mod.Concatenate[int, bytes, ...], str]
+        )
+
+
+@py313_plus
+def test_resolve_type_alias_nested_defaults():
+    source = """
+    type Inner[T = int] = list[T]
+    type Outer[U] = dict[U, Inner]
+    type Explicit[U] = dict[U, Inner[str]]
+    """
+    with temp_module(source) as mod:
+        assert _resolve_type_alias(mod.Outer, (str,)) == dict[str, mod.Inner[int]]
+        assert (
+            _resolve_type_alias(mod.Explicit, (bytes,)) == dict[bytes, mod.Inner[str]]
         )
 
 

@@ -263,6 +263,16 @@ def test_typealias(src, typ):
             "type D[T, *Ts = *tuple[int, str]] = tuple[T, *Ts]; Ex = D[bytes, float]",
             tuple[bytes, float],
         ),
+        (
+            "type Inner[T = int] = list[T]; type Outer[U] = dict[U, Inner]; "
+            "Ex = Outer[str]",
+            dict[str, list[int]],
+        ),
+        (
+            "type Inner[T = int] = list[T]; type Outer[U] = dict[U, Inner[str]]; "
+            "Ex = Outer[bytes]",
+            dict[bytes, list[str]],
+        ),
     ],
 )
 def test_typealias_defaults(src, typ):
