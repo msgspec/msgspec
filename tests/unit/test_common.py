@@ -331,6 +331,71 @@ class TestDecoder:
             dec.decode(b"[]")
 
 
+class TestInvalidUTF8:
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            b"\xff",
+            b"\x80",
+            b"\xc0\xaf",
+            b"\xc3",
+            b"\xe2\x82",
+            b"\xed\xa0\x80",
+            b"\xf4\x90\x80\x80",
+            b"\xe2(\xa1",
+        ],
+    )
+    @pytest.mark.parametrize("buffer_type", [bytes, bytearray, memoryview])
+    def test_invalid_utf8_strings(self, proto, raw, buffer_type):
+        marker = "x" * len(raw)
+        buf = buffer_type(proto.encode(marker).replace(marker.encode(), raw))
+        decoder = proto.Decoder()
+        for decode in [proto.decode, decoder.decode]:
+            with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+                decode(buf)
+        assert decoder.decode(proto.encode("caf\u00e9")) == "caf\u00e9"
+        if isinstance(buf, bytearray):
+            buf.extend(b"x")
+
+    @pytest.mark.parametrize(
+        "obj, target",
+        [
+            ("MARKER", str),
+            ("MARKER", decimal.Decimal),
+            ("MARKER", Literal["apple", "banana"]),
+            ("MARKER", FruitStr),
+            ({"MARKER": 1}, dict),
+            ({"MARKER": 1}, dict[Literal["apple"], int]),
+            ({"value": ["MARKER"]}, dict[str, list[str]]),
+        ],
+    )
+    def test_invalid_utf8_typed(self, proto, obj, target):
+        buf = proto.encode(obj).replace(b"MARKER", b"\xffXXXXX")
+        decoder = proto.Decoder(target)
+        for decode in [lambda b: proto.decode(b, type=target), decoder.decode]:
+            with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+                decode(buf)
+
+    def test_invalid_utf8_unknown_field(self, proto):
+        class Ex(Struct, forbid_unknown_fields=True):
+            x: int = 0
+
+        buf = proto.encode({"MARKER": 1}).replace(b"MARKER", b"\xffXXXXX")
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf, type=Ex)
+
+    def test_invalid_utf8_union_tag(self, proto):
+        class A(Struct, tag="a"):
+            x: int
+
+        class B(Struct, tag="b"):
+            x: int
+
+        buf = proto.encode({"type": "MARKER", "x": 1}).replace(b"MARKER", b"\xffXXXXX")
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf, type=A | B)
+
+
 @pytest.mark.skipif(
     PY312,
     reason=(

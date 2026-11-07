@@ -521,6 +521,28 @@ class TestDecoderMisc:
         with pytest.raises(TypeError):
             dec.decode(1)
 
+    @pytest.mark.parametrize("buf", [b'"\\n\xff"', b'{"\\u0061\xff": 1}'])
+    def test_decode_invalid_utf8_after_escape(self, buf):
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            msgspec.json.decode(buf)
+
+    def test_decode_lines_invalid_utf8(self):
+        decoder = msgspec.json.Decoder()
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            decoder.decode_lines(b'{"ok": 1}\n{"bad": "\xff"}\n')
+        assert decoder.decode_lines(b'{"ok": 2}\n') == [{"ok": 2}]
+
+    def test_float_hook_unicode_error_preserved(self):
+        error = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "callback error")
+
+        def float_hook(value):
+            raise error
+
+        decoder = msgspec.json.Decoder(float_hook=float_hook)
+        with pytest.raises(msgspec.ValidationError) as rec:
+            decoder.decode(b"1.5")
+        assert rec.value.__cause__ is error
+
     def test_decoder_init_float_hook(self):
         dec = msgspec.json.Decoder()
         assert dec.float_hook is None
