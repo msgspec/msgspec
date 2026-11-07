@@ -314,7 +314,16 @@ class _SchemaGenerator:
             key_type = t.key_type
             while isinstance(key_type, mi.Metadata):
                 key_type = key_type.type
-            if isinstance(key_type, mi.StrType):
+            if (
+                isinstance(key_type, mi.StrType)
+                or isinstance(key_type, mi.LiteralType)
+                and all(isinstance(value, str) for value in key_type.values)
+                or isinstance(key_type, mi.EnumType)
+                and all(
+                    isinstance(member.value, str)
+                    for member in key_type.cls.__members__.values()
+                )
+            ):
                 property_names = self.to_schema(t.key_type)
                 # Object property names are always strings, so omit the redundant type
                 property_names.pop("type", None)

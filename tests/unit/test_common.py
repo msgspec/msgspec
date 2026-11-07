@@ -1199,6 +1199,27 @@ class TestUnionTypeErrors:
             assert dec.decode(proto.encode(1.5))
 
 
+class _UnionLeakCustom:
+    pass
+
+
+class _UnionLeakPoint(msgspec.Struct):
+    x: int
+
+
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="needs refcounts")
+@pytest.mark.parametrize(
+    "member, other", [(_UnionLeakCustom, type(None)), (_UnionLeakPoint, int)]
+)
+def test_resolving_a_union_does_not_leak_its_args(member, other):
+    msgspec.json.Decoder(member | other)
+    before = sys.getrefcount(member)
+    for _ in range(10):
+        msgspec.json.Decoder(member | other)
+        msgspec.convert(1 if other is int else None, member | other)
+    assert sys.getrefcount(member) == before
+
+
 class TestStructUnion:
     def test_err_union_struct_mix_array_like(self, proto):
         class Test1(Struct, tag=True, array_like=True):

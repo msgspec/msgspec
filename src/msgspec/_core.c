@@ -5004,7 +5004,11 @@ typenode_origin_args_metadata(
         }
     }
 
-    if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+    /* Before Python 3.14, `types.UnionType` has no `__origin__`, so the
+     * `__origin__` lookup in the loop above leaves `args` unset and this
+     * fallback resolves the union. In 3.14+ that lookup already set `origin`
+     * and `args`; resolving them again here would leak both references. */
+    if (args == NULL && Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
         /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
         if (args == NULL) goto error;
@@ -22588,6 +22592,22 @@ getattr_then_getitem(PyObject *obj, PyObject *key) {
     return out;
 }
 
+static int
+convert_has_keys(PyObject *obj) {
+    PyObject *keys_method = PyObject_GetAttrString(obj, "keys");
+    if (keys_method == NULL) {
+        if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+            PyErr_Clear();
+            return 0;
+        }
+        return -1;
+    }
+
+    Py_DECREF(keys_method);
+
+    return 1;
+}
+
 static PyObject *
 convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
@@ -22633,7 +22653,13 @@ convert_other(
 
     /* Next try converting from a mapping or by attribute */
     bool is_mapping = PyMapping_Check(obj);
-    if (is_mapping) {
+    if (is_mapping && (type->types & MS_ANY_DICT)) {
+        int has_keys = convert_has_keys(obj);
+        if (has_keys < 0) return NULL;
+        if (!has_keys) {
+            return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
+        }
+
         if (type->types & MS_TYPE_DICT) {
             return convert_mapping_to_dict(self, obj, type, path);
         }
