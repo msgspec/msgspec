@@ -810,8 +810,9 @@ information during decoding. Note that ``msgspec`` supports both
 `typing.TypedDict` types map to objects/maps in all protocols. During decoding,
 extra fields are ignored by default. With ``closed=True``, unknown fields raise
 `msgspec.ValidationError`. This also applies to inherited closed types and to
-``extra_items=Never`` (including ``ReadOnly[Never]``). An error is raised if a
-field's type does not match or a required field is missing.
+``extra_items=Never``, including ``Never`` wrapped in ``ReadOnly``,
+``Annotated`` or a type alias. An error is raised if a field's type does not
+match or a required field is missing.
 
 Closed TypedDicts are available in Python 3.15 and in ``typing_extensions``.
 They generate JSON schemas with ``additionalProperties: false``. When using

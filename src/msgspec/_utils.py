@@ -6,6 +6,11 @@ import typing
 from typing import _AnnotatedAlias, _GenericAlias  # noqa: F401
 
 try:
+    from typing import TypeAliasType as _TypeAliasType
+except ImportError:
+    _TypeAliasType = type("TypeAliasType", (), {})
+
+try:
     from typing_extensions import get_type_hints as _get_type_hints
 except Exception:
     from typing import get_type_hints as _get_type_hints
@@ -301,35 +306,67 @@ if sys.version_info >= (3, 15):
     _CONCRETE_TYPES.update({frozendict: frozendict})  # noqa: F821
 
 
+try:
+    import typing_extensions as _tex
+except Exception:
+    _tex = None
+
+_READONLY = tuple({getattr(m, "ReadOnly", None) for m in (typing, _tex)} - {None})
+_NEVER = getattr(typing, "Never", None) or getattr(_tex, "Never", None)
+_NO_EXTRA_ITEMS = (
+    getattr(typing, "NoExtraItems", None),
+    getattr(_tex, "NoExtraItems", None),
+)
+
+
+def _unwrap_extra_items(t):
+    # Annotated metadata, ReadOnly and type aliases don't change which extra
+    # items are allowed, so strip them before comparing against Never.
+    while True:
+        if type(t) is _AnnotatedAlias:
+            t = t.__origin__
+        elif type(t) is _TypeAliasType:
+            t = t.__value__
+        elif type(getattr(t, "__origin__", None)) is _TypeAliasType:
+            t = t.__origin__.__value__[t.__args__]
+        elif typing.get_origin(t) in _READONLY:
+            t = t.__args__[0]
+        else:
+            return t
+
+
+def _typeddict_local_closure(cls):
+    """Whether ``cls``'s own arguments make it closed, or None if they don't say."""
+    extra = _unwrap_extra_items(getattr(cls, "__extra_items__", None))
+    if extra is None or extra in _NO_EXTRA_ITEMS:
+        return True if getattr(cls, "__closed__", False) else None
+    # Older typing_extensions allowed typed extras together with closed=True.
+    return extra is _NEVER
+
+
 def _typeddict_is_closed(cls):
-    if not isinstance(cls, type):
-        cls = cls.__origin__
-    tex = sys.modules.get("typing_extensions")
-    extra = getattr(cls, "__extra_items__", None)
-    origin = typing.get_origin(extra)
-    if origin is not None and origin in (
-        getattr(typing, "ReadOnly", None),
-        getattr(tex, "ReadOnly", None),
-    ):
-        extra = typing.get_args(extra)[0]
-    never = getattr(typing, "Never", None) or getattr(tex, "Never", None)
-    if extra is not None and extra is never:
-        return True
-    if (
-        extra is not None
-        and extra is not getattr(typing, "NoExtraItems", None)
-        and extra is not getattr(tex, "NoExtraItems", None)
-    ):
-        # Older typing_extensions allowed typed extras together with closed=True.
-        return False
-    if getattr(cls, "__closed__", False):
-        return True
     # PEP 728 metadata records local arguments, so inspect the original bases too.
-    return any(
-        _typeddict_is_closed(base)
-        for base in getattr(cls, "__orig_bases__", ())
-        if _is_typeddict(getattr(base, "__origin__", base))
-    )
+    # Walk them iteratively and visit each class once, since inheritance chains
+    # can be deep and diamonds share ancestors.
+    stack = [cls]
+    seen = set()
+    while stack:
+        cls = stack.pop()
+        if not isinstance(cls, type):
+            cls = cls.__origin__
+        if cls in seen:
+            continue
+        seen.add(cls)
+        closed = _typeddict_local_closure(cls)
+        if closed is None:
+            stack.extend(
+                base
+                for base in getattr(cls, "__orig_bases__", ())
+                if _is_typeddict(getattr(base, "__origin__", base))
+            )
+        elif closed:
+            return True
+    return False
 
 
 def get_typeddict_info(obj):
