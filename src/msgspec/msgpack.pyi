@@ -62,6 +62,7 @@ class Decoder(Generic[_T]):
 @final
 class Encoder:
     type: Final[Any]
+    from_attributes: Final[bool]
     enc_hook: Final[_EncHookSig]
     decimal_format: Final[_DecimalFormatSig]
     uuid_format: Final[Literal["canonical", "hex", "bytes"]]
@@ -70,6 +71,7 @@ class Encoder:
         self,
         type: Any = Any,
         *,
+        from_attributes: bool = False,
         enc_hook: _EncHookSig = None,
         decimal_format: _DecimalFormatSig = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
@@ -103,6 +105,7 @@ def encode(
     /,
     *,
     type: Any = Any,
+    from_attributes: bool = False,
     enc_hook: _EncHookSig = None,
     order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...

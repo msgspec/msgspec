@@ -215,6 +215,10 @@ class TestEncodeType:
         assert proto.Encoder(type=list[self.Item]).type == list[self.Item]
         assert proto.Encoder(list[self.Item]).type == list[self.Item]
 
+    def test_from_attributes_attribute(self, proto):
+        assert proto.Encoder().from_attributes is False
+        assert proto.Encoder(from_attributes=True).from_attributes is True
+
     @pytest.mark.parametrize(
         "typ",
         [Any, int, list[int], dict[str, Any], dict[str, list[int]], tuple[int, str]],
@@ -487,6 +491,9 @@ class TestEncodeType:
 
         expected = proto.encode(self.item(1))
         assert proto.Encoder(TD).encode(self.item(1)) == expected
+        # `convert` reads TypedDicts from mappings only
+        enc = proto.Encoder(TD, from_attributes=True)
+        assert enc.encode(self.item(1)) == expected
 
     def test_fields_read_from_unrelated_values(self, proto):
         class Other(Struct):
@@ -508,6 +515,11 @@ class TestEncodeType:
         with pytest.raises(TypeError, match="Plain is unsupported"):
             enc.encode(Plain())
 
+        enc = proto.Encoder(self.Item, from_attributes=True)
+        assert enc.encode(Other("n1", 1)) == expected
+        assert enc.encode(Plain()) == expected
+        assert proto.encode(Plain(), type=self.Item, from_attributes=True) == expected
+
     def test_other_objects_go_to_enc_hook(self, proto):
         class Plain:
             id = 1
@@ -515,6 +527,10 @@ class TestEncodeType:
 
         enc = proto.Encoder(self.Item, enc_hook=lambda obj: "hooked")
         assert enc.encode([Plain()]) == proto.encode(["hooked"])
+        enc = proto.Encoder(
+            self.Item, from_attributes=True, enc_hook=lambda obj: "hooked"
+        )
+        assert enc.encode(Plain()) == proto.encode(self.item(1))
 
     def test_fields_read_from_dict_by_encoded_name(self, proto):
         class Ex(Struct, rename="camel"):
@@ -576,6 +592,9 @@ class TestEncodeType:
     @pytest.mark.parametrize("msg", [[1], {1, 2}])
     def test_collections_have_no_fields_to_read(self, proto, msg):
         assert proto.Encoder(self.Item).encode(msg) == proto.encode(msg)
+        enc = proto.Encoder(self.Item, from_attributes=True)
+        with pytest.raises(msgspec.EncodeError, match="missing required field"):
+            enc.encode(msg)
 
     @pytest.mark.parametrize("container", [set, frozenset])
     @pytest.mark.parametrize("seq", [list, "tuple", set])
@@ -604,6 +623,29 @@ class TestEncodeType:
         assert enc.encode((1, 2)) == proto.encode((1, 2))
         assert enc.encode((1, 2, 3)) == proto.encode((1, 2, 3))
         assert enc.encode(self.item(1)) == proto.encode(self.item(1))
+        enc = proto.Encoder(Point, from_attributes=True)
+        assert enc.encode((1, 2, 3)) == proto.encode((1, 2, 3))
+        assert enc.encode(self.item(1)) == proto.encode(self.item(1))
+
+    def test_matches_convert_from_attributes(self, proto):
+        @dataclass
+        class Row:
+            id: int
+            name: str
+            secret: str
+
+        class Page(Struct):
+            items: list[TestEncodeType.Item]
+
+        # `convert` returns a `Page` instance unchanged, so start from a dict
+        msg = {"items": [self.priv(1), Row(2, "n2", "s")]}
+        out = proto.Encoder(Page, from_attributes=True).encode(msg)
+        assert proto.decode(out) == {
+            "items": [{"id": 1, "name": "n1"}, {"id": 2, "name": "n2"}]
+        }
+        assert proto.decode(out, type=Page) == msgspec.convert(
+            msg, Page, from_attributes=True
+        )
 
     def test_values_are_not_validated(self, proto):
         class Ex(Struct):

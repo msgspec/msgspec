@@ -10,7 +10,7 @@
   are encoded with only the fields their declared type defines, at any depth,
   so fields added by a subclass are left out ({issue}`614`). The declared
   fields of a dict or other mapping in their place are read as `convert` reads
-  them.
+  them, and with `from_attributes=True`, those of other objects by attribute.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,

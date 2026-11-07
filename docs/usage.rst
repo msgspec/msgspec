@@ -193,7 +193,9 @@ at any depth, so fields added by a subclass are left out.
 A dict or other mapping in place of a Struct, dataclass, attrs or ``TypedDict``
 value has the declared fields read from it as `msgspec.convert` reads them. A
 missing field without a default raises an ``EncodeError``. Any other object is
-encoded as it is.
+encoded as it is, unless the encoder is created with ``from_attributes=True``:
+its fields are then read by attribute, as `msgspec.convert` reads them with
+``from_attributes=True``.
 
 Unlike typed decoding, typed encoding does not validate values: a value of the
 wrong type, or one that violates a :doc:`constraint <constraints>`, is encoded

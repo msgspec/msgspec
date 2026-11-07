@@ -768,6 +768,9 @@ def check_msgpack_Encoder_type() -> None:
     b1: bytes = enc.encode([Ex(1)])
     b2: bytes = msgspec.msgpack.encode([Ex(1)], type=list[Ex])
     b3: bytes = msgspec.msgpack.Encoder(list[Ex]).encode([Ex(1)])
+    enc2 = msgspec.msgpack.Encoder(list[Ex], from_attributes=True)
+    assert_type(enc2.from_attributes, bool)
+    b4: bytes = msgspec.msgpack.encode([Ex(1)], type=list[Ex], from_attributes=True)
 
 
 def check_msgpack_order() -> None:
@@ -989,6 +992,9 @@ def check_json_Encoder_type() -> None:
     b1: bytes = enc.encode([Ex(1)])
     b2: bytes = msgspec.json.encode([Ex(1)], type=list[Ex])
     b3: bytes = msgspec.json.Encoder(list[Ex]).encode([Ex(1)])
+    enc2 = msgspec.json.Encoder(list[Ex], from_attributes=True)
+    assert_type(enc2.from_attributes, bool)
+    b4: bytes = msgspec.json.encode([Ex(1)], type=list[Ex], from_attributes=True)
 
 
 def check_json_Encoder_enc_hook() -> None:

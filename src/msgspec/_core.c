@@ -496,6 +496,7 @@ typedef struct {
     PyObject *str_ext_hook;
     PyObject *str_strict;
     PyObject *str_order;
+    PyObject *str_from_attributes;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
@@ -9796,6 +9797,7 @@ typedef struct EncoderState {
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
     bool in_decimal_callable;
     TypeNode *type;             /* declared type of the encoded object, or NULL */
+    bool from_attributes;       /* read declared fields from other objects by attribute */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
@@ -9814,6 +9816,7 @@ typedef struct Encoder {
     PyObject *orig_type;
     TypeNode *type;  /* NULL if objects are encoded without a declared type */
     PyObject *type_owner;  /* capsule that frees `type`, or NULL */
+    bool from_attributes;
 } Encoder;
 
 static PyTypeObject Encoder_Type;
@@ -10413,12 +10416,15 @@ error:
 
 /* Read the fields declared by `type` from `obj`, a value that is not an
  * instance of the declared struct type, the way `convert` reads them: a dict
- * by encoded field name, another mapping by attribute then by key. Dataclass
- * and attrs instances of the declared class are read here too. Returns NULL
- * with no error set if no fields are read from `obj`, which is then encoded
- * as it is. */
+ * by encoded field name, another mapping by attribute then by key, and any
+ * other object by attribute if `from_attributes` is true. Dataclass and attrs
+ * instances of the declared class are read here too. Returns NULL with no
+ * error set if no fields are read from `obj`, which is then encoded as it
+ * is. */
 static TypedFields *
-TypedFields_FromValue(MsgspecState *mod, PyObject *obj, TypeNode *type) {
+TypedFields_FromValue(
+    MsgspecState *mod, PyObject *obj, TypeNode *type, bool from_attributes
+) {
     uint64_t t = type->types;
     if (t & MS_TYPE_DATACLASS) {
         DataclassInfo *info = TypeNode_get_dataclass_info(type);
@@ -10426,7 +10432,8 @@ TypedFields_FromValue(MsgspecState *mod, PyObject *obj, TypeNode *type) {
             return TypedFields_FromDataclass(mod, obj, info);
         }
     }
-    if (typed_source_of(obj) == TYPED_SOURCE_OBJECT) return NULL;
+    enum typed_source source = typed_source_of(obj);
+    if (source == TYPED_SOURCE_OBJECT && !from_attributes) return NULL;
     if (t & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
         return TypedFields_FromStruct(mod, obj, TypeNode_get_struct_info(type));
     }
@@ -10436,7 +10443,7 @@ TypedFields_FromValue(MsgspecState *mod, PyObject *obj, TypeNode *type) {
     if (t & MS_TYPE_DATACLASS) {
         return TypedFields_FromDataclass(mod, obj, TypeNode_get_dataclass_info(type));
     }
-    if (t & MS_TYPE_TYPEDDICT) {
+    if ((t & MS_TYPE_TYPEDDICT) && source != TYPED_SOURCE_OBJECT) {
         return TypedFields_FromTypedDict(mod, obj, TypeNode_get_typeddict_info(type));
     }
     return NULL;
@@ -10467,16 +10474,19 @@ static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
     char *kwlist[] = {
-        "type", "enc_hook", "decimal_format", "uuid_format", "order", NULL
+        "type", "enc_hook", "decimal_format", "uuid_format", "order",
+        "from_attributes", NULL
     };
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL, *order = NULL;
+    int from_attributes = false;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwds, "|O$OOOO", kwlist,
-            &type, &enc_hook, &decimal_format, &uuid_format, &order
+            args, kwds, "|O$OOOOp", kwlist,
+            &type, &enc_hook, &decimal_format, &uuid_format, &order,
+            &from_attributes
         )
     ) {
         return -1;
@@ -10586,6 +10596,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
      * to the previous `type_owner` */
     self->type = type_node;
     Py_XSETREF(self->type_owner, type_owner);
+    self->from_attributes = from_attributes;
     Py_INCREF(type);
     Py_XSETREF(self->orig_type, type);
     return 0;
@@ -10689,6 +10700,7 @@ encoder_encode_into_common(
         .uuid_format = self->uuid_format,
         .order = self->order,
         .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -10742,6 +10754,7 @@ encoder_encode_common(
         .uuid_format = self->uuid_format,
         .order = self->order,
         .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -10771,7 +10784,7 @@ encode_common(
     int(*encode_typed)(EncoderState*, PyObject*)
 )
 {
-    PyObject *enc_hook = NULL, *order = NULL, *type = NULL;
+    PyObject *enc_hook = NULL, *order = NULL, *type = NULL, *from_attributes = NULL;
     MsgspecState *mod = msgspec_get_state(module);
 
     /* Parse arguments */
@@ -10781,6 +10794,7 @@ encode_common(
         if ((enc_hook = find_keyword(kwnames, args + nargs, mod->str_enc_hook)) != NULL) nkwargs--;
         if ((order = find_keyword(kwnames, args + nargs, mod->str_order)) != NULL) nkwargs--;
         if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((from_attributes = find_keyword(kwnames, args + nargs, mod->str_from_attributes)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -10813,6 +10827,12 @@ encode_common(
     state.order = parse_order_arg(order);
     if (state.order == ORDER_INVALID) return NULL;
 
+    if (from_attributes != NULL) {
+        int truth = PyObject_IsTrue(from_attributes);
+        if (truth < 0) return NULL;
+        state.from_attributes = truth;
+    }
+
     if (type != NULL) {
         if (ms_encoder_convert_type(type, &state.type) < 0) return NULL;
     }
@@ -10836,6 +10856,7 @@ cleanup:
 static PyMemberDef Encoder_members[] = {
     {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, NULL},
     {"type", T_OBJECT, offsetof(Encoder, orig_type), READONLY, NULL},
+    {"from_attributes", T_BOOL, offsetof(Encoder, from_attributes), READONLY, NULL},
     {NULL},
 };
 
@@ -13437,7 +13458,7 @@ maybe_parse_number(
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(type='Any', *, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
+"Encoder(type='Any', *, from_attributes=False, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -13451,6 +13472,9 @@ PyDoc_STRVAR(Encoder__doc__,
 "    their place are read as ``convert`` reads them, and a missing required\n"
 "    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
 "    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -14858,7 +14882,9 @@ mpack_encode_typed_value(EncoderState *self, PyObject *obj, TypeNode *type)
     if (!(t & MS_TYPED_FIELDS) || typed_is_plain_value(self->mod, pytype, obj)) {
         return mpack_encode(self, obj);
     }
-    TypedFields *fields = TypedFields_FromValue(self->mod, obj, type);
+    TypedFields *fields = TypedFields_FromValue(
+        self->mod, obj, type, self->from_attributes
+    );
     if (fields == NULL) return PyErr_Occurred() ? -1 : mpack_encode(self, obj);
     if (typed_fields_sorted(fields, self->order)) TypedFields_Sort(fields);
     int status = mpack_encode_typed_fields(self, fields);
@@ -14929,7 +14955,7 @@ static PyTypeObject Encoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
-"msgpack_encode(obj, /, *, type='Any', enc_hook=None, order=None)\n"
+"msgpack_encode(obj, /, *, type='Any', from_attributes=False, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as MessagePack.\n"
@@ -14945,6 +14971,9 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "    their place are read as ``convert`` reads them, and a missing required\n"
 "    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
 "    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -14982,7 +15011,7 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(type='Any', *, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
+"Encoder(type='Any', *, from_attributes=False, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
@@ -14996,6 +15025,9 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    their place are read as ``convert`` reads them, and a missing required\n"
 "    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
 "    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -16344,7 +16376,9 @@ json_encode_typed_value(EncoderState *self, PyObject *obj, TypeNode *type)
     if (!(t & MS_TYPED_FIELDS) || typed_is_plain_value(self->mod, pytype, obj)) {
         return json_encode(self, obj);
     }
-    TypedFields *fields = TypedFields_FromValue(self->mod, obj, type);
+    TypedFields *fields = TypedFields_FromValue(
+        self->mod, obj, type, self->from_attributes
+    );
     if (fields == NULL) return PyErr_Occurred() ? -1 : json_encode(self, obj);
     if (typed_fields_sorted(fields, self->order)) TypedFields_Sort(fields);
     int status = json_encode_typed_fields(self, fields);
@@ -16430,6 +16464,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .uuid_format = self->uuid_format,
         .order = self->order,
         .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_len = 0,
         .max_output_len = ENC_LINES_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -16506,7 +16541,7 @@ static PyTypeObject JSONEncoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,
-"json_encode(obj, /, *, type='Any', enc_hook=None, order=None)\n"
+"json_encode(obj, /, *, type='Any', from_attributes=False, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as JSON.\n"
@@ -16522,6 +16557,9 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "    their place are read as ``convert`` reads them, and a missing required\n"
 "    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
 "    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -24283,6 +24321,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->str_strict);
     Py_CLEAR(st->str_order);
+    Py_CLEAR(st->str_from_attributes);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
@@ -24654,6 +24693,7 @@ PyInit__core(void)
     CACHED_STRING(str_ext_hook, "ext_hook");
     CACHED_STRING(str_strict, "strict");
     CACHED_STRING(str_order, "order");
+    CACHED_STRING(str_from_attributes, "from_attributes");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
