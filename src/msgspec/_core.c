@@ -9554,7 +9554,8 @@ dataclass_iter_cleanup(DataclassIter *iter) {
     Py_XDECREF(iter->dict);
 }
 
-static MS_INLINE bool
+/* Return 1 for a value, 0 on exhaustion, and -1 on error. */
+static MS_INLINE int
 dataclass_iter_next(
     DataclassIter *iter,
     PyObject **field_name,
@@ -9564,7 +9565,7 @@ dataclass_iter_next(
 
 next_field:
     if (!PyDict_Next(iter->fields, &(iter->fields_pos), &name, NULL)) {
-        return false;
+        return 0;
     }
     if (MS_UNLIKELY(!PyUnicode_CheckExact(name))) goto next_field;
 
@@ -9603,6 +9604,9 @@ next_field:
                 val = get(descr, iter->obj, (PyObject *)type);
                 Py_DECREF(descr);
                 if (val != NULL) goto found_val;
+                /* Preserve KeyError omission for existing dataclass-like objects. */
+                if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                    !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
                 PyErr_Clear();
             }
         }
@@ -9611,6 +9615,9 @@ next_field:
     else {
         val = type->tp_getattro(iter->obj, name);
         if (val == NULL) {
+            /* Preserve KeyError omission for existing dataclass-like objects. */
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
             PyErr_Clear();
             goto next_field;
         }
@@ -9624,7 +9631,7 @@ found_val:
     }
     *field_name = name;
     *field_val = val;
-    return true;
+    return 1;
 }
 
 static AssocList *
@@ -9641,11 +9648,13 @@ AssocList_FromDataclass(PyObject *obj, PyObject *fields)
     if (out == NULL) goto cleanup;
 
     PyObject *field, *val;
-    while (dataclass_iter_next(&iter, &field, &val)) {
+    int iter_status;
+    while ((iter_status = dataclass_iter_next(&iter, &field, &val)) > 0) {
         int status = AssocList_Append(out, field, val);
         Py_DECREF(val);
         if (status < 0) goto cleanup;
     }
+    if (MS_UNLIKELY(iter_status < 0)) goto cleanup;
     ok = true;
 
 cleanup:
@@ -13281,7 +13290,8 @@ mpack_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
 
     Py_ssize_t size = 0;
     PyObject *field, *val;
-    while (dataclass_iter_next(&iter, &field, &val)) {
+    int iter_status;
+    while ((iter_status = dataclass_iter_next(&iter, &field, &val)) > 0) {
         size++;
         Py_ssize_t field_len;
         const char* field_buf = unicode_str_and_size(field, &field_len);
@@ -13294,6 +13304,7 @@ mpack_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
         if (errored) goto cleanup;
     }
 
+    if (MS_UNLIKELY(iter_status < 0)) goto cleanup;
     if (MS_UNLIKELY(size != max_size)) {
         /* Some fields were skipped, need to adjust header. We write the header
          * using the width type of `max_size`, but the value of `size`. */
@@ -14705,7 +14716,8 @@ json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
     Py_ssize_t start_offset = self->output_len;
 
     PyObject *field, *val;
-    while (dataclass_iter_next(&iter, &field, &val)) {
+    int iter_status;
+    while ((iter_status = dataclass_iter_next(&iter, &field, &val)) > 0) {
         Py_ssize_t field_len;
         const char* field_buf = unicode_str_and_size(field, &field_len);
         bool errored = (
@@ -14719,6 +14731,7 @@ json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
         if (errored) goto cleanup;
     }
 
+    if (MS_UNLIKELY(iter_status < 0)) goto cleanup;
     /* If any fields written, overwrite trailing comma with }, otherwise append } */
     if (MS_LIKELY(self->output_len != start_offset)) {
         *(self->output_buffer_raw + self->output_len - 1) = '}';
@@ -20615,7 +20628,8 @@ to_builtins_dataclass(ToBuiltinsState *self, PyObject *obj, PyObject *fields)
     if (out == NULL) goto cleanup;
 
     PyObject *field, *val;
-    while (dataclass_iter_next(&iter, &field, &val)) {
+    int iter_status;
+    while ((iter_status = dataclass_iter_next(&iter, &field, &val)) > 0) {
         PyObject *val2 = to_builtins(self, val, false);
         int status = (
             (val2 == NULL) ? -1 : PyDict_SetItem(out, field, val2)
@@ -20624,6 +20638,7 @@ to_builtins_dataclass(ToBuiltinsState *self, PyObject *obj, PyObject *fields)
         Py_XDECREF(val2);
         if (status < 0) goto cleanup;
     }
+    if (MS_UNLIKELY(iter_status < 0)) goto cleanup;
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
         sort_dict_inplace(&out);
     }
