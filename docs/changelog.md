@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix re-initializing a JSON or MessagePack `Encoder`: a failed `__init__` call
+  no longer changes `decimal_format` or `uuid_format`, and a successful one
+  releases the previous `enc_hook` and `decimal_format` callable.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,

@@ -172,6 +172,32 @@ class TestEncodeSubclasses:
             assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
 
 
+class TestEncoderReinit:
+    def test_failed_reinit_leaves_encoder_unchanged(self, proto):
+        enc = proto.Encoder(decimal_format=str, uuid_format="hex")
+        with pytest.raises(TypeError, match="enc_hook must be callable"):
+            enc.__init__(
+                enc_hook=1,
+                decimal_format="number",
+                uuid_format="canonical",
+                order="sorted",
+            )
+        assert enc.enc_hook is None
+        assert enc.decimal_format is str
+        assert enc.uuid_format == "hex"
+        assert enc.order is None
+
+    def test_reinit_releases_previous_callables(self, proto):
+        def hook(obj):
+            return obj
+
+        enc = proto.Encoder(enc_hook=hook, decimal_format=hook)
+        before = sys.getrefcount(hook)
+        enc.__init__()
+        assert sys.getrefcount(hook) == before - 2
+        assert enc.enc_hook is None
+
+
 class TestDecoder:
     def test_decoder_runtime_type_parameters(self, proto):
         dec = proto.Decoder[int](int)

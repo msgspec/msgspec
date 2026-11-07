@@ -9853,24 +9853,24 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process decimal format */
-    self->decimal_callable = NULL;
+    enum decimal_format decimal_format_mode;
+    PyObject *decimal_callable = NULL;
     if (decimal_format == NULL) {
-        self->decimal_format = DECIMAL_FORMAT_STRING;
+        decimal_format_mode = DECIMAL_FORMAT_STRING;
     }
     else if (PyCallable_Check(decimal_format)) {
-        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
-        Py_INCREF(decimal_format);
-        self->decimal_callable = decimal_format;
+        decimal_format_mode = DECIMAL_FORMAT_CALLABLE;
+        decimal_callable = decimal_format;
     }
     else {
         bool ok = false;
         if (PyUnicode_CheckExact(decimal_format)) {
             if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_STRING;
+                decimal_format_mode = DECIMAL_FORMAT_STRING;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_NUMBER;
+                decimal_format_mode = DECIMAL_FORMAT_NUMBER;
                 ok = true;
             }
         }
@@ -9885,23 +9885,24 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process uuid format */
+    enum uuid_format uuid_format_mode;
     if (uuid_format == NULL) {
-        self->uuid_format = UUID_FORMAT_CANONICAL;
+        uuid_format_mode = UUID_FORMAT_CANONICAL;
     }
     else {
         bool is_msgpack = Py_TYPE(self) == &Encoder_Type;
         bool ok = false;
         if (PyUnicode_CheckExact(uuid_format)) {
             if (PyUnicode_CompareWithASCIIString(uuid_format, "canonical") == 0) {
-                self->uuid_format = UUID_FORMAT_CANONICAL;
+                uuid_format_mode = UUID_FORMAT_CANONICAL;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(uuid_format, "hex") == 0) {
-                self->uuid_format = UUID_FORMAT_HEX;
+                uuid_format_mode = UUID_FORMAT_HEX;
                 ok = true;
             }
             else if (is_msgpack && PyUnicode_CompareWithASCIIString(uuid_format, "bytes") == 0) {
-                self->uuid_format = UUID_FORMAT_BYTES;
+                uuid_format_mode = UUID_FORMAT_BYTES;
                 ok = true;
             }
         }
@@ -9917,22 +9918,28 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process order */
-    self->order = parse_order_arg(order);
-    if (self->order == ORDER_INVALID) return -1;
+    enum order_mode order_mode = parse_order_arg(order);
+    if (order_mode == ORDER_INVALID) return -1;
 
+    /* Process enc_hook */
     if (enc_hook == Py_None) {
         enc_hook = NULL;
     }
-    if (enc_hook != NULL) {
-        if (!PyCallable_Check(enc_hook)) {
-            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
-            return -1;
-        }
-        Py_INCREF(enc_hook);
+    if (enc_hook != NULL && !PyCallable_Check(enc_hook)) {
+        PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+        return -1;
     }
 
+    /* Nothing below fails, so a failed re-initialization leaves the encoder
+     * unchanged */
     self->mod = msgspec_get_global_state();
-    self->enc_hook = enc_hook;
+    self->decimal_format = decimal_format_mode;
+    Py_XINCREF(decimal_callable);
+    Py_XSETREF(self->decimal_callable, decimal_callable);
+    self->uuid_format = uuid_format_mode;
+    self->order = order_mode;
+    Py_XINCREF(enc_hook);
+    Py_XSETREF(self->enc_hook, enc_hook);
     return 0;
 }
 
