@@ -496,6 +496,7 @@ typedef struct {
     PyObject *str_ext_hook;
     PyObject *str_strict;
     PyObject *str_order;
+    PyObject *str_from_attributes;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
@@ -3031,6 +3032,8 @@ typedef struct {
     PyObject *pre_init;
     PyObject *post_init;
     PyObject *defaults;
+    Py_ssize_t nencode;
+    Py_ssize_t *encode_order;  /* indices of the encoded fields, in declaration order */
     DataclassField fields[];
 } DataclassInfo;
 
@@ -8956,7 +8959,7 @@ static PyTypeObject TypedDictInfo_Type = {
 static PyObject *
 DataclassInfo_Convert(PyObject *obj) {
     PyObject *cls = NULL, *fields = NULL, *field_defaults = NULL;
-    PyObject *pre_init = NULL, *post_init = NULL;
+    PyObject *pre_init = NULL, *post_init = NULL, *encode_order = NULL;
     DataclassInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false, succeeded = false;
@@ -8979,6 +8982,8 @@ DataclassInfo_Convert(PyObject *obj) {
     Py_INCREF(pre_init);
     post_init = PyTuple_GET_ITEM(temp, 4);
     Py_INCREF(post_init);
+    encode_order = PyTuple_GET_ITEM(temp, 5);
+    Py_INCREF(encode_order);
     Py_DECREF(temp);
 
     /* Allocate and zero-out a new DataclassInfo object */
@@ -8989,6 +8994,24 @@ DataclassInfo_Convert(PyObject *obj) {
         info->fields[i].key = NULL;
         info->fields[i].type = NULL;
     }
+    info->nencode = 0;
+    info->encode_order = NULL;
+    info->defaults = NULL;
+    info->class = NULL;
+    info->pre_init = NULL;
+    info->post_init = NULL;
+    Py_ssize_t nencode = PyTuple_GET_SIZE(encode_order);
+    info->encode_order = PyMem_Malloc(nencode * sizeof(Py_ssize_t));
+    if (info->encode_order == NULL) {
+        PyErr_NoMemory();
+        goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < nencode; i++) {
+        Py_ssize_t index = PyLong_AsSsize_t(PyTuple_GET_ITEM(encode_order, i));
+        if (index == -1 && PyErr_Occurred()) goto cleanup;
+        info->encode_order[i] = index;
+    }
+    info->nencode = nencode;
     Py_INCREF(field_defaults);
     info->defaults = field_defaults;
     Py_INCREF(cls);
@@ -9051,6 +9074,7 @@ cleanup:
     Py_XDECREF(field_defaults);
     Py_XDECREF(pre_init);
     Py_XDECREF(post_init);
+    Py_XDECREF(encode_order);
     return (PyObject *)info;
 }
 
@@ -9159,6 +9183,7 @@ DataclassInfo_dealloc(DataclassInfo *self)
 {
     PyObject_GC_UnTrack(self);
     DataclassInfo_clear(self);
+    PyMem_Free(self->encode_order);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -9771,6 +9796,8 @@ typedef struct EncoderState {
     enum order_mode order;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
     bool in_decimal_callable;
+    TypeNode *type;             /* declared type of the encoded object, or NULL */
+    bool from_attributes;       /* read declared fields from other objects by attribute */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
@@ -9786,6 +9813,10 @@ typedef struct Encoder {
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
     enum order_mode order;
+    PyObject *orig_type;
+    TypeNode *type;  /* NULL if objects are encoded without a declared type */
+    PyObject *type_owner;  /* capsule that frees `type`, or NULL */
+    bool from_attributes;
 } Encoder;
 
 static PyTypeObject Encoder_Type;
@@ -9837,40 +9868,649 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
     return 0;
 }
 
+/*************************************************************************
+ * Typed Encoding Utilities                                              *
+ *************************************************************************/
+
+/* Declared types that limit which fields of a value are encoded */
+#define MS_TYPED_FIELDS ( \
+    MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY | \
+    MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION | \
+    MS_TYPE_DATACLASS | MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE \
+)
+
+/* Declared types whose encoding may differ from encoding without a type,
+ * depending on their item types */
+#define MS_TYPED_ENCODE_MASK ( \
+    MS_TYPED_FIELDS | MS_ANY_DICT | MS_TYPE_FIXTUPLE | \
+    MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET \
+)
+
+static bool _typenode_has_fields_nested(TypeNode *type);
+
+/* Whether encoding a value as `type` can differ from encoding it without a
+ * declared type: true if `type`, or an item type of a container it declares,
+ * is a type with fields. */
+static MS_INLINE bool
+typenode_has_fields(TypeNode *type) {
+    if (MS_LIKELY(!(type->types & MS_TYPED_ENCODE_MASK))) return false;
+    if (type->types & MS_TYPED_FIELDS) return true;
+    return _typenode_has_fields_nested(type);
+}
+
+static bool
+_typenode_has_fields_nested(TypeNode *type) {
+    uint64_t t = type->types;
+    if (t & MS_ANY_DICT) {
+        TypeNode *key_type, *val_type;
+        TypeNode_get_dict(type, &key_type, &val_type);
+        if (typenode_has_fields(val_type)) return true;
+    }
+    if (t & (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        if (typenode_has_fields(TypeNode_get_array(type))) return true;
+    }
+    if (t & MS_TYPE_FIXTUPLE) {
+        Py_ssize_t offset, size;
+        TypeNode_get_fixtuple(type, &offset, &size);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            if (typenode_has_fields(type->details[offset + i].pointer)) return true;
+        }
+    }
+    return false;
+}
+
+static MS_INLINE bool
+ms_is_any_dict(PyObject *obj) {
+#if PY315_PLUS
+    return PyDict_Check(obj) || PyFrozenDict_Check(obj);
+#else
+    return PyDict_Check(obj);
+#endif
+}
+
+/* Whether `obj` is encoded the same way whatever its declared type is */
+static bool
+typed_is_plain_value(MsgspecState *mod, PyTypeObject *type, PyObject *obj) {
+    return (
+        obj == Py_None ||
+        obj == UNSET ||
+        PyLong_Check(obj) ||
+        PyFloat_Check(obj) ||
+        PyUnicode_Check(obj) ||
+        PyBytes_Check(obj) ||
+        PyByteArray_Check(obj) ||
+        PyMemoryView_Check(obj) ||
+        type == &Raw_Type ||
+        type == &Ext_Type ||
+        PyObject_TypeCheck(obj, PyDateTimeAPI->DateType) ||
+        PyObject_TypeCheck(obj, PyDateTimeAPI->TimeType) ||
+        PyObject_TypeCheck(obj, PyDateTimeAPI->DeltaType) ||
+        type == (PyTypeObject *)(mod->DecimalType) ||
+        PyType_IsSubtype(type, (PyTypeObject *)(mod->UUIDType)) ||
+        PyType_IsSubtype(Py_TYPE(type), mod->EnumMetaType)
+    );
+}
+
+/* Returns the StructInfo of the closest base of `cls` that is a member of the
+ * struct union `lookup`, or NULL if there is none. */
+static StructInfo *
+struct_union_find_base(Lookup *lookup, PyTypeObject *cls) {
+    PyObject *mro = cls->tp_mro;
+    for (Py_ssize_t m = 0; m < PyTuple_GET_SIZE(mro); m++) {
+        PyObject *base = PyTuple_GET_ITEM(mro, m);
+        if (Lookup_IsStrLookup(lookup)) {
+            StrLookup *lk = (StrLookup *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                StructInfo *info = (StructInfo *)(lk->table[i].value);
+                if (info != NULL && (PyObject *)(info->class) == base) return info;
+            }
+        }
+        else if (((IntLookup *)lookup)->compact) {
+            IntLookupCompact *lk = (IntLookupCompact *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                StructInfo *info = (StructInfo *)(lk->table[i]);
+                if (info != NULL && (PyObject *)(info->class) == base) return info;
+            }
+        }
+        else {
+            IntLookupHashmap *lk = (IntLookupHashmap *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                StructInfo *info = (StructInfo *)(lk->table[i].value);
+                if (info != NULL && (PyObject *)(info->class) == base) return info;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Returns the StructInfo to encode an instance of the struct type `cls` with,
+ * or NULL if `cls` is not the declared struct type, a declared union member,
+ * or a subclass of either. */
+static StructInfo *
+typed_struct_info_for(TypeNode *type, PyTypeObject *cls) {
+    if (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
+        StructInfo *info = TypeNode_get_struct_info(type);
+        if (PyType_IsSubtype(cls, (PyTypeObject *)(info->class))) return info;
+    }
+    else if (type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION)) {
+        return struct_union_find_base(TypeNode_get_struct_union(type), cls);
+    }
+    return NULL;
+}
+
+/* Get field #index of the declared struct type on obj, an instance of that
+ * type or a subclass. Returns a borrowed reference, or NULL with an error set */
+static MS_INLINE PyObject *
+struct_get_declared_index(StructMetaObject *st_type, PyObject *obj, Py_ssize_t index) {
+    PyObject *val = *(PyObject **)((char *)obj + st_type->struct_offsets[index]);
+    if (MS_UNLIKELY(val == NULL)) {
+        PyErr_Format(PyExc_AttributeError,
+                     "Struct field %R is unset",
+                     PyTuple_GET_ITEM(st_type->struct_fields, index));
+    }
+    return val;
+}
+
+/* The declared fields read from a value that is not an instance of its
+ * declared struct type, or that is a dataclass, attrs or TypedDict value. */
+typedef struct {
+    PyObject *key;  /* str, borrowed */
+    PyObject *val;  /* owned */
+    TypeNode *type;
+} TypedField;
+
+typedef struct {
+    bool array_like;
+    bool is_typeddict;  /* keys are escaped, and sorted under any `order` */
+    PyObject *tag_field;  /* borrowed, or NULL */
+    PyObject *tag_value;  /* borrowed, or NULL */
+    Py_ssize_t size;
+    TypedField fields[];
+} TypedFields;
+
+static TypedFields *
+TypedFields_New(Py_ssize_t capacity) {
+    TypedFields *out = PyMem_Malloc(
+        sizeof(TypedFields) + capacity * sizeof(TypedField)
+    );
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->array_like = false;
+    out->is_typeddict = false;
+    out->tag_field = NULL;
+    out->tag_value = NULL;
+    out->size = 0;
+    return out;
+}
+
+static void
+TypedFields_Free(TypedFields *self) {
+    if (self == NULL) return;
+    for (Py_ssize_t i = 0; i < self->size; i++) {
+        Py_DECREF(self->fields[i].val);
+    }
+    PyMem_Free(self);
+}
+
+/* Steals a reference to val */
+static MS_INLINE void
+TypedFields_Append(TypedFields *self, PyObject *key, PyObject *val, TypeNode *type) {
+    self->fields[self->size].key = key;
+    self->fields[self->size].val = val;
+    self->fields[self->size].type = type;
+    self->size++;
+}
+
+/* The type a struct tag is encoded as when it is sorted with the fields */
+static TypeNode typed_tag_type = {MS_TYPE_ANY};
+
+static int
+_TypedField_compare(const void *a, const void *b) {
+    /* Code point order, which is the UTF-8 byte order AssocList_Sort uses */
+    return PyUnicode_Compare(((TypedField *)a)->key, ((TypedField *)b)->key);
+}
+
+/* Sort fields by key, as `order` sorts struct fields and dict keys. A tag is
+ * sorted with the fields. Requires a free slot for the tag. */
+static void
+TypedFields_Sort(TypedFields *self) {
+    if (self->tag_value != NULL) {
+        Py_INCREF(self->tag_value);
+        TypedFields_Append(self, self->tag_field, self->tag_value, &typed_tag_type);
+        self->tag_field = NULL;
+        self->tag_value = NULL;
+    }
+    qsort(self->fields, self->size, sizeof(TypedField), _TypedField_compare);
+}
+
+/* Whether `order` sorts these fields: TypedDict keys under any order, like
+ * dict keys, and other fields with ORDER_SORTED only, like struct fields */
+static MS_INLINE bool
+typed_fields_sorted(TypedFields *fields, enum order_mode order) {
+    if (fields->array_like || order == ORDER_DEFAULT) return false;
+    return order == ORDER_SORTED || fields->is_typeddict;
+}
+
+enum typed_source {
+    TYPED_SOURCE_DICT,
+    TYPED_SOURCE_MAPPING,
+    TYPED_SOURCE_OBJECT,
+};
+
+static MS_INLINE enum typed_source
+typed_source_of(PyObject *obj) {
+    if (PyDict_Check(obj)) return TYPED_SOURCE_DICT;
+    if (PyMapping_Check(obj) && !PyList_Check(obj) && !PyTuple_Check(obj)) {
+        return TYPED_SOURCE_MAPPING;
+    }
+    return TYPED_SOURCE_OBJECT;
+}
+
+/* Read field `name`, or `alt_name` if it is not NULL and `name` is missing,
+ * from obj: a dict by key, a mapping by attribute then by key, any other
+ * object by attribute. Returns a new reference, NULL with no error set if the
+ * field is missing (an AttributeError or KeyError), or NULL with an error set
+ * for any other error. */
+static PyObject *
+typed_read_field(
+    PyObject *obj, enum typed_source source, PyObject *name, PyObject *alt_name
+) {
+    PyObject *out = NULL;
+    if (source == TYPED_SOURCE_DICT) {
+        if (PyDict_GetItemRef(obj, name, &out) < 0) return NULL;
+    }
+    else {
+        out = PyObject_GetAttr(obj, name);
+        if (out == NULL) {
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError)) return NULL;
+            PyErr_Clear();
+            if (source == TYPED_SOURCE_MAPPING) {
+                out = PyObject_GetItem(obj, name);
+                if (out == NULL) {
+                    if (!PyErr_ExceptionMatches(PyExc_KeyError)) return NULL;
+                    PyErr_Clear();
+                }
+            }
+        }
+    }
+    if (out == NULL && alt_name != NULL && !PyErr_Occurred()) {
+        return typed_read_field(obj, source, alt_name, NULL);
+    }
+    return out;
+}
+
+static void
+typed_missing_field(MsgspecState *mod, PyObject *obj, PyObject *field) {
+    PyErr_Format(
+        mod->EncodeError,
+        "Object of type `%s` is missing required field `%U`",
+        Py_TYPE(obj)->tp_name, field
+    );
+}
+
+static TypedFields *
+TypedFields_FromStruct(MsgspecState *mod, PyObject *obj, StructInfo *info) {
+    StructMetaObject *st_type = info->class;
+    PyObject *fields = st_type->struct_fields;
+    PyObject *encode_fields = st_type->struct_encode_fields;
+    PyObject *defaults = st_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool array_like = st_type->array_like == OPT_TRUE;
+    bool omit_defaults = !array_like && st_type->omit_defaults == OPT_TRUE;
+    enum typed_source source = typed_source_of(obj);
+
+    /* One extra slot for the tag, see TypedFields_Sort */
+    TypedFields *out = TypedFields_New(nfields + 1);
+    if (out == NULL) return NULL;
+    out->array_like = array_like;
+    out->tag_field = st_type->struct_tag_field;
+    out->tag_value = st_type->struct_tag_value;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *name = PyTuple_GET_ITEM(fields, i);
+        PyObject *encode_name = PyTuple_GET_ITEM(encode_fields, i);
+        PyObject *default_val = (
+            (i >= npos) ? PyTuple_GET_ITEM(defaults, i - npos) : NODEFAULT
+        );
+        PyObject *val;
+        if (source == TYPED_SOURCE_DICT) {
+            /* Dicts are keyed by encoded field names */
+            val = typed_read_field(obj, source, encode_name, NULL);
+        }
+        else {
+            val = typed_read_field(
+                obj, source, name, (name == encode_name) ? NULL : encode_name
+            );
+        }
+        if (val == NULL) {
+            if (PyErr_Occurred()) goto error;
+            if (default_val == NODEFAULT) {
+                typed_missing_field(mod, obj, encode_name);
+                goto error;
+            }
+            val = get_default(default_val);
+            if (val == NULL) goto error;
+        }
+        if (
+            (!array_like && val == UNSET) ||
+            (omit_defaults && default_val != NODEFAULT && is_default(val, default_val))
+        ) {
+            Py_DECREF(val);
+            continue;
+        }
+        TypedFields_Append(out, encode_name, val, info->types[i]);
+    }
+    return out;
+
+error:
+    TypedFields_Free(out);
+    return NULL;
+}
+
+/* Read the declared fields of a struct from obj, an instance of the declared
+ * struct type or a subclass, skipping fields the encoders leave out. */
+static TypedFields *
+TypedFields_FromStructInstance(
+    StructMetaObject *st_type, TypeNode **types, PyObject *obj
+) {
+    PyObject *fields = st_type->struct_encode_fields;
+    PyObject *defaults = st_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = st_type->omit_defaults == OPT_TRUE;
+
+    /* One extra slot for the tag, see TypedFields_Sort */
+    TypedFields *out = TypedFields_New(nfields + 1);
+    if (out == NULL) return NULL;
+    out->array_like = st_type->array_like == OPT_TRUE;
+    out->tag_field = st_type->struct_tag_field;
+    out->tag_value = st_type->struct_tag_value;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = struct_get_declared_index(st_type, obj, i);
+        if (val == NULL) {
+            TypedFields_Free(out);
+            return NULL;
+        }
+        if (val == UNSET) continue;
+        if (
+            omit_defaults && i >= npos &&
+            is_default(val, PyTuple_GET_ITEM(defaults, i - npos))
+        ) {
+            continue;
+        }
+        Py_INCREF(val);
+        TypedFields_Append(out, PyTuple_GET_ITEM(fields, i), val, types[i]);
+    }
+    return out;
+}
+
+static TypedFields *
+TypedFields_FromStructUnion(MsgspecState *mod, PyObject *obj, TypeNode *type) {
+    Lookup *lookup = TypeNode_get_struct_union(type);
+    PyObject *tag_field = Lookup_tag_field(lookup);
+    PyObject *tag = typed_read_field(obj, typed_source_of(obj), tag_field, NULL);
+    if (tag == NULL) {
+        if (!PyErr_Occurred()) typed_missing_field(mod, obj, tag_field);
+        return NULL;
+    }
+
+    StructInfo *info = NULL;
+    if (Lookup_IsStrLookup(lookup)) {
+        if (PyUnicode_Check(tag)) {
+            Py_ssize_t size;
+            const char *buf = unicode_str_and_size(tag, &size);
+            if (buf != NULL) {
+                info = (StructInfo *)StrLookup_Get((StrLookup *)lookup, buf, size);
+            }
+        }
+    }
+    else if (PyLong_Check(tag)) {
+        int overflow;
+        long long val = PyLong_AsLongLongAndOverflow(tag, &overflow);
+        if (!overflow && !(val == -1 && PyErr_Occurred())) {
+            info = (StructInfo *)IntLookup_GetInt64((IntLookup *)lookup, val);
+        }
+    }
+    if (info == NULL && !PyErr_Occurred()) {
+        PyErr_Format(
+            mod->EncodeError, "Invalid value %R for tag field `%U`", tag, tag_field
+        );
+    }
+    Py_DECREF(tag);
+    if (info == NULL) return NULL;
+    return TypedFields_FromStruct(mod, obj, info);
+}
+
+/* Read the encoded fields of a dataclass or attrs type from obj, in
+ * declaration order. An instance of the declared class (or a subclass) skips
+ * fields it has no attribute for, as encoding it without a type does. Any
+ * other value has missing fields take their default. */
+static TypedFields *
+TypedFields_FromDataclass(MsgspecState *mod, PyObject *obj, DataclassInfo *info) {
+    Py_ssize_t nfields = Py_SIZE(info);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(info->defaults);
+    bool is_instance = PyObject_TypeCheck(obj, (PyTypeObject *)(info->class));
+    enum typed_source source = (
+        is_instance ? TYPED_SOURCE_OBJECT : typed_source_of(obj)
+    );
+
+    TypedFields *out = TypedFields_New(info->nencode);
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t j = 0; j < info->nencode; j++) {
+        Py_ssize_t i = info->encode_order[j];
+        PyObject *key = info->fields[i].key;
+        TypeNode *field_type = info->fields[i].type;
+        PyObject *val = typed_read_field(obj, source, key, NULL);
+        if (val == NULL) {
+            if (PyErr_Occurred()) goto error;
+            if (is_instance) continue;
+            if (i < npos) {
+                typed_missing_field(mod, obj, key);
+                goto error;
+            }
+            PyObject *default_val = PyTuple_GET_ITEM(info->defaults, i - npos);
+            /* The extra flag marks a default factory */
+            if (field_type->types & MS_EXTRA_FLAG) {
+                val = PyObject_CallNoArgs(default_val);
+                if (val == NULL) goto error;
+            }
+            else {
+                Py_INCREF(default_val);
+                val = default_val;
+            }
+        }
+        if (val == UNSET) {
+            Py_DECREF(val);
+            continue;
+        }
+        TypedFields_Append(out, key, val, field_type);
+    }
+    return out;
+
+error:
+    TypedFields_Free(out);
+    return NULL;
+}
+
+/* Read the declared keys of a TypedDict from a mapping. Keys of a dict are
+ * kept in the dict's order. */
+static TypedFields *
+TypedFields_FromTypedDict(MsgspecState *mod, PyObject *obj, TypedDictInfo *info) {
+    if (TypedDictInfo_check_initialized(info) < 0) return NULL;
+    Py_ssize_t nfields = Py_SIZE(info);
+    Py_ssize_t nrequired = 0;
+
+    TypedFields *out = TypedFields_New(nfields);
+    if (out == NULL) return NULL;
+    out->is_typeddict = true;
+
+    if (PyDict_Check(obj)) {
+        PyObject *key, *val;
+        Py_ssize_t pos = 0, hint = 0;
+        int err = 0;
+        Py_BEGIN_CRITICAL_SECTION(obj);
+        while (out->size < nfields && PyDict_Next(obj, &pos, &key, &val)) {
+            if (!PyUnicode_Check(key)) continue;
+            Py_ssize_t key_size;
+            const char *key_buf = unicode_str_and_size(key, &key_size);
+            if (key_buf == NULL) {
+                err = 1;
+                break;
+            }
+            TypeNode *field_type;
+            PyObject *field = TypedDictInfo_lookup_key(
+                info, key_buf, key_size, &field_type, &hint
+            );
+            if (field == NULL) continue;
+            if (field_type->types & MS_EXTRA_FLAG) nrequired++;
+            Py_INCREF(val);
+            TypedFields_Append(out, field, val, field_type);
+        }
+        Py_END_CRITICAL_SECTION();
+        if (err) goto error;
+    }
+    else {
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *field = info->fields[i].key;
+            TypeNode *field_type = info->fields[i].type;
+            /* Item lookup only, to avoid collisions with mapping methods. */
+            PyObject *val = PyObject_GetItem(obj, field);
+            if (val == NULL) {
+                if (!PyErr_ExceptionMatches(PyExc_KeyError)) goto error;
+                PyErr_Clear();
+                continue;
+            }
+            if (field_type->types & MS_EXTRA_FLAG) nrequired++;
+            TypedFields_Append(out, field, val, field_type);
+        }
+    }
+
+    if (nrequired < info->nrequired) {
+        /* The extra flag marks a required key */
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            if (!(info->fields[i].type->types & MS_EXTRA_FLAG)) continue;
+            bool found = false;
+            for (Py_ssize_t j = 0; j < out->size; j++) {
+                if (out->fields[j].key == info->fields[i].key) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                typed_missing_field(mod, obj, info->fields[i].key);
+                goto error;
+            }
+        }
+    }
+    return out;
+
+error:
+    TypedFields_Free(out);
+    return NULL;
+}
+
+/* Read the fields declared by `type` from `obj`, a value that is not an
+ * instance of the declared struct type, the way `convert` reads them: a dict
+ * by encoded field name, another mapping by attribute then by key, and any
+ * other object by attribute if `from_attributes` is true. Dataclass and attrs
+ * instances of the declared class are read here too. Returns NULL with no
+ * error set if no fields are read from `obj`, which is then encoded as it
+ * is. */
+static TypedFields *
+TypedFields_FromValue(
+    MsgspecState *mod, PyObject *obj, TypeNode *type, bool from_attributes
+) {
+    uint64_t t = type->types;
+    if (t & MS_TYPE_DATACLASS) {
+        DataclassInfo *info = TypeNode_get_dataclass_info(type);
+        if (PyObject_TypeCheck(obj, (PyTypeObject *)(info->class))) {
+            return TypedFields_FromDataclass(mod, obj, info);
+        }
+    }
+    enum typed_source source = typed_source_of(obj);
+    if (source == TYPED_SOURCE_OBJECT && !from_attributes) return NULL;
+    if (t & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
+        return TypedFields_FromStruct(mod, obj, TypeNode_get_struct_info(type));
+    }
+    if (t & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION)) {
+        return TypedFields_FromStructUnion(mod, obj, type);
+    }
+    if (t & MS_TYPE_DATACLASS) {
+        return TypedFields_FromDataclass(mod, obj, TypeNode_get_dataclass_info(type));
+    }
+    if ((t & MS_TYPE_TYPEDDICT) && source != TYPED_SOURCE_OBJECT) {
+        return TypedFields_FromTypedDict(mod, obj, TypeNode_get_typeddict_info(type));
+    }
+    return NULL;
+}
+
+static void
+TypeNode_capsule_destructor(PyObject *capsule) {
+    TypeNode_Free(PyCapsule_GetPointer(capsule, NULL));
+}
+
+/* Convert the `type` argument of an encoder. Sets `*out` to NULL if objects
+ * of this type are encoded the same as without a declared type. */
+static int
+ms_encoder_convert_type(PyObject *type, TypeNode **out) {
+    *out = NULL;
+    if (type == msgspec_get_global_state()->typing_any) return 0;
+    TypeNode *node = TypeNode_Convert(type);
+    if (node == NULL) return -1;
+    if (!typenode_has_fields(node)) {
+        TypeNode_Free(node);
+        return 0;
+    }
+    *out = node;
+    return 0;
+}
+
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", "decimal_format", "uuid_format", "order", NULL};
+    char *kwlist[] = {
+        "type", "enc_hook", "decimal_format", "uuid_format", "order",
+        "from_attributes", NULL
+    };
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *type = st->typing_any;
     PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL, *order = NULL;
+    int from_attributes = false;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwds, "|$OOOO", kwlist,
-            &enc_hook, &decimal_format, &uuid_format, &order
+            args, kwds, "|O$OOOOp", kwlist,
+            &type, &enc_hook, &decimal_format, &uuid_format, &order,
+            &from_attributes
         )
     ) {
         return -1;
     }
 
     /* Process decimal format */
-    self->decimal_callable = NULL;
+    enum decimal_format decimal_format_mode;
+    PyObject *decimal_callable = NULL;
     if (decimal_format == NULL) {
-        self->decimal_format = DECIMAL_FORMAT_STRING;
+        decimal_format_mode = DECIMAL_FORMAT_STRING;
     }
     else if (PyCallable_Check(decimal_format)) {
-        self->decimal_format = DECIMAL_FORMAT_CALLABLE;
-        Py_INCREF(decimal_format);
-        self->decimal_callable = decimal_format;
+        decimal_format_mode = DECIMAL_FORMAT_CALLABLE;
+        decimal_callable = decimal_format;
     }
     else {
         bool ok = false;
         if (PyUnicode_CheckExact(decimal_format)) {
             if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_STRING;
+                decimal_format_mode = DECIMAL_FORMAT_STRING;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
-                self->decimal_format = DECIMAL_FORMAT_NUMBER;
+                decimal_format_mode = DECIMAL_FORMAT_NUMBER;
                 ok = true;
             }
         }
@@ -9885,23 +10525,24 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process uuid format */
+    enum uuid_format uuid_format_mode;
     if (uuid_format == NULL) {
-        self->uuid_format = UUID_FORMAT_CANONICAL;
+        uuid_format_mode = UUID_FORMAT_CANONICAL;
     }
     else {
         bool is_msgpack = Py_TYPE(self) == &Encoder_Type;
         bool ok = false;
         if (PyUnicode_CheckExact(uuid_format)) {
             if (PyUnicode_CompareWithASCIIString(uuid_format, "canonical") == 0) {
-                self->uuid_format = UUID_FORMAT_CANONICAL;
+                uuid_format_mode = UUID_FORMAT_CANONICAL;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(uuid_format, "hex") == 0) {
-                self->uuid_format = UUID_FORMAT_HEX;
+                uuid_format_mode = UUID_FORMAT_HEX;
                 ok = true;
             }
             else if (is_msgpack && PyUnicode_CompareWithASCIIString(uuid_format, "bytes") == 0) {
-                self->uuid_format = UUID_FORMAT_BYTES;
+                uuid_format_mode = UUID_FORMAT_BYTES;
                 ok = true;
             }
         }
@@ -9917,22 +10558,47 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     }
 
     /* Process order */
-    self->order = parse_order_arg(order);
-    if (self->order == ORDER_INVALID) return -1;
+    enum order_mode order_mode = parse_order_arg(order);
+    if (order_mode == ORDER_INVALID) return -1;
 
+    /* Process enc_hook */
     if (enc_hook == Py_None) {
         enc_hook = NULL;
     }
-    if (enc_hook != NULL) {
-        if (!PyCallable_Check(enc_hook)) {
-            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
-            return -1;
-        }
-        Py_INCREF(enc_hook);
+    if (enc_hook != NULL && !PyCallable_Check(enc_hook)) {
+        PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+        return -1;
     }
 
-    self->mod = msgspec_get_global_state();
-    self->enc_hook = enc_hook;
+    /* Process type */
+    TypeNode *type_node = NULL;
+    PyObject *type_owner = NULL;
+    if (ms_encoder_convert_type(type, &type_node) < 0) return -1;
+    if (type_node != NULL) {
+        type_owner = PyCapsule_New(type_node, NULL, TypeNode_capsule_destructor);
+        if (type_owner == NULL) {
+            TypeNode_Free(type_node);
+            return -1;
+        }
+    }
+
+    /* Nothing below fails, so a failed re-initialization leaves the encoder
+     * unchanged */
+    self->mod = st;
+    self->decimal_format = decimal_format_mode;
+    Py_XINCREF(decimal_callable);
+    Py_XSETREF(self->decimal_callable, decimal_callable);
+    self->uuid_format = uuid_format_mode;
+    self->order = order_mode;
+    Py_XINCREF(enc_hook);
+    Py_XSETREF(self->enc_hook, enc_hook);
+    /* An encode running during re-initialization keeps its own reference
+     * to the previous `type_owner` */
+    self->type = type_node;
+    Py_XSETREF(self->type_owner, type_owner);
+    self->from_attributes = from_attributes;
+    Py_INCREF(type);
+    Py_XSETREF(self->orig_type, type);
     return 0;
 }
 
@@ -9941,7 +10607,8 @@ Encoder_traverse(Encoder *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->enc_hook);
     Py_VISIT(self->decimal_callable);
-    return 0;
+    Py_VISIT(self->orig_type);
+    return TypeNode_traverse(self->type, visit, arg);
 }
 
 static int
@@ -9949,6 +10616,9 @@ Encoder_clear(Encoder *self)
 {
     Py_CLEAR(self->enc_hook);
     Py_CLEAR(self->decimal_callable);
+    Py_CLEAR(self->orig_type);
+    self->type = NULL;
+    Py_CLEAR(self->type_owner);
     return 0;
 }
 
@@ -10019,6 +10689,8 @@ encoder_encode_into_common(
     }
 
     /* Setup buffer */
+    PyObject *type_owner = self->type_owner;
+    Py_XINCREF(type_owner);
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
@@ -10027,6 +10699,8 @@ encoder_encode_into_common(
         .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -10034,7 +10708,9 @@ encoder_encode_into_common(
         .resize_buffer = ms_resize_bytearray
     };
 
-    if (encode(&state, obj) < 0) {
+    int status = encode(&state, obj);
+    Py_XDECREF(type_owner);
+    if (status < 0) {
         return NULL;
     }
 
@@ -10068,6 +10744,7 @@ encoder_encode_common(
 {
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
 
+    PyObject *type_owner = self->type_owner;
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
@@ -10076,6 +10753,8 @@ encoder_encode_common(
         .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -10084,7 +10763,10 @@ encoder_encode_common(
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
-    if (encode(&state, args[0]) < 0) {
+    Py_XINCREF(type_owner);
+    int status = encode(&state, args[0]);
+    Py_XDECREF(type_owner);
+    if (status < 0) {
         Py_DECREF(state.output_buffer);
         return NULL;
     }
@@ -10098,10 +10780,11 @@ encode_common(
     PyObject *const *args,
     Py_ssize_t nargs,
     PyObject *kwnames,
-    int(*encode)(EncoderState*, PyObject*)
+    int(*encode)(EncoderState*, PyObject*),
+    int(*encode_typed)(EncoderState*, PyObject*)
 )
 {
-    PyObject *enc_hook = NULL, *order = NULL;
+    PyObject *enc_hook = NULL, *order = NULL, *type = NULL, *from_attributes = NULL;
     MsgspecState *mod = msgspec_get_state(module);
 
     /* Parse arguments */
@@ -10110,6 +10793,8 @@ encode_common(
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((enc_hook = find_keyword(kwnames, args + nargs, mod->str_enc_hook)) != NULL) nkwargs--;
         if ((order = find_keyword(kwnames, args + nargs, mod->str_order)) != NULL) nkwargs--;
+        if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((from_attributes = find_keyword(kwnames, args + nargs, mod->str_from_attributes)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -10142,20 +10827,36 @@ encode_common(
     state.order = parse_order_arg(order);
     if (state.order == ORDER_INVALID) return NULL;
 
+    if (from_attributes != NULL) {
+        int truth = PyObject_IsTrue(from_attributes);
+        if (truth < 0) return NULL;
+        state.from_attributes = truth;
+    }
+
+    if (type != NULL) {
+        if (ms_encoder_convert_type(type, &state.type) < 0) return NULL;
+    }
+
+    PyObject *out = NULL;
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
-    if (state.output_buffer == NULL) return NULL;
+    if (state.output_buffer == NULL) goto cleanup;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
-    if (encode(&state, args[0]) < 0) {
+    if ((state.type == NULL ? encode : encode_typed)(&state, args[0]) < 0) {
         Py_DECREF(state.output_buffer);
-        return NULL;
+        goto cleanup;
     }
     FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
-    return state.output_buffer;
+    out = state.output_buffer;
+cleanup:
+    TypeNode_Free(state.type);
+    return out;
 }
 
 static PyMemberDef Encoder_members[] = {
     {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, NULL},
+    {"type", T_OBJECT, offsetof(Encoder, orig_type), READONLY, NULL},
+    {"from_attributes", T_BOOL, offsetof(Encoder, from_attributes), READONLY, NULL},
     {NULL},
 };
 
@@ -12757,13 +13458,23 @@ maybe_parse_number(
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
+"Encoder(type='Any', *, from_attributes=False, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
 "\n"
 "Parameters\n"
 "----------\n"
+"type : type, optional\n"
+"    The declared type of the objects to encode, in type annotation form.\n"
+"    Struct, dataclass, attrs and TypedDict values are encoded with only the\n"
+"    fields their declared type defines. The declared fields of a mapping in\n"
+"    their place are read as ``convert`` reads them, and a missing required\n"
+"    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
+"    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -12836,6 +13547,8 @@ enum mpack_code {
 static int mpack_encode_inline(EncoderState *self, PyObject *obj);
 static int mpack_encode_dict_key_inline(EncoderState *self, PyObject *obj);
 static int mpack_encode(EncoderState *self, PyObject *obj);
+static int mpack_encode_typed(EncoderState *self, PyObject *obj, TypeNode *type);
+static int mpack_encode_typed_fields(EncoderState *self, TypedFields *fields);
 
 static int
 mpack_encode_none(EncoderState *self)
@@ -13427,9 +14140,20 @@ cleanup:
     return status;
 }
 
+/* Encode field #i of a struct, as `types[i]` if the struct is encoded as a
+ * declared type, or without a type if `types` is NULL */
+static MS_INLINE int
+mpack_encode_struct_field(
+    EncoderState *self, PyObject *val, TypeNode **types, Py_ssize_t i
+) {
+    if (types == NULL) return mpack_encode(self, val);
+    return mpack_encode_typed(self, val, types[i]);
+}
+
 static int
 mpack_encode_struct_array(
-    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj,
+    TypeNode **types
 ) {
     int status = -1;
     PyObject *tag_value = struct_type->struct_tag_value;
@@ -13445,8 +14169,9 @@ mpack_encode_struct_array(
         if (mpack_encode(self, tag_value) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *val = Struct_get_index(obj, i);
-        if (val == NULL || mpack_encode(self, val) < 0) goto cleanup;
+        PyObject *val = struct_get_declared_index(struct_type, obj, i);
+        if (val == NULL) goto cleanup;
+        if (mpack_encode_struct_field(self, val, types, i) < 0) goto cleanup;
     }
     status = 0;
 cleanup:
@@ -13456,10 +14181,19 @@ cleanup:
 
 static int
 mpack_encode_struct_object(
-    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj,
+    TypeNode **types
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
-        return mpack_encode_and_free_assoclist(self, AssocList_FromStruct(obj));
+        if (types == NULL) {
+            return mpack_encode_and_free_assoclist(self, AssocList_FromStruct(obj));
+        }
+        TypedFields *typed = TypedFields_FromStructInstance(struct_type, types, obj);
+        if (typed == NULL) return -1;
+        TypedFields_Sort(typed);
+        int status = mpack_encode_typed_fields(self, typed);
+        TypedFields_Free(typed);
+        return status;
     }
 
     int status = -1;
@@ -13486,19 +14220,19 @@ mpack_encode_struct_object(
     }
     for (Py_ssize_t i = 0; i < nunchecked; i++) {
         PyObject *key = PyTuple_GET_ITEM(fields, i);
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = struct_get_declared_index(struct_type, obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) {
             actual_len--;
         }
         else {
             if (mpack_encode_str(self, key) < 0) goto cleanup;
-            if (mpack_encode(self, val) < 0) goto cleanup;
+            if (mpack_encode_struct_field(self, val, types, i) < 0) goto cleanup;
         }
     }
     for (Py_ssize_t i = nunchecked; i < nfields; i++) {
         PyObject *key = PyTuple_GET_ITEM(fields, i);
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = struct_get_declared_index(struct_type, obj, i);
         if (val == NULL) goto cleanup;
         PyObject *default_val = PyTuple_GET_ITEM(
             struct_type->struct_defaults, i - nunchecked
@@ -13508,7 +14242,7 @@ mpack_encode_struct_object(
         }
         else {
             if (mpack_encode_str(self, key) < 0) goto cleanup;
-            if (mpack_encode(self, val) < 0) goto cleanup;
+            if (mpack_encode_struct_field(self, val, types, i) < 0) goto cleanup;
         }
     }
     if (MS_UNLIKELY(actual_len != len)) {
@@ -13537,9 +14271,9 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
 
     if (struct_type->array_like == OPT_TRUE) {
-        return mpack_encode_struct_array(self, struct_type, obj);
+        return mpack_encode_struct_array(self, struct_type, obj, NULL);
     }
-    return mpack_encode_struct_object(self, struct_type, obj);
+    return mpack_encode_struct_object(self, struct_type, obj, NULL);
 }
 
 static int
@@ -13908,16 +14642,288 @@ mpack_encode(EncoderState *self, PyObject *obj) {
     return mpack_encode_inline(self, obj);
 }
 
+static int
+mpack_encode_struct_typed(EncoderState *self, StructInfo *info, PyObject *obj)
+{
+    if (info->class->array_like == OPT_TRUE) {
+        return mpack_encode_struct_array(self, info->class, obj, info->types);
+    }
+    return mpack_encode_struct_object(self, info->class, obj, info->types);
+}
+
+static int
+mpack_encode_typed_fields(EncoderState *self, TypedFields *fields)
+{
+    int status = -1;
+    bool array_like = fields->array_like;
+    int tagged = fields->tag_value != NULL;
+    Py_ssize_t len = fields->size + tagged;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (array_like) {
+        if (mpack_encode_array_header(self, len, "structs") < 0) goto cleanup;
+    }
+    else {
+        if (mpack_encode_map_header(self, len, "structs") < 0) goto cleanup;
+    }
+    if (tagged) {
+        if (!array_like) {
+            if (mpack_encode_str(self, fields->tag_field) < 0) goto cleanup;
+        }
+        if (mpack_encode(self, fields->tag_value) < 0) goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < fields->size; i++) {
+        TypedField *field = &(fields->fields[i]);
+        if (!array_like) {
+            if (mpack_encode_str(self, field->key) < 0) goto cleanup;
+        }
+        if (mpack_encode_typed(self, field->val, field->type) < 0) goto cleanup;
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+/* Encode `size` items from `arr`, item `i` as `types[i]`, or as `item_type`
+ * when `types` is NULL. */
+static int
+mpack_encode_sequence_typed(
+    EncoderState *self, Py_ssize_t size, PyObject **arr,
+    TypeNode *item_type, TypeNode **types, const char *typname
+) {
+    if (size == 0) return mpack_encode_empty_array(self);
+    if (mpack_encode_array_header(self, size, typname) < 0) return -1;
+
+    int status = 0;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        TypeNode *t = (types == NULL) ? item_type : types[i];
+        if (mpack_encode_typed(self, arr[i], t) < 0) {
+            status = -1;
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+/* Encode the items of a list or tuple as the namedtuple, fixed-length tuple or
+ * array parts of `type`. Returns 1 if no part of `type` matches. */
+static int
+mpack_encode_items_typed(
+    EncoderState *self, Py_ssize_t size, PyObject **arr, TypeNode *type,
+    const char *typname
+) {
+    uint64_t t = type->types;
+    if (t & MS_TYPE_NAMEDTUPLE) {
+        NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
+        if (Py_SIZE(info) == size) {
+            return mpack_encode_sequence_typed(
+                self, size, arr, NULL, info->types, typname
+            );
+        }
+    }
+    if (t & MS_TYPE_FIXTUPLE) {
+        Py_ssize_t offset, fixtuple_size;
+        TypeNode_get_fixtuple(type, &offset, &fixtuple_size);
+        if (fixtuple_size == size) {
+            return mpack_encode_sequence_typed(
+                self, size, arr, NULL, (TypeNode **)(type->details + offset), typname
+            );
+        }
+    }
+    if (t & (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        return mpack_encode_sequence_typed(
+            self, size, arr, TypeNode_get_array(type), NULL, typname
+        );
+    }
+    return 1;
+}
+
+static int
+mpack_encode_set_typed(EncoderState *self, PyObject *obj, TypeNode *item_type)
+{
+    if (!typenode_has_fields(item_type)) return mpack_encode_set(self, obj);
+    Py_ssize_t len = PySet_GET_SIZE(obj);
+    if (len == 0) return mpack_encode_empty_array(self);
+
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        PyObject *items = PySequence_List(obj);
+        if (items == NULL) return -1;
+        int status = -1;
+        if (PyList_Sort(items) == 0) {
+            status = mpack_encode_sequence_typed(
+                self, PyList_GET_SIZE(items), LIST_ITEMS(items), item_type, NULL, "set"
+            );
+        }
+        Py_DECREF(items);
+        return status;
+    }
+
+    int status = -1;
+    PyObject *item;
+    if (mpack_encode_array_header(self, len, "set") < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+    while ((item = PyIter_Next(iter))) {
+        int item_status = mpack_encode_typed(self, item, item_type);
+        Py_DECREF(item);
+        if (item_status < 0) goto cleanup;
+    }
+    if (PyErr_Occurred()) goto cleanup;
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
+    return status;
+}
+
+/* Encode `obj`, a dict with str keys, with its keys sorted and its values as
+ * `val_type` */
+static int
+mpack_encode_sorted_dict_typed(EncoderState *self, PyObject *obj, TypeNode *val_type)
+{
+    AssocList *list = AssocList_FromDict(obj);
+    if (list == NULL) return -1;
+    AssocList_Sort(list);
+
+    int status = -1;
+    if (mpack_encode_map_header(self, list->size, "dicts") < 0) goto cleanup2;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
+    for (Py_ssize_t i = 0; i < list->size; i++) {
+        AssocItem *item = &(list->items[i]);
+        if (mpack_encode_cstr(self, item->key, item->key_size) < 0) goto cleanup;
+        if (mpack_encode_typed(self, item->val, val_type) < 0) goto cleanup;
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    AssocList_Free(list);
+    return status;
+}
+
+static int
+mpack_encode_dict_typed(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    TypeNode *key_type, *val_type;
+    TypeNode_get_dict(type, &key_type, &val_type);
+    if (!typenode_has_fields(val_type)) return mpack_encode_dict(self, obj);
+    if (PyDict_GET_SIZE(obj) == 0) return mpack_encode_map_header(self, 0, "dicts");
+
+    /* Encode a copy, since reading fields may run Python code that changes
+     * the dict, and the map header holds its length. A frozendict can't
+     * change. */
+    PyObject *items = PyDict_Check(obj) ? PyDict_Copy(obj) : Py_NewRef(obj);
+    if (items == NULL) return -1;
+
+    PyObject *key, *val;
+    Py_ssize_t pos = 0;
+    int status = -1;
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        status = mpack_encode_sorted_dict_typed(self, items, val_type);
+        goto cleanup2;
+    }
+    if (mpack_encode_map_header(self, PyDict_GET_SIZE(items), "dicts") < 0) goto cleanup2;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
+    while (PyDict_Next(items, &pos, &key, &val)) {
+        if (mpack_encode_dict_key_inline(self, key) < 0) goto cleanup;
+        if (mpack_encode_typed(self, val, val_type) < 0) goto cleanup;
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    Py_DECREF(items);
+    return status;
+}
+
+/* Encode `obj` as the declared `type`. Struct, dataclass, attrs and TypedDict
+ * values are encoded with only the fields their declared type defines.
+ * Containers are encoded with their declared item types. Other values are
+ * encoded as by `mpack_encode`. */
+static int
+mpack_encode_typed_value(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    uint64_t t = type->types;
+    PyTypeObject *pytype = Py_TYPE(obj);
+    if (PyList_Check(obj)) {
+        /* Encode a snapshot, since reading fields may run Python code that
+         * resizes the list */
+        PyObject *items = PyList_AsTuple(obj);
+        if (items == NULL) return -1;
+        int status = mpack_encode_items_typed(
+            self, PyTuple_GET_SIZE(items), TUPLE_ITEMS(items), type, "list"
+        );
+        Py_DECREF(items);
+        if (status <= 0) return status;
+    }
+    else if (PyTuple_Check(obj)) {
+        int status = mpack_encode_items_typed(
+            self, PyTuple_GET_SIZE(obj), TUPLE_ITEMS(obj), type, "tuples"
+        );
+        if (status <= 0) return status;
+    }
+    else if (ms_is_any_dict(obj)) {
+        if (t & MS_ANY_DICT) return mpack_encode_dict_typed(self, obj, type);
+    }
+    else if (PyAnySet_Check(obj)) {
+        if (t & (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+            return mpack_encode_set_typed(self, obj, TypeNode_get_array(type));
+        }
+    }
+    else if (ms_is_struct_type(pytype)) {
+        StructInfo *info = typed_struct_info_for(type, pytype);
+        if (info != NULL) return mpack_encode_struct_typed(self, info, obj);
+    }
+
+    if (!(t & MS_TYPED_FIELDS) || typed_is_plain_value(self->mod, pytype, obj)) {
+        return mpack_encode(self, obj);
+    }
+    TypedFields *fields = TypedFields_FromValue(
+        self->mod, obj, type, self->from_attributes
+    );
+    if (fields == NULL) return PyErr_Occurred() ? -1 : mpack_encode(self, obj);
+    if (typed_fields_sorted(fields, self->order)) TypedFields_Sort(fields);
+    int status = mpack_encode_typed_fields(self, fields);
+    TypedFields_Free(fields);
+    return status;
+}
+
+static int
+mpack_encode_typed(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    if (MS_LIKELY(!typenode_has_fields(type))) return mpack_encode(self, obj);
+    /* Reading fields may run Python code that drops every other reference
+     * to obj */
+    Py_INCREF(obj);
+    int status = mpack_encode_typed_value(self, obj, type);
+    Py_DECREF(obj);
+    return status;
+}
+
+static int
+mpack_encode_typed_root(EncoderState *self, PyObject *obj)
+{
+    return mpack_encode_typed(self, obj, self->type);
+}
+
 static PyObject*
 Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_into_common(self, args, nargs, &mpack_encode);
+    return encoder_encode_into_common(
+        self, args, nargs, (self->type == NULL) ? &mpack_encode : &mpack_encode_typed_root
+    );
 }
 
 static PyObject*
 Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_common(self, args, nargs, &mpack_encode);
+    return encoder_encode_common(
+        self, args, nargs, (self->type == NULL) ? &mpack_encode : &mpack_encode_typed_root
+    );
 }
 
 static struct PyMethodDef Encoder_methods[] = {
@@ -13949,7 +14955,7 @@ static PyTypeObject Encoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
-"msgpack_encode(obj, /, *, enc_hook=None, order=None)\n"
+"msgpack_encode(obj, /, *, type='Any', from_attributes=False, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as MessagePack.\n"
@@ -13958,6 +14964,16 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "----------\n"
 "obj : Any\n"
 "    The object to serialize.\n"
+"type : type, optional\n"
+"    The declared type of ``obj``, in type annotation form.\n"
+"    Struct, dataclass, attrs and TypedDict values are encoded with only the\n"
+"    fields their declared type defines. The declared fields of a mapping in\n"
+"    their place are read as ``convert`` reads them, and a missing required\n"
+"    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
+"    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -13987,7 +15003,7 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 static PyObject*
 msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return encode_common(self, args, nargs, kwnames, &mpack_encode);
+    return encode_common(self, args, nargs, kwnames, &mpack_encode, &mpack_encode_typed_root);
 }
 
 /*************************************************************************
@@ -13995,13 +15011,23 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
+"Encoder(type='Any', *, from_attributes=False, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
 "\n"
 "Parameters\n"
 "----------\n"
+"type : type, optional\n"
+"    The declared type of the objects to encode, in type annotation form.\n"
+"    Struct, dataclass, attrs and TypedDict values are encoded with only the\n"
+"    fields their declared type defines. The declared fields of a mapping in\n"
+"    their place are read as ``convert`` reads them, and a missing required\n"
+"    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
+"    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -14034,6 +15060,8 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 
 static int json_encode_inline(EncoderState*, PyObject*);
 static int json_encode(EncoderState*, PyObject*);
+static int json_encode_typed(EncoderState *self, PyObject *obj, TypeNode *type);
+static int json_encode_typed_fields(EncoderState *self, TypedFields *fields);
 
 static MS_NOINLINE int
 json_encode_long_fallback(EncoderState *self, PyObject *obj) {
@@ -14841,12 +15869,31 @@ json_encode_struct_tag(EncoderState *self, PyObject *obj)
     }
 }
 
+/* Encode field #i of a struct, as `types[i]` if the struct is encoded as a
+ * declared type, or without a type if `types` is NULL */
+static MS_INLINE int
+json_encode_struct_field(
+    EncoderState *self, PyObject *val, TypeNode **types, Py_ssize_t i
+) {
+    if (types == NULL) return json_encode(self, val);
+    return json_encode_typed(self, val, types[i]);
+}
+
 static int
 json_encode_struct_object(
-    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj,
+    TypeNode **types
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
-        return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
+        if (types == NULL) {
+            return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
+        }
+        TypedFields *typed = TypedFields_FromStructInstance(struct_type, types, obj);
+        if (typed == NULL) return -1;
+        TypedFields_Sort(typed);
+        int status = json_encode_typed_fields(self, typed);
+        TypedFields_Free(typed);
+        return status;
     }
     PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
     Py_ssize_t i, nfields, nunchecked;
@@ -14873,24 +15920,24 @@ json_encode_struct_object(
 
     for (i = 0; i < nunchecked; i++) {
         key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
+        val = struct_get_declared_index(struct_type, obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
         if (json_encode_str_noescape(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
-        if (json_encode(self, val) < 0) goto cleanup;
+        if (json_encode_struct_field(self, val, types, i) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     for (i = nunchecked; i < nfields; i++) {
         key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
+        val = struct_get_declared_index(struct_type, obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
         PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
         if (!is_default(val, default_val)) {
             if (json_encode_str_noescape(self, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
-            if (json_encode(self, val) < 0) goto cleanup;
+            if (json_encode_struct_field(self, val, types, i) < 0) goto cleanup;
             if (ms_write(self, ",", 1) < 0) goto cleanup;
         }
     }
@@ -14910,7 +15957,8 @@ cleanup:
 
 static int
 json_encode_struct_array(
-    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj,
+    TypeNode **types
 ) {
     int status = -1;
     PyObject *tag_value = struct_type->struct_tag_value;
@@ -14925,9 +15973,9 @@ json_encode_struct_array(
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = struct_get_declared_index(struct_type, obj, i);
         if (val == NULL) goto cleanup;
-        if (json_encode(self, val) < 0) goto cleanup;
+        if (json_encode_struct_field(self, val, types, i) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
@@ -14944,9 +15992,9 @@ json_encode_struct(EncoderState *self, PyObject *obj)
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
 
     if (struct_type->array_like == OPT_TRUE) {
-        return json_encode_struct_array(self, struct_type, obj);
+        return json_encode_struct_array(self, struct_type, obj, NULL);
     }
-    return json_encode_struct_object(self, struct_type, obj);
+    return json_encode_struct_object(self, struct_type, obj, NULL);
 }
 
 static MS_NOINLINE int
@@ -15065,16 +16113,311 @@ json_encode(EncoderState *self, PyObject *obj)
     return json_encode_inline(self, obj);
 }
 
+static int
+json_encode_struct_typed(EncoderState *self, StructInfo *info, PyObject *obj)
+{
+    if (info->class->array_like == OPT_TRUE) {
+        return json_encode_struct_array(self, info->class, obj, info->types);
+    }
+    return json_encode_struct_object(self, info->class, obj, info->types);
+}
+
+static int
+json_encode_typed_fields(EncoderState *self, TypedFields *fields)
+{
+    int status = -1;
+    bool array_like = fields->array_like;
+    if (ms_write(self, array_like ? "[" : "{", 1) < 0) return -1;
+    Py_ssize_t start_len = self->output_len;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (fields->tag_value != NULL) {
+        if (!array_like) {
+            if (json_encode_str(self, fields->tag_field) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+        }
+        if (json_encode_struct_tag(self, fields->tag_value) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < fields->size; i++) {
+        TypedField *field = &(fields->fields[i]);
+        if (!array_like) {
+            if (fields->is_typeddict) {
+                if (json_encode_str(self, field->key) < 0) goto cleanup;
+            }
+            else {
+                if (json_encode_str_noescape(self, field->key) < 0) goto cleanup;
+            }
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+        }
+        if (json_encode_typed(self, field->val, field->type) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    if (MS_UNLIKELY(start_len == self->output_len)) {
+        if (ms_write(self, array_like ? "]" : "}", 1) < 0) goto cleanup;
+    }
+    else {
+        /* Overwrite trailing comma */
+        *(self->output_buffer_raw + self->output_len - 1) = array_like ? ']' : '}';
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+/* Encode `size` items from `arr`, item `i` as `types[i]`, or as `item_type`
+ * when `types` is NULL. */
+static int
+json_encode_sequence_typed(
+    EncoderState *self, Py_ssize_t size, PyObject **arr,
+    TypeNode *item_type, TypeNode **types
+) {
+    if (size == 0) return ms_write(self, "[]", 2);
+
+    int status = -1;
+    if (ms_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        TypeNode *t = (types == NULL) ? item_type : types[i];
+        if (json_encode_typed(self, arr[i], t) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+/* Encode the items of a list or tuple as the namedtuple, fixed-length tuple or
+ * array parts of `type`. Returns 1 if no part of `type` matches. */
+static int
+json_encode_items_typed(
+    EncoderState *self, Py_ssize_t size, PyObject **arr, TypeNode *type
+) {
+    uint64_t t = type->types;
+    if (t & MS_TYPE_NAMEDTUPLE) {
+        NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
+        if (Py_SIZE(info) == size) {
+            return json_encode_sequence_typed(self, size, arr, NULL, info->types);
+        }
+    }
+    if (t & MS_TYPE_FIXTUPLE) {
+        Py_ssize_t offset, fixtuple_size;
+        TypeNode_get_fixtuple(type, &offset, &fixtuple_size);
+        if (fixtuple_size == size) {
+            return json_encode_sequence_typed(
+                self, size, arr, NULL, (TypeNode **)(type->details + offset)
+            );
+        }
+    }
+    if (t & (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        return json_encode_sequence_typed(
+            self, size, arr, TypeNode_get_array(type), NULL
+        );
+    }
+    return 1;
+}
+
+static int
+json_encode_set_typed(EncoderState *self, PyObject *obj, TypeNode *item_type)
+{
+    if (!typenode_has_fields(item_type)) return json_encode_set(self, obj);
+    if (PySet_GET_SIZE(obj) == 0) return ms_write(self, "[]", 2);
+
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        PyObject *items = PySequence_List(obj);
+        if (items == NULL) return -1;
+        int status = -1;
+        if (PyList_Sort(items) == 0) {
+            status = json_encode_sequence_typed(
+                self, PyList_GET_SIZE(items), LIST_ITEMS(items), item_type, NULL
+            );
+        }
+        Py_DECREF(items);
+        return status;
+    }
+
+    int status = -1;
+    PyObject *item;
+    if (ms_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+    while ((item = PyIter_Next(iter))) {
+        int item_status = json_encode_typed(self, item, item_type);
+        Py_DECREF(item);
+        if (item_status < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    if (PyErr_Occurred()) goto cleanup;
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
+    return status;
+}
+
+/* Encode `obj`, a dict with str keys, with its keys sorted and its values as
+ * `val_type` */
+static int
+json_encode_sorted_dict_typed(EncoderState *self, PyObject *obj, TypeNode *val_type)
+{
+    AssocList *list = AssocList_FromDict(obj);
+    if (list == NULL) return -1;
+    AssocList_Sort(list);
+
+    int status = -1;
+    if (ms_write(self, "{", 1) < 0) goto cleanup2;
+    Py_ssize_t start_len = self->output_len;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
+    for (Py_ssize_t i = 0; i < list->size; i++) {
+        AssocItem *item = &(list->items[i]);
+        if (json_encode_cstr(self, item->key, item->key_size) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode_typed(self, item->val, val_type) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    if (MS_UNLIKELY(start_len == self->output_len)) {
+        if (ms_write(self, "}", 1) < 0) goto cleanup;
+    }
+    else {
+        /* Overwrite trailing comma with } */
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    AssocList_Free(list);
+    return status;
+}
+
+static int
+json_encode_dict_typed(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    TypeNode *key_type, *val_type;
+    TypeNode_get_dict(type, &key_type, &val_type);
+    if (!typenode_has_fields(val_type)) return json_encode_dict(self, obj);
+    if (PyDict_GET_SIZE(obj) == 0) return ms_write(self, "{}", 2);
+
+    /* Encode a copy, since reading fields may run Python code that changes
+     * the dict. A frozendict can't change. */
+    PyObject *items = PyDict_Check(obj) ? PyDict_Copy(obj) : Py_NewRef(obj);
+    if (items == NULL) return -1;
+
+    PyObject *key, *val;
+    Py_ssize_t pos = 0;
+    int status = -1;
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        status = json_encode_sorted_dict_typed(self, items, val_type);
+        goto cleanup2;
+    }
+    if (ms_write(self, "{", 1) < 0) goto cleanup2;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
+    while (PyDict_Next(items, &pos, &key, &val)) {
+        if (json_encode_dict_key(self, key) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode_typed(self, val, val_type) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    Py_DECREF(items);
+    return status;
+}
+
+/* Encode `obj` as the declared `type`. Struct, dataclass, attrs and TypedDict
+ * values are encoded with only the fields their declared type defines.
+ * Containers are encoded with their declared item types. Other values are
+ * encoded as by `json_encode`. */
+static int
+json_encode_typed_value(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    uint64_t t = type->types;
+    PyTypeObject *pytype = Py_TYPE(obj);
+    if (PyList_Check(obj)) {
+        /* Encode a snapshot, since reading fields may run Python code that
+         * resizes the list */
+        PyObject *items = PyList_AsTuple(obj);
+        if (items == NULL) return -1;
+        int status = json_encode_items_typed(
+            self, PyTuple_GET_SIZE(items), TUPLE_ITEMS(items), type
+        );
+        Py_DECREF(items);
+        if (status <= 0) return status;
+    }
+    else if (PyTuple_Check(obj)) {
+        int status = json_encode_items_typed(
+            self, PyTuple_GET_SIZE(obj), TUPLE_ITEMS(obj), type
+        );
+        if (status <= 0) return status;
+    }
+    else if (ms_is_any_dict(obj)) {
+        if (t & MS_ANY_DICT) return json_encode_dict_typed(self, obj, type);
+    }
+    else if (PyAnySet_Check(obj)) {
+        if (t & (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+            return json_encode_set_typed(self, obj, TypeNode_get_array(type));
+        }
+    }
+    else if (ms_is_struct_type(pytype)) {
+        StructInfo *info = typed_struct_info_for(type, pytype);
+        if (info != NULL) return json_encode_struct_typed(self, info, obj);
+    }
+
+    if (!(t & MS_TYPED_FIELDS) || typed_is_plain_value(self->mod, pytype, obj)) {
+        return json_encode(self, obj);
+    }
+    TypedFields *fields = TypedFields_FromValue(
+        self->mod, obj, type, self->from_attributes
+    );
+    if (fields == NULL) return PyErr_Occurred() ? -1 : json_encode(self, obj);
+    if (typed_fields_sorted(fields, self->order)) TypedFields_Sort(fields);
+    int status = json_encode_typed_fields(self, fields);
+    TypedFields_Free(fields);
+    return status;
+}
+
+static int
+json_encode_typed(EncoderState *self, PyObject *obj, TypeNode *type)
+{
+    if (MS_LIKELY(!typenode_has_fields(type))) return json_encode(self, obj);
+    /* Reading fields may run Python code that drops every other reference
+     * to obj */
+    Py_INCREF(obj);
+    int status = json_encode_typed_value(self, obj, type);
+    Py_DECREF(obj);
+    return status;
+}
+
+static int
+json_encode_typed_root(EncoderState *self, PyObject *obj)
+{
+    return json_encode_typed(self, obj, self->type);
+}
+
 static PyObject*
 JSONEncoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_into_common(self, args, nargs, &json_encode);
+    return encoder_encode_into_common(
+        self, args, nargs, (self->type == NULL) ? &json_encode : &json_encode_typed_root
+    );
 }
 
 static PyObject*
 JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_common(self, args, nargs, &json_encode);
+    return encoder_encode_common(
+        self, args, nargs, (self->type == NULL) ? &json_encode : &json_encode_typed_root
+    );
 }
 
 PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
@@ -15082,6 +16425,7 @@ PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
 "--\n"
 "\n"
 "Encode an iterable of items as newline-delimited JSON, one item per line.\n"
+"With a declared ``type``, each item is encoded as that type.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -15106,6 +16450,11 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
 
+    /* Each item is encoded as the declared type */
+    int (*encode_item)(EncoderState *, PyObject *) = (
+        (self->type == NULL) ? &json_encode : &json_encode_typed_root
+    );
+    PyObject *type_owner = self->type_owner;
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
@@ -15114,6 +16463,8 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .in_decimal_callable = false,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .type = self->type,
+        .from_attributes = self->from_attributes,
         .output_len = 0,
         .max_output_len = ENC_LINES_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -15121,12 +16472,13 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
+    Py_XINCREF(type_owner);
 
     PyObject *iter = NULL;
     PyObject *input = args[0];
     if (MS_LIKELY(PyList_Check(input))) {
         for (Py_ssize_t i = 0; i < PyList_GET_SIZE(input); i++) {
-            if (json_encode(&state, PyList_GET_ITEM(input, i)) < 0) goto error;
+            if (encode_item(&state, PyList_GET_ITEM(input, i)) < 0) goto error;
             if (ms_write(&state, "\n", 1) < 0) goto error;
         }
     }
@@ -15136,7 +16488,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 
         PyObject *item;
         while ((item = PyIter_Next(iter))) {
-            int status = json_encode(&state, item);
+            int status = encode_item(&state, item);
             Py_DECREF(item);
             if (status < 0) goto error;
             if (ms_write(&state, "\n", 1) < 0) goto error;
@@ -15145,10 +16497,12 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         Py_DECREF(iter);
     }
 
+    Py_XDECREF(type_owner);
     FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
     return state.output_buffer;
 
 error:
+    Py_XDECREF(type_owner);
     Py_XDECREF(iter);
     Py_DECREF(state.output_buffer);
     return NULL;
@@ -15187,7 +16541,7 @@ static PyTypeObject JSONEncoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,
-"json_encode(obj, /, *, enc_hook=None, order=None)\n"
+"json_encode(obj, /, *, type='Any', from_attributes=False, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Serialize an object as JSON.\n"
@@ -15196,6 +16550,16 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "----------\n"
 "obj : Any\n"
 "    The object to serialize.\n"
+"type : type, optional\n"
+"    The declared type of ``obj``, in type annotation form.\n"
+"    Struct, dataclass, attrs and TypedDict values are encoded with only the\n"
+"    fields their declared type defines. The declared fields of a mapping in\n"
+"    their place are read as ``convert`` reads them, and a missing required\n"
+"    field raises an ``EncodeError``. Values are not validated. Defaults to\n"
+"    `Any`, which encodes every object as it is.\n"
+"from_attributes : bool, optional\n"
+"    If True, the declared fields of other objects are also read by attribute,\n"
+"    as ``convert(..., from_attributes=True)`` reads them. Default is False.\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
@@ -15225,7 +16589,7 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 static PyObject*
 msgspec_json_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return encode_common(self, args, nargs, kwnames, &json_encode);
+    return encode_common(self, args, nargs, kwnames, &json_encode, &json_encode_typed_root);
 }
 
 /*************************************************************************
@@ -22957,6 +24321,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->str_strict);
     Py_CLEAR(st->str_order);
+    Py_CLEAR(st->str_from_attributes);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
@@ -23328,6 +24693,7 @@ PyInit__core(void)
     CACHED_STRING(str_ext_hook, "ext_hook");
     CACHED_STRING(str_strict, "strict");
     CACHED_STRING(str_order, "order");
+    CACHED_STRING(str_from_attributes, "from_attributes");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");

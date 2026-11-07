@@ -352,6 +352,8 @@ def get_dataclass_info(obj):
     required = []
     optional = []
     defaults = []
+    # Names of the fields to encode, in declaration order
+    encoded = []
 
     if hasattr(cls, "__dataclass_fields__"):
         from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
@@ -365,6 +367,7 @@ def get_dataclass_info(obj):
                 continue
             name = field.name
             typ = hints[name]
+            encoded.append(name)
             if field.default is not MISSING:
                 defaults.append(field.default)
                 optional.append((name, typ, False))
@@ -386,6 +389,9 @@ def get_dataclass_info(obj):
         for field in cls.__attrs_attrs__:
             name = field.name
             typ = hints[name]
+            # Private attributes of attrs instances aren't encoded
+            if not name.startswith("_"):
+                encoded.append(name)
             default = field.default
             if default is not NOTHING:
                 if isinstance(default, Factory):
@@ -414,7 +420,9 @@ def get_dataclass_info(obj):
         if fields_with_validators:
             post_init = _wrap_attrs_validators(fields_with_validators, post_init)
 
-    return cls, tuple(required), tuple(defaults), pre_init, post_init
+    index = {name: i for i, (name, _, _) in enumerate(required)}
+    encode_order = tuple(index[name] for name in encoded)
+    return cls, tuple(required), tuple(defaults), pre_init, post_init, encode_order
 
 
 def _wrap_attrs_validators(fields, post_init):

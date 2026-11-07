@@ -986,7 +986,7 @@ class _Translator:
             if cls in self.cache:
                 return self.cache[cls]
             self.cache[cls] = out = DataclassType(cls, ())
-            _, info, defaults, _, _ = _get_dataclass_info(cls)
+            _, info, defaults, _, _, _ = _get_dataclass_info(cls)
             defaults = ((NODEFAULT,) * (len(info) - len(defaults))) + defaults
             fields = []
             for (name, typ, is_factory), default_obj in zip(info, defaults):

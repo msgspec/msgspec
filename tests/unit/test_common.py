@@ -172,6 +172,634 @@ class TestEncodeSubclasses:
             assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
 
 
+class _AttrMapping(collections.abc.Mapping):
+    """An empty mapping, read by attribute before key when encoded as a type"""
+
+    def __getitem__(self, key):
+        raise KeyError(key)
+
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self):
+        return 0
+
+
+class TestEncodeType:
+    class Item(Struct):
+        id: int
+        name: str
+
+    class Priv(Item):
+        secret: str = "s3cret"
+
+    class Point(NamedTuple):
+        item: TestEncodeType.Item
+        n: int
+
+    class Node(Struct):
+        value: int
+        children: list[TestEncodeType.Node] = []
+
+    class PrivNode(Node):
+        secret: str = "s"
+
+    def item(self, i):
+        return self.Item(i, f"n{i}")
+
+    def priv(self, i):
+        return self.Priv(i, f"n{i}")
+
+    def test_type_attribute(self, proto):
+        assert proto.Encoder().type is Any
+        assert proto.Encoder(type=list[self.Item]).type == list[self.Item]
+        assert proto.Encoder(list[self.Item]).type == list[self.Item]
+
+    def test_from_attributes_attribute(self, proto):
+        assert proto.Encoder().from_attributes is False
+        assert proto.Encoder(from_attributes=True).from_attributes is True
+
+    @pytest.mark.parametrize(
+        "typ",
+        [Any, int, list[int], dict[str, Any], dict[str, list[int]], tuple[int, str]],
+    )
+    def test_types_without_fields_encode_unchanged(self, proto, typ):
+        msg = {"a": [1, self.priv(1)]}
+        assert proto.Encoder(type=typ).encode(msg) == proto.encode(msg)
+        assert proto.encode(msg, type=typ) == proto.encode(msg)
+
+    def test_invalid_type(self, proto):
+        with pytest.raises(TypeError, match="Type '1' is not supported"):
+            proto.Encoder(type=1)
+        with pytest.raises(TypeError, match="Type '1' is not supported"):
+            proto.encode(1, type=1)
+
+    @pytest.mark.parametrize("order", ["deterministic", "sorted"])
+    def test_order(self, proto, order):
+        class Key(Struct, frozen=True, order=True):
+            b: int
+            a: int
+
+        class PrivKey(Key, frozen=True, order=True):
+            secret: str = "s"
+
+        class Tagged(Struct, tag="t", tag_field="m"):
+            z: int
+            a: int
+
+        class Row(Struct, array_like=True):
+            z: int
+            a: TestEncodeType.Item
+
+        Page = msgspec.defstruct(
+            "Page",
+            [
+                ("z", dict[str, self.Item]),
+                ("keys", frozenset[Key]),
+                ("tagged", Tagged),
+                ("rows", list[Row]),
+                ("a", int, 0),
+            ],
+        )
+
+        def page(make, key):
+            return Page(
+                z={"y": make(2), "x": make(1)},
+                keys=frozenset([key(2, 1), key(1, 2)]),
+                tagged=Tagged(1, 2),
+                rows=[Row(1, make(3))],
+            )
+
+        expected = proto.encode(page(self.item, Key), order=order)
+        enc = proto.Encoder(Page, order=order)
+        assert enc.encode(page(self.priv, PrivKey)) == expected
+        assert (
+            proto.encode(page(self.priv, PrivKey), type=Page, order=order) == expected
+        )
+        # Fields read from a dict are sorted as the declared type's are
+        msg = {
+            "tagged": {"a": 2, "z": 1},
+            "rows": [Row(1, self.priv(3))],
+            "keys": frozenset([PrivKey(2, 1), PrivKey(1, 2)]),
+            "z": {"y": {"name": "n2", "id": 2}, "x": self.priv(1)},
+        }
+        assert enc.encode(msg) == expected
+
+    @pytest.mark.parametrize("order", ["deterministic", "sorted"])
+    def test_order_typeddict_and_dataclass(self, proto, order):
+        class TD(TypedDict):
+            z: int
+            a: TestEncodeType.Item
+
+        @dataclass
+        class DC:
+            z: int
+            a: TestEncodeType.Item
+
+        enc = proto.Encoder(TD, order=order)
+        expected = proto.encode({"z": 1, "a": self.item(1)}, order=order)
+        assert enc.encode({"z": 1, "a": self.priv(1), "x": 2}) == expected
+        enc = proto.Encoder(DC, order=order)
+        assert enc.encode(DC(1, self.priv(1))) == proto.encode(
+            DC(1, self.item(1)), order=order
+        )
+
+    def test_order_dict_with_non_str_keys(self, proto):
+        enc = proto.Encoder(dict[int, self.Item], order="deterministic")
+        with pytest.raises(TypeError, match="Only dicts with str keys"):
+            enc.encode({1: self.priv(1)})
+
+    def test_nested_subclasses(self, proto):
+        Point = self.Point
+
+        class Page(Struct):
+            items: list[TestEncodeType.Item]
+            by_key: dict[str, TestEncodeType.Item]
+            maybe: Union[TestEncodeType.Item, None]
+            pair: tuple[TestEncodeType.Item, int]
+            many: tuple[TestEncodeType.Item, ...]
+            point: TestEncodeType.Point
+
+        def page(make):
+            return Page(
+                items=[make(1), make(2)],
+                by_key={"k": make(3)},
+                maybe=make(4),
+                pair=(make(5), 5),
+                many=(make(6),),
+                point=Point(make(7), 7),
+            )
+
+        expected = proto.encode(page(self.item))
+        assert proto.Encoder(type=Page).encode(page(self.priv)) == expected
+        assert proto.encode(page(self.priv), type=Page) == expected
+        assert proto.encode(page(self.priv)) != expected
+
+    def test_top_level_subclass(self, proto):
+        assert proto.Encoder(type=self.Item).encode(self.priv(1)) == proto.encode(
+            self.item(1)
+        )
+
+    def test_set_of_subclasses(self, proto):
+        class Key(Struct, frozen=True):
+            id: int
+
+        class PrivKey(Key, frozen=True):
+            secret: str = "s"
+
+        enc = proto.Encoder(type=frozenset[Key])
+        assert enc.encode(frozenset([PrivKey(1)])) == proto.encode(frozenset([Key(1)]))
+
+    def test_encode_into(self, proto):
+        enc = proto.Encoder(type=list[self.Item])
+        buf = bytearray()
+        enc.encode_into([self.priv(1)], buf)
+        assert buf == proto.encode([self.item(1)])
+
+    def test_recursive_type(self, proto):
+        Node, PrivNode = self.Node, self.PrivNode
+        msg = PrivNode(1, [PrivNode(2), Node(3, [PrivNode(4)])])
+        expected = Node(1, [Node(2), Node(3, [Node(4)])])
+        assert proto.Encoder(type=Node).encode(msg) == proto.encode(expected)
+
+    def test_generic_struct(self, proto):
+        class Page(Struct, Generic[T]):
+            items: list[T]
+
+        msg = Page([self.priv(1)])
+        expected = proto.encode(Page([self.item(1)]))
+        assert proto.Encoder(type=Page[self.Item]).encode(msg) == expected
+
+    def test_struct_options(self, proto):
+        class Base(Struct, rename="camel", omit_defaults=True, array_like=False):
+            first_name: str
+            last_name: str = ""
+
+        class Sub(Base):
+            extra: int = 1
+
+        class BaseArray(Struct, array_like=True):
+            a: int
+
+        class SubArray(BaseArray, array_like=True):
+            b: int = 2
+
+        assert proto.Encoder(type=Base).encode(Sub("a")) == proto.encode(Base("a"))
+        assert proto.Encoder(type=BaseArray).encode(SubArray(1)) == proto.encode(
+            BaseArray(1)
+        )
+
+    def test_unset_fields_are_skipped(self, proto):
+        class Base(Struct):
+            x: Union[int, UnsetType] = UNSET
+
+        class Sub(Base):
+            y: int = 1
+
+        assert proto.Encoder(type=Base).encode(Sub()) == proto.encode(Base())
+
+    @pytest.mark.parametrize("tags", [("A", "B"), (1, 2)])
+    def test_struct_union(self, proto, tags):
+        class A(Struct, tag=tags[0]):
+            x: int
+
+        class B(Struct, tag=tags[1]):
+            y: int
+
+        # A subclass reusing its parent's tag is encoded as the parent
+        class A2(A, tag=tags[0]):
+            extra: int = 1
+
+        enc = proto.Encoder(type=list[Union[A, B]])
+        assert enc.encode([A2(1), B(2)]) == proto.encode([A(1), B(2)])
+
+    def test_dataclass_or_attrs_subclass(self, proto, decorator):
+        @decorator
+        class Base:
+            id: int
+
+        @decorator
+        class Sub(Base):
+            secret: str = "s"
+
+        enc = proto.Encoder(type=list[Base])
+        assert enc.encode([Sub(1)]) == proto.encode([Base(1)])
+
+    def test_dataclass_or_attrs_field_order(self, proto, decorator):
+        @decorator(kw_only=True)
+        class Ex:
+            a: int = 1
+            b: int
+
+        enc = proto.Encoder(type=Ex)
+        assert enc.encode(Ex(b=2)) == proto.encode(Ex(b=2))
+        assert enc.encode({"b": 2}) == proto.encode(Ex(b=2))
+
+    def test_dataclass_or_attrs_unset_field_is_skipped(self, proto, decorator):
+        make_field = field if decorator is dataclass else attrs.field
+
+        @decorator
+        class Ex:
+            a: int
+            b: int = make_field(init=False)
+
+        enc = proto.Encoder(type=Ex)
+        assert enc.encode(Ex(1)) == proto.encode({"a": 1})
+        with pytest.raises(msgspec.EncodeError, match="missing required field `b`"):
+            enc.encode({"a": 1})
+
+    @pytest.mark.skipif(attrs is None, reason="attrs not installed")
+    def test_attrs_private_fields_are_skipped(self, proto):
+        @attrs.define
+        class Ex:
+            a: int
+            _b: int = 2
+
+        enc = proto.Encoder(type=Ex)
+        assert enc.encode(Ex(1)) == proto.encode(Ex(1))
+        assert enc.encode({"a": 1, "_b": 3}) == proto.encode({"a": 1})
+
+    def test_unset_is_unsupported(self, proto):
+        enc = proto.Encoder(type=list[Union[self.Item, UnsetType]])
+        with pytest.raises(TypeError, match="UnsetType is unsupported"):
+            enc.encode([UNSET])
+
+    def test_typeddict(self, proto):
+        class TD(TypedDict):
+            b: TestEncodeType.Item
+            a: int
+
+        enc = proto.Encoder(type=TD)
+        msg = {"a": 1, "secret": "s", "b": self.priv(2)}
+        # Undeclared keys are dropped and the dict's own order is kept
+        assert enc.encode(msg) == proto.encode({"a": 1, "b": self.item(2)})
+
+    def test_typeddict_missing_required_key(self, proto):
+        class TD(TypedDict, total=False):
+            a: int
+
+        class TD2(TD):
+            b: int
+
+        assert proto.Encoder(type=TD2).encode({"b": 1}) == proto.encode({"b": 1})
+        with pytest.raises(msgspec.EncodeError, match="missing required field `b`"):
+            proto.Encoder(type=TD2).encode({"a": 1})
+
+    def test_typeddict_from_non_mapping(self, proto):
+        class TD(TypedDict):
+            a: int
+
+        expected = proto.encode(self.item(1))
+        assert proto.Encoder(TD).encode(self.item(1)) == expected
+        # `convert` reads TypedDicts from mappings only
+        enc = proto.Encoder(TD, from_attributes=True)
+        assert enc.encode(self.item(1)) == expected
+
+    def test_fields_read_from_unrelated_values(self, proto):
+        class Other(Struct):
+            name: str
+            id: int
+            secret: str = "s"
+
+        class Plain:
+            def __init__(self):
+                self.id = 1
+                self.name = "n1"
+                self.secret = "s"
+
+        enc = proto.Encoder(self.Item)
+        expected = proto.encode(self.item(1))
+        assert enc.encode({"name": "n1", "id": 1, "secret": "s"}) == expected
+        # Other objects are encoded as they are, as `convert` rejects them
+        assert enc.encode(Other("n1", 1)) == proto.encode(Other("n1", 1))
+        with pytest.raises(TypeError, match="Plain is unsupported"):
+            enc.encode(Plain())
+
+        enc = proto.Encoder(self.Item, from_attributes=True)
+        assert enc.encode(Other("n1", 1)) == expected
+        assert enc.encode(Plain()) == expected
+        assert proto.encode(Plain(), type=self.Item, from_attributes=True) == expected
+
+    def test_other_objects_go_to_enc_hook(self, proto):
+        class Plain:
+            id = 1
+            name = "n1"
+
+        enc = proto.Encoder(self.Item, enc_hook=lambda obj: "hooked")
+        assert enc.encode([Plain()]) == proto.encode(["hooked"])
+        enc = proto.Encoder(
+            self.Item, from_attributes=True, enc_hook=lambda obj: "hooked"
+        )
+        assert enc.encode(Plain()) == proto.encode(self.item(1))
+
+    def test_fields_read_from_dict_by_encoded_name(self, proto):
+        class Ex(Struct, rename="camel"):
+            first_name: str
+
+        enc = proto.Encoder(type=Ex)
+        assert enc.encode({"firstName": "a"}) == proto.encode(Ex("a"))
+        with pytest.raises(
+            msgspec.EncodeError, match="missing required field `firstName`"
+        ):
+            enc.encode({"first_name": "a"})
+
+    def test_missing_fields_use_defaults(self, proto):
+        class Ex(Struct):
+            a: int
+            b: list = []
+            c: int = 3
+
+        class ExOmit(Ex, omit_defaults=True):
+            pass
+
+        assert proto.Encoder(type=Ex).encode({"a": 1}) == proto.encode(Ex(1))
+        assert proto.Encoder(type=ExOmit).encode({"a": 1}) == proto.encode(ExOmit(1))
+        with pytest.raises(
+            msgspec.EncodeError, match="`dict` is missing required field `a`"
+        ):
+            proto.Encoder(type=Ex).encode({})
+
+    def test_dataclass_fields_read_from_unrelated_values(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: list = field(default_factory=list)
+
+        enc = proto.Encoder(type=Ex)
+        assert enc.encode({"a": 1, "secret": "s"}) == proto.encode(Ex(1))
+        with pytest.raises(msgspec.EncodeError, match="missing required field `a`"):
+            enc.encode({})
+
+    def test_struct_union_from_unrelated_values(self, proto):
+        class A(Struct, tag=True):
+            x: int
+
+        class B(Struct, tag=True):
+            y: int
+
+        enc = proto.Encoder(type=Union[A, B])
+        assert enc.encode({"type": "B", "y": 1, "z": 2}) == proto.encode(B(1))
+        with pytest.raises(msgspec.EncodeError, match="missing required field `type`"):
+            enc.encode({"y": 1})
+        with pytest.raises(msgspec.EncodeError, match="Invalid value 'C'"):
+            enc.encode({"type": "C"})
+
+    @pytest.mark.parametrize("msg", [None, 1, "hello", b"x"])
+    def test_plain_values_pass_through(self, proto, msg):
+        typ = Union[self.Item, None] if msg is None else self.Item
+        assert proto.Encoder(type=typ).encode(msg) == proto.encode(msg)
+
+    @pytest.mark.parametrize("msg", [[1], {1, 2}])
+    def test_collections_have_no_fields_to_read(self, proto, msg):
+        assert proto.Encoder(self.Item).encode(msg) == proto.encode(msg)
+        enc = proto.Encoder(self.Item, from_attributes=True)
+        with pytest.raises(msgspec.EncodeError, match="missing required field"):
+            enc.encode(msg)
+
+    @pytest.mark.parametrize("container", [set, frozenset])
+    @pytest.mark.parametrize("seq", [list, "tuple", set])
+    def test_set_declared_as_any_sequence(self, proto, container, seq):
+        class Key(Struct, frozen=True):
+            id: int
+
+        class PrivKey(Key, frozen=True):
+            secret: str = "s"
+
+        typ = tuple[Key, ...] if seq == "tuple" else seq[Key]
+        enc = proto.Encoder(type=typ)
+        assert enc.encode(container([PrivKey(1)])) == proto.encode([Key(1)])
+
+    def test_enc_hook_results_are_not_typed(self, proto):
+        enc = proto.Encoder(type=list[self.Item], enc_hook=list)
+        msg = collections.deque([self.priv(1)])
+        assert enc.encode(msg) == proto.encode([self.priv(1)])
+
+    def test_namedtuple_from_other_values(self, proto):
+        class Point(NamedTuple):
+            x: int
+            y: int
+
+        enc = proto.Encoder(Point)
+        assert enc.encode((1, 2)) == proto.encode((1, 2))
+        assert enc.encode((1, 2, 3)) == proto.encode((1, 2, 3))
+        assert enc.encode(self.item(1)) == proto.encode(self.item(1))
+        enc = proto.Encoder(Point, from_attributes=True)
+        assert enc.encode((1, 2, 3)) == proto.encode((1, 2, 3))
+        assert enc.encode(self.item(1)) == proto.encode(self.item(1))
+
+    def test_matches_convert_from_attributes(self, proto):
+        @dataclass
+        class Row:
+            id: int
+            name: str
+            secret: str
+
+        class Page(Struct):
+            items: list[TestEncodeType.Item]
+
+        # `convert` returns a `Page` instance unchanged, so start from a dict
+        msg = {"items": [self.priv(1), Row(2, "n2", "s")]}
+        out = proto.Encoder(Page, from_attributes=True).encode(msg)
+        assert proto.decode(out) == {
+            "items": [{"id": 1, "name": "n1"}, {"id": 2, "name": "n2"}]
+        }
+        assert proto.decode(out, type=Page) == msgspec.convert(
+            msg, Page, from_attributes=True
+        )
+
+    def test_values_are_not_validated(self, proto):
+        class Ex(Struct):
+            x: Annotated[int, Meta(ge=0)]
+
+        assert proto.Encoder(type=Ex).encode(Ex(-1)) == proto.encode(Ex(-1))
+
+    @py315_or_later_only
+    def test_frozendict(self, proto):
+        enc = proto.Encoder(type=dict[str, self.Item])
+        msg = frozendict({"a": self.priv(1)})  # noqa: F821
+        assert enc.encode(msg) == proto.encode({"a": self.item(1)})
+
+    def test_list_resized_while_reading_fields(self, proto):
+        msg = []
+
+        class Grows(_AttrMapping):
+            @property
+            def id(self):
+                msg.extend([object()] * 10000)
+                return 1
+
+            name = "n1"
+
+        msg.extend([Grows(), Grows()])
+        out = proto.Encoder(list[self.Item]).encode(msg)
+        assert out == proto.encode([self.item(1), self.item(1)])
+
+    def test_value_released_while_reading_fields(self, proto):
+        class Outer(Struct):
+            x: TestEncodeType.Item
+
+        class Releases(_AttrMapping):
+            @property
+            def id(self):
+                holder.x = None
+                return 1
+
+            @property
+            def name(self):
+                return "n1"
+
+        holder = Outer(Releases())
+        out = proto.Encoder(Outer).encode(holder)
+        assert out == proto.encode(Outer(self.item(1)))
+
+    def test_dict_changed_while_reading_fields(self, proto):
+        class Removes(_AttrMapping):
+            @property
+            def id(self):
+                msg.pop("b", None)
+                return 1
+
+            name = "n1"
+
+        msg = {"a": Removes(), "b": Removes(), "c": Removes()}
+        out = proto.Encoder(dict[str, self.Item]).encode(msg)
+        expected = {k: self.item(1) for k in "abc"}
+        assert out == proto.encode(expected)
+        assert proto.decode(out) == proto.decode(proto.encode(expected))
+
+    def test_errors_reading_fields_propagate(self, proto):
+        class Raises(_AttrMapping):
+            @property
+            def id(self):
+                raise ValueError("Oh no!")
+
+            name = "n1"
+
+        class RaisingMapping(collections.abc.Mapping):
+            def __getitem__(self, key):
+                raise RuntimeError("Oh no!")
+
+            def __iter__(self):
+                return iter(())
+
+            def __len__(self):
+                return 0
+
+        enc = proto.Encoder(self.Item)
+        with pytest.raises(ValueError, match="Oh no!"):
+            enc.encode(Raises())
+        with pytest.raises(RuntimeError, match="Oh no!"):
+            enc.encode(RaisingMapping())
+
+    def test_reinit_while_encoding(self, proto):
+        class Reinits(_AttrMapping):
+            @property
+            def id(self):
+                enc.__init__(type=int)
+                gc.collect()
+                return 1
+
+            name = "n1"
+
+        enc = proto.Encoder(list[self.Item])
+        out = enc.encode([Reinits(), {"id": 2, "name": "n2"}])
+        assert out == proto.encode([self.item(1), self.item(2)])
+        assert enc.type is int
+
+    def test_failed_reinit_leaves_type_unchanged(self, proto):
+        enc = proto.Encoder(type=self.Item)
+        with pytest.raises(TypeError, match="Type '1' is not supported"):
+            enc.__init__(type=1, order="sorted")
+        assert enc.type is self.Item
+        assert enc.order is None
+        assert enc.encode(self.priv(1)) == proto.encode(self.item(1))
+
+    def test_encoder_traverses_type(self, proto):
+        enc = proto.Encoder(type=self.Node)
+        assert self.Node in gc.get_referents(enc)
+
+
+class TestEncodeTypeJSON:
+    def test_encode_lines(self):
+        Item, Priv = TestEncodeType.Item, TestEncodeType.Priv
+        enc = msgspec.json.Encoder(Item)
+        msg = [Priv(1, "n1"), {"id": 2, "name": "n2"}]
+        expected = msgspec.json.Encoder().encode_lines([Item(1, "n1"), Item(2, "n2")])
+        assert enc.encode_lines(msg) == expected
+        assert enc.encode_lines(iter(msg)) == expected
+
+    def test_typeddict_keys_are_escaped(self):
+        TD = TypedDict("TD", {'a"b': int})
+        enc = msgspec.json.Encoder(type=TD)
+        assert enc.encode({'a"b': 1, "c": 2}) == b'{"a\\"b":1}'
+
+
+class TestEncoderReinit:
+    def test_failed_reinit_leaves_encoder_unchanged(self, proto):
+        enc = proto.Encoder(decimal_format=str, uuid_format="hex")
+        with pytest.raises(TypeError, match="enc_hook must be callable"):
+            enc.__init__(
+                enc_hook=1,
+                decimal_format="number",
+                uuid_format="canonical",
+                order="sorted",
+            )
+        assert enc.enc_hook is None
+        assert enc.decimal_format is str
+        assert enc.uuid_format == "hex"
+        assert enc.order is None
+
+    def test_reinit_releases_previous_callables(self, proto):
+        def hook(obj):
+            return obj
+
+        enc = proto.Encoder(enc_hook=hook, decimal_format=hook)
+        before = sys.getrefcount(hook)
+        enc.__init__()
+        assert sys.getrefcount(hook) == before - 2
+        assert enc.enc_hook is None
+
+
 class TestDecoder:
     def test_decoder_runtime_type_parameters(self, proto):
         dec = proto.Decoder[int](int)
