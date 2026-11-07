@@ -125,6 +125,14 @@ class SubFrozenSet(frozenset):
 class SubDict(dict):
     pass
 
+class CustomValue:
+    def __init__(self, value:dict[str, str]):
+        self.value = value
+
+    @classmethod
+    def __msgspec_decode__(cls, value: dict[str, str]):
+        return cls(value)
+
 
 mapcls_and_from_attributes = pytest.mark.parametrize(
     "mapcls, from_attributes",
@@ -2949,6 +2957,10 @@ class TestCustom:
 
         assert rec.value.__cause__ is rec.value.__context__
         assert type(rec.value.__cause__) is TypeError
+
+    def test_custom_dec_with_dunder(self):
+        value = convert({"foo": "spam"}, CustomValue)
+        assert value.value["foo"] == "spam"
 
 
 class TestRaw:

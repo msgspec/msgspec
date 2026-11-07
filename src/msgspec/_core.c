@@ -10278,17 +10278,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
             ms_maybe_wrap_validation_error(path);
             return NULL;
         }
-    }
-    else if (PyObject_HasAttr(custom_obj, st->str___msgspec_decode__)){
-        /* Check if msgspec can decode it. */
-        out = PyObject_CallMethodObjArgs(custom_obj, st->str___msgspec_decode__, obj, NULL);
-        Py_DECREF(obj);
-        if (out == NULL) {
-            ms_maybe_wrap_validation_error(path);
-            return NULL;
-        }
-    }
-    else {
+    } else {
         out = obj;
     }
     /* Generic classes must be checked based on __origin__ */
@@ -10301,6 +10291,17 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     }
     else {
         custom_cls = custom_obj;
+    }
+    PyObject* dunder_decode = PyObject_GetAttr(custom_cls, st->str___msgspec_decode__);
+    if (dunder_decode != NULL) {
+        out = PyObject_CallOneArg(dunder_decode, obj);
+        Py_DECREF(dunder_decode);
+        if (out == NULL) {
+            return NULL;
+        }
+    } else {
+        /* Cleanse previous PyObject_GetAttr exception. */
+        PyErr_Clear();
     }
 
     /* Check that the decoded value matches the expected type */
@@ -20886,6 +20887,21 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         Py_DECREF(temp);
         return out;
     }
+    PyObject* encode_dunder = PyObject_GetAttr(obj, self->mod->str___msgspec_encode__);
+    if (encode_dunder != NULL){
+        PyObject *out = NULL;
+        PyObject *temp;
+        temp = PyObject_CallNoArgs(encode_dunder);
+        Py_DECREF(encode_dunder);
+        if (temp == NULL) return NULL;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            out = to_builtins(self, temp, is_key);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return out;
+    }
+
     else {
         ms_encode_err_type_unsupported(type);
         return NULL;

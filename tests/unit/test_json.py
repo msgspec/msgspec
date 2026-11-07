@@ -52,6 +52,18 @@ class Node(msgspec.Struct):
     left: Node | None = None
     right: Node | None = None
 
+class CustomObject:
+    def __init__(self, value: int):
+        self.value = value
+
+    def __msgspec_encode__(self) -> str:
+        return str(self.value)
+
+    @classmethod
+    def __msgspec_decode__(cls, value:str):
+        return cls(int(value))
+
+
 
 class Custom:
     def __init__(self, x, y):
@@ -574,6 +586,20 @@ class TestDecoderMisc:
 
         with pytest.raises(TypeError):
             dec = msgspec.json.Decoder(float_hook=1)
+
+    def test_dunder_decoder(self):
+        enc = msgspec.json.Encoder()
+
+        class Object(msgspec.Struct):
+            custom: CustomObject
+
+        dec = msgspec.json.Decoder(Object)
+
+        obj = Object(CustomObject(1))
+        result = enc.encode(obj)
+        assert result == b'{"custom":"1"}'
+        assert dec.decode(result).custom.value == 1
+
 
 
 class TestBoolAndNone:
