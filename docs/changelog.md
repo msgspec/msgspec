@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve JSON Schema metadata on annotated `Struct` members of unions,
+  including multiple alternatives with the same tag and different metadata.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,
