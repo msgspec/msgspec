@@ -1369,7 +1369,7 @@ def test_dict_string_literal_key_schema(annotated):
     assert schema["propertyNames"] == expected
     assert schema["additionalProperties"] == {"type": "integer"}
     assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {"apple": 1}
-    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+    with pytest.raises(msgspec.ValidationError, match="Invalid value"):
         msgspec.json.decode(b'{"carrot": 1}', type=typ)
 
 
