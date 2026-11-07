@@ -4999,7 +4999,11 @@ typenode_origin_args_metadata(
         }
     }
 
-    if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+    /* Before Python 3.14, `types.UnionType` has no `__origin__`, so the
+     * `__origin__` lookup in the loop above leaves `args` unset and this
+     * fallback resolves the union. In 3.14+ that lookup already set `origin`
+     * and `args`; resolving them again here would leak both references. */
+    if (args == NULL && Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
         /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
         if (args == NULL) goto error;
