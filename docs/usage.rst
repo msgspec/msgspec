@@ -158,6 +158,47 @@ types.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=list[int], strict=False)
     [1, 2, 3]
 
+.. _typed-encoding:
+
+Typed Encoding
+--------------
+
+Encoders also accept a ``type``. Struct, dataclass, attrs and ``TypedDict``
+values are then encoded with only the fields that their declared type defines,
+at any depth, so fields added by a subclass are left out.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct):
+    ...     name: str
+
+    >>> class UserRecord(User):
+    ...     password_hash: str
+
+    >>> class Page(msgspec.Struct):
+    ...     users: list[User]
+
+    >>> page = Page(users=[UserRecord(name="alice", password_hash="...")])
+
+    >>> msgspec.json.encode(page)
+    b'{"users":[{"name":"alice","password_hash":"..."}]}'
+
+    >>> encoder = msgspec.json.Encoder(Page)
+
+    >>> encoder.encode(page)
+    b'{"users":[{"name":"alice"}]}'
+
+A dict or other mapping in place of a Struct, dataclass, attrs or ``TypedDict``
+value has the declared fields read from it as `msgspec.convert` reads them. A
+missing field without a default raises an ``EncodeError``. Any other object is
+encoded as it is.
+
+Unlike typed decoding, typed encoding does not validate values: a value of the
+wrong type, or one that violates a :doc:`constraint <constraints>`, is encoded
+as it is. Values returned by ``enc_hook`` are encoded without the declared type.
+
 .. _to-builtins-vs-asdict:
 
 Converting to and from Builtin Types

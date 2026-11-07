@@ -759,6 +759,17 @@ def check_msgpack_Encoder_enc_hook() -> None:
     msgspec.msgpack.Encoder(enc_hook=lambda x: None)
 
 
+def check_msgpack_Encoder_type() -> None:
+    class Ex(msgspec.Struct):
+        x: int
+
+    enc = msgspec.msgpack.Encoder(type=list[Ex])
+    assert_type(enc.type, Any)
+    b1: bytes = enc.encode([Ex(1)])
+    b2: bytes = msgspec.msgpack.encode([Ex(1)], type=list[Ex])
+    b3: bytes = msgspec.msgpack.Encoder(list[Ex]).encode([Ex(1)])
+
+
 def check_msgpack_order() -> None:
     enc = msgspec.msgpack.Encoder(order=None)
     msgspec.msgpack.Encoder(order='deterministic')
@@ -967,6 +978,17 @@ def check_json_decode_from_buffer() -> None:
 
 def check_json_encode_enc_hook() -> None:
     msgspec.json.encode(object(), enc_hook=lambda x: None)
+
+
+def check_json_Encoder_type() -> None:
+    class Ex(msgspec.Struct):
+        x: int
+
+    enc = msgspec.json.Encoder(type=list[Ex])
+    assert_type(enc.type, Any)
+    b1: bytes = enc.encode([Ex(1)])
+    b2: bytes = msgspec.json.encode([Ex(1)], type=list[Ex])
+    b3: bytes = msgspec.json.Encoder(list[Ex]).encode([Ex(1)])
 
 
 def check_json_Encoder_enc_hook() -> None:

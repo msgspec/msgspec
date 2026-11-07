@@ -26,6 +26,7 @@ _DecimalFormatSig: TypeAlias = (
 
 @final
 class Encoder:
+    type: Final[Any]
     enc_hook: Final[_EncHookSig]
     decimal_format: Final[_DecimalFormatSig]
     uuid_format: Final[Literal["canonical", "hex"]]
@@ -33,6 +34,7 @@ class Encoder:
 
     def __init__(
         self,
+        type: Any = Any,
         *,
         enc_hook: _EncHookSig = None,
         decimal_format: _DecimalFormatSig = "string",
@@ -96,6 +98,7 @@ def encode(
     obj: Any,
     /,
     *,
+    type: Any = Any,
     enc_hook: _EncHookSig = None,
     order: Literal["deterministic", "sorted"] | None = None,
 ) -> bytes: ...
