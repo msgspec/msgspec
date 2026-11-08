@@ -213,17 +213,6 @@ def test_struct_meta_inheritance():
     assert independent.x == 1
     assert independent.y == "test"
 
-    # Print debug information
-    print(
-        f"KwOnlyBase in _kw_only_default_settings: {'KwOnlyBase' in CustomMeta._kw_only_default_settings}"
-    )
-    print(
-        f"KwOnlyBase default: {CustomMeta._kw_only_default_settings.get('KwOnlyBase')}"
-    )
-    print(
-        f"SimpleChild in _kw_only_default_settings: {'SimpleChild' in CustomMeta._kw_only_default_settings}"
-    )
-
     # Test that kw_only_default values are correctly passed
     assert "KwOnlyBase" in CustomMeta._kw_only_default_settings
     assert CustomMeta._kw_only_default_settings["KwOnlyBase"] is True

@@ -233,7 +233,7 @@ class _SchemaGenerator:
             t = t.type
 
         if check_ref and hasattr(t, "cls"):
-            if name := self.name_map.get(t.cls):
+            if (name := self.name_map.get(t.cls)) is not None:
                 schema["$ref"] = self.ref_template.format(name=name)
                 return schema
 
@@ -314,7 +314,16 @@ class _SchemaGenerator:
             key_type = t.key_type
             while isinstance(key_type, mi.Metadata):
                 key_type = key_type.type
-            if isinstance(key_type, mi.StrType):
+            if (
+                isinstance(key_type, mi.StrType)
+                or isinstance(key_type, mi.LiteralType)
+                and all(isinstance(value, str) for value in key_type.values)
+                or isinstance(key_type, mi.EnumType)
+                and all(
+                    isinstance(member.value, str)
+                    for member in key_type.cls.__members__.values()
+                )
+            ):
                 property_names = self.to_schema(t.key_type)
                 # Object property names are always strings, so omit the redundant type
                 property_names.pop("type", None)
@@ -383,7 +392,11 @@ class _SchemaGenerator:
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):
                 schema.setdefault("description", doc)
-            schema["enum"] = sorted(e.value for e in t.cls)
+            # Flag iteration omits zero and composite members. Deduplicate by
+            # Enum member identity: aliases share a member even when their values
+            # are large or unhashable.
+            members = {id(member): member for member in t.cls.__members__.values()}
+            schema["enum"] = sorted(member.value for member in members.values())
         elif isinstance(t, mi.StructType):
             schema.setdefault("title", _get_class_name(t.cls))
             if doc := _get_doc(t):
@@ -440,6 +453,10 @@ class _SchemaGenerator:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
                     field_schema["default"] = to_builtins(field.default, str_keys=True)
+                elif field.default_factory in (list, dict, set, bytearray):
+                    field_schema["default"] = to_builtins(
+                        field.default_factory(), str_keys=True
+                    )
                 names.append(field.encode_name)
                 fields.append(field_schema)
             if isinstance(t, mi.NamedTupleType):

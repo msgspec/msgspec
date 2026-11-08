@@ -129,6 +129,8 @@ The HTML documentation can be viewed locally by running:
 just doc-serve
 ```
 
+Pull requests build and check the documentation before the separate [documentation publisher](https://github.com/msgspec/docs-deploy) publishes a preview. The publisher App's required `Docs preview` check reports build or publishing failures and links to the deployed preview. Fork workflows may require maintainer approval before the build can start. The App follows subsequent build and publishing attempts automatically. To retry publication after a publishing failure, rerun the publisher workflow or request a rerun of the App check.
+
 ## Benchmarking
 
 You can run all [benchmarks](https://msgspec.dev/benchmarks.html) with the `bench` recipe, for example:
@@ -220,6 +222,8 @@ just dev-remove
 We use GitHub Actions to provide "continuous integration" testing for all Pull
 Requests (PRs). When submitting a PR, please check to see that all tests pass,
 and fix any issues that come up.
+
+The `Lint workflows` job checks workflows, local actions, and Dependabot configuration under `.github/` with [zizmor](https://docs.zizmor.sh/). Documentation publishing credentials and permissions are managed in the separate [documentation publisher](https://github.com/msgspec/docs-deploy).
 
 ## Code of Conduct
 

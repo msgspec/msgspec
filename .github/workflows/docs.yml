@@ -65,6 +65,7 @@ jobs:
         if-no-files-found: error
         include-hidden-files: true
         retention-days: 1
+        overwrite: true
 
   check:
     name: Check links
