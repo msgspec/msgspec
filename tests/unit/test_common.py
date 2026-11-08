@@ -2825,6 +2825,87 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    @py312_plus
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    def test_pep695_shared_generic_base(self, proto, module, future_annotations):
+        pytest.importorskip(module)
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from {module} import TypedDict
+
+        class A[T](TypedDict):
+            x: T
+
+        class Left[V](A[int]):
+            left: V
+
+        class Right[U](A[int]):
+            right: U
+
+        class Sub(Left[float], Right[str]):
+            pass
+        """
+        with temp_module(source) as mod:
+            good = {"x": 1, "left": 1.5, "right": "a"}
+            assert proto.decode(proto.encode(good), type=mod.Sub) == good
+            for name, value in [("x", "wrong"), ("left", "wrong"), ("right", 2)]:
+                with pytest.raises(ValidationError, match=rf"at `\$\.{name}`"):
+                    proto.decode(proto.encode({**good, name: value}), type=mod.Sub)
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    def test_generic_child_keeps_base_scope(self, proto, module, future_annotations):
+        if module == "typing" and not PY311:
+            pytest.skip("Generic typing.TypedDict requires Python 3.11")
+        pytest.importorskip(module)
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from typing import Generic, TypeVar
+        from {module} import TypedDict
+        T = TypeVar("T")
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+
+        class Sub(Base[int], Generic[T]):
+            y: T
+        """
+        with temp_module(source) as mod:
+            good = {"x": 1, "y": "a"}
+            assert proto.decode(proto.encode(good), type=mod.Sub[str]) == good
+            for bad, path in [({"x": "wrong", "y": "a"}, "x"), ({"x": 1, "y": 2}, "y")]:
+                with pytest.raises(ValidationError, match=rf"at `\$\.{path}`"):
+                    proto.decode(proto.encode(bad), type=mod.Sub[str])
+
+    @py312_plus
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    def test_pep695_same_named_base_parameters(self, proto, module, future_annotations):
+        pytest.importorskip(module)
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from {module} import TypedDict
+
+        class A[T](TypedDict):
+            x: T
+
+        class B[T](TypedDict):
+            y: T
+
+        class Sub(A[int], B[str]):
+            pass
+        """
+        with temp_module(source) as mod:
+            good = {"x": 1, "y": "a"}
+            assert proto.decode(proto.encode(good), type=mod.Sub) == good
+            for bad, path in [({"x": "wrong", "y": "a"}, "x"), ({"x": 1, "y": 2}, "y")]:
+                with pytest.raises(ValidationError, match=rf"at `\$\.{path}`"):
+                    proto.decode(proto.encode(bad), type=mod.Sub)
+
     def test_failed_recursive_type_releases_field_types(self):
         source = """
         from typing import TypedDict

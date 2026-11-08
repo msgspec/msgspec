@@ -4,10 +4,10 @@ import array
 from collections.abc import Callable
 import decimal
 import pickle
-from typing import Annotated, Any, Final, Literal, final
+from typing import Annotated, Any, Final, Generic, Literal, TypeVar, final
 
 import msgspec
-from typing_extensions import Buffer, TypeForm, assert_type
+from typing_extensions import Buffer, TypedDict, TypeForm, assert_type
 
 
 def check___version__() -> None:
@@ -1294,3 +1294,20 @@ def check_convert() -> None:
 
     o7 = msgspec.convert("1", int, str_keys=True)
     assert_type(o7, int)
+
+
+def check_generic_typeddict_subclass() -> None:
+    T = TypeVar("T")
+
+    class Base(TypedDict, Generic[T]):
+        x: T
+
+    class Sub(Base[int], Generic[T]):
+        y: T
+
+    value: Sub[str] = {"x": 1, "y": "a"}
+    assert_type(value["x"], int)
+    assert_type(value["y"], str)
+    decoded = msgspec.json.decode(b'{"x": 1, "y": "a"}', type=Sub[str])
+    assert_type(decoded, Sub[str])
+    assert_type(msgspec.convert(value, Sub[str]), Sub[str])
