@@ -120,7 +120,7 @@ def _get_class_mro_and_typevar_mappings(obj, base_first=False):
     else:
         cls = obj.__origin__
 
-    def inner(c, scope):
+    def inner(c, scope, base_first):
         if isinstance(c, type) and not isinstance(c, types.GenericAlias):
             cls = c
             new_scope = {}
@@ -151,12 +151,12 @@ def _get_class_mro_and_typevar_mappings(obj, base_first=False):
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
             for b in bases:
-                inner(b, new_scope)
+                inner(b, new_scope, base_first)
         if base_first and new_scope:
             # Keep ancestors before subclasses, including shared generic bases.
             mapping[cls] = mapping.pop(cls)
 
-    inner(obj, {})
+    inner(obj, {}, base_first)
     return cls.__mro__, mapping
 
 
