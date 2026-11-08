@@ -468,6 +468,8 @@ class _SchemaGenerator:
                 schema["type"] = "object"
                 schema["properties"] = dict(zip(names, fields))
                 schema["required"] = required
+                if isinstance(t, mi.TypedDictType) and t.forbid_unknown_fields:
+                    schema["additionalProperties"] = False
         elif isinstance(t, mi.ExtType):
             raise TypeError("json-schema doesn't support msgpack Ext types")
         elif isinstance(t, mi.CustomType):

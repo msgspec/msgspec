@@ -2825,6 +2825,179 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("inherited", [False, True])
+    @pytest.mark.parametrize("total", [False, True])
+    def test_closed(self, proto, module, inherited, total):
+        if module == "typing" and sys.version_info < (3, 15):
+            pytest.skip("closed TypedDict requires Python 3.15")
+        TypedDict = pytest.importorskip(module).TypedDict
+
+        class Base(TypedDict, closed=True, total=total):
+            value: int
+
+        if inherited:
+
+            class Example(Base):
+                pass
+        else:
+            Example = Base
+
+        assert proto.decode(proto.encode({"value": 1}), type=Example) == {"value": 1}
+        if total:
+            with pytest.raises(
+                ValidationError, match="Object missing required field `value`"
+            ):
+                proto.decode(proto.encode({}), type=Example)
+        else:
+            assert proto.decode(proto.encode({}), type=Example) == {}
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example)
+
+    @pytest.mark.skipif(
+        sys.version_info >= (3, 14), reason="legacy typing_extensions syntax"
+    )
+    def test_closed_with_legacy_typed_extras(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Example(TypedDict, closed=True):
+            __extra_items__: int
+            value: int
+
+        assert proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example) == {
+            "value": 1
+        }
+        assert msgspec.inspect.type_info(Example).forbid_unknown_fields is False
+        assert (
+            "additionalProperties"
+            not in msgspec.json.schema(Example)["$defs"]["Example"]
+        )
+
+    def test_closed_generic_nested(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Example(TypedDict, Generic[T], closed=True):
+            value: T
+
+        with pytest.raises(ValidationError) as rec:
+            proto.decode(proto.encode([{"value": 1, "é": 2}]), type=list[Example[int]])
+        assert str(rec.value) == "Object contains unknown field `é` - at `$[0]`"
+
+    @pytest.mark.parametrize("readonly", [False, True])
+    def test_closed_never(self, proto, readonly):
+        tex = pytest.importorskip("typing_extensions")
+        extra = tex.ReadOnly[tex.Never] if readonly else tex.Never
+        Example = tex.TypedDict("Example", {}, extra_items=extra)
+
+        assert proto.decode(proto.encode({}), type=Example) == {}
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            proto.decode(proto.encode({"extra": 1}), type=Example)
+
+    @pytest.mark.parametrize(
+        "wrap",
+        [
+            lambda tex: Annotated[tex.Never, "tag"],
+            lambda tex: tex.ReadOnly[Annotated[tex.Never, "tag"]],
+            lambda tex: Annotated[tex.ReadOnly[tex.Never], "tag"],
+        ],
+    )
+    def test_closed_annotated_never(self, proto, wrap):
+        tex = pytest.importorskip("typing_extensions")
+        Example = tex.TypedDict("Example", {"value": int}, extra_items=wrap(tex))
+
+        assert msgspec.inspect.type_info(Example).forbid_unknown_fields is True
+        with pytest.raises(
+            ValidationError, match="Object contains unknown field `extra`"
+        ):
+            proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example)
+
+    @py312_plus
+    @pytest.mark.parametrize(
+        "extra", ["Nothing", "ReadOnly[Nothing]", "Tagged[Never]", "Tagged[Nothing]"]
+    )
+    def test_closed_aliased_never(self, proto, extra):
+        source = f"""
+        from typing import Annotated
+        from typing_extensions import Never, ReadOnly, TypedDict
+
+        type Nothing = Never
+        type Tagged[T] = Annotated[T, "tag"]
+
+        Example = TypedDict("Example", {{"value": int}}, extra_items={extra})
+        """
+        pytest.importorskip("typing_extensions")
+        with temp_module(source) as mod:
+            with pytest.raises(
+                ValidationError, match="Object contains unknown field `extra`"
+            ):
+                proto.decode(proto.encode({"value": 1, "extra": 2}), type=mod.Example)
+
+    def test_annotated_typed_extras_stay_open(self, proto):
+        tex = pytest.importorskip("typing_extensions")
+        Example = tex.TypedDict(
+            "Example", {"value": int}, extra_items=Annotated[int, "tag"]
+        )
+
+        assert msgspec.inspect.type_info(Example).forbid_unknown_fields is False
+        assert proto.decode(proto.encode({"value": 1, "extra": 2}), type=Example) == {
+            "value": 1
+        }
+
+    @pytest.mark.parametrize("closed", [False, True])
+    def test_closure_through_deep_inheritance(self, proto, closed):
+        tex = pytest.importorskip("typing_extensions")
+        Example = tex.TypedDict("Root", {"value": int}, closed=closed)
+        for i in range(200):
+            Example = types.new_class(f"Sub{i}", (Example,))
+
+        # Python 3.14+ evaluates TypedDict annotations recursively per base, so
+        # bound only the closure walk here.
+        with max_call_depth(50):
+            assert msgspec._utils._typeddict_is_closed(Example) is closed
+
+        msg = proto.encode({"value": 1, "extra": 2})
+        if closed:
+            with pytest.raises(ValidationError, match="unknown field `extra`"):
+                proto.decode(msg, type=Example)
+        else:
+            assert proto.decode(msg, type=Example) == {"value": 1}
+
+    @pytest.mark.parametrize("closed", [False, True])
+    def test_closure_visits_shared_ancestors_once(self, proto, monkeypatch, closed):
+        tex = pytest.importorskip("typing_extensions")
+        Root = tex.TypedDict("Root", {"value": int}, closed=closed)
+        bases = (Root,)
+        for i in range(12):
+            bases = (
+                types.new_class(f"Left{i}", bases),
+                types.new_class(f"Right{i}", bases),
+            )
+        Example = types.new_class("Example", bases)
+
+        calls = 0
+        is_typeddict = msgspec._utils._is_typeddict
+
+        def count(t):
+            nonlocal calls
+            calls += 1
+            return is_typeddict(t)
+
+        monkeypatch.setattr(msgspec._utils, "_is_typeddict", count)
+
+        msg = proto.encode({"value": 1, "extra": 2})
+        if closed:
+            with pytest.raises(ValidationError, match="unknown field `extra`"):
+                proto.decode(msg, type=Example)
+        else:
+            assert proto.decode(msg, type=Example) == {"value": 1}
+        # 26 classes and 50 base edges. Following every path would take
+        # thousands of checks.
+        assert calls <= 100
+
     def test_failed_recursive_type_releases_field_types(self):
         source = """
         from typing import TypedDict
