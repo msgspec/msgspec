@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Fix re-initializing a JSON or MessagePack `Encoder`: a failed `__init__` call
+  no longer changes `decimal_format` or `uuid_format`, and a successful one
+  releases the previous `enc_hook` and `decimal_format` callable.
+- Add a `type` option to the JSON and MessagePack encoders (`Encoder(type)`
+  and `encode(..., type=...)`). Struct, dataclass, attrs and `TypedDict` values
+  are encoded with only the fields their declared type defines, at any depth,
+  so fields added by a subclass are left out ({issue}`614`). The declared
+  fields of a dict or other mapping in their place are read as `convert` reads
+  them, and with `from_attributes=True`, those of other objects by attribute.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,
