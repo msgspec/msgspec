@@ -337,6 +337,7 @@ class _SchemaGenerator:
                 schema["minProperties"] = t.min_length
         elif isinstance(t, mi.UnionType):
             structs = {}
+            struct_members = []
             other = []
             none_member = None
             tag_field = None
@@ -347,6 +348,8 @@ class _SchemaGenerator:
                 if isinstance(real_type, mi.StructType) and not real_type.array_like:
                     tag_field = real_type.tag_field
                     structs[real_type.tag] = real_type
+                    # A tag can have multiple alternatives with different metadata.
+                    struct_members.append(subtype)
                 elif isinstance(real_type, mi.NoneType):
                     none_member = subtype
                 else:
@@ -360,7 +363,7 @@ class _SchemaGenerator:
                     for k, v in structs.items()
                 }
                 struct_schema = {
-                    "anyOf": [self.to_schema(v) for v in structs.values()],
+                    "anyOf": [self.to_schema(s) for s in struct_members],
                     "discriminator": {"propertyName": tag_field, "mapping": mapping},
                 }
                 if options:
@@ -373,8 +376,7 @@ class _SchemaGenerator:
                 else:
                     schema.update(struct_schema)
             elif len(structs) == 1:
-                _, subtype = structs.popitem()
-                options.append(self.to_schema(subtype))
+                options.extend(self.to_schema(s) for s in struct_members)
                 if none_member is not None:
                     options.append(self.to_schema(none_member))
                 schema["anyOf"] = options

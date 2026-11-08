@@ -1153,6 +1153,85 @@ def test_optional_union_null_member_metadata_preserved():
     }
 
 
+def test_optional_union_struct_member_metadata_preserved():
+    class Point(msgspec.Struct):
+        x: int
+
+    PointWithMeta = Annotated[Point, msgspec.Meta(description="a point")]
+
+    schema = msgspec.json.schema(Union[PointWithMeta, None])
+    assert schema["anyOf"] == [
+        {"$ref": "#/$defs/Point", "description": "a point"},
+        {"type": "null"},
+    ]
+
+
+def test_struct_tagged_union_member_metadata_preserved():
+    class Point(msgspec.Struct, tag=True):
+        x: int
+        y: int
+
+    class Point3D(Point):
+        z: int
+
+    PointWithMeta = Annotated[Point, msgspec.Meta(description="a 2D point")]
+
+    schema = msgspec.json.schema(Union[PointWithMeta, Point3D])
+    assert schema["anyOf"] == [
+        {"$ref": "#/$defs/Point", "description": "a 2D point"},
+        {"$ref": "#/$defs/Point3D"},
+    ]
+    assert schema["discriminator"] == {
+        "mapping": {"Point": "#/$defs/Point", "Point3D": "#/$defs/Point3D"},
+        "propertyName": "type",
+    }
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("other", ["none", "struct", "struct-and-int"])
+def test_union_repeated_struct_metadata_preserves_each_member(reverse, other):
+    class A(msgspec.Struct, tag=True):
+        x: int
+
+    class B(msgspec.Struct, tag=True):
+        y: int
+
+    constraints = {"properties": {"x": {"minimum": 1}}}
+    Limited = Annotated[A, msgspec.Meta(extra_json_schema=constraints)]
+    members = [A, Limited]
+    alternatives = [
+        {"$ref": "#/$defs/A"},
+        {"$ref": "#/$defs/A", **constraints},
+    ]
+    if reverse:
+        members.reverse()
+        alternatives.reverse()
+
+    if other != "none":
+        members.append(B)
+        alternatives.append({"$ref": "#/$defs/B"})
+        expected = [
+            {
+                "anyOf": alternatives,
+                "discriminator": {
+                    "propertyName": "type",
+                    "mapping": {"A": "#/$defs/A", "B": "#/$defs/B"},
+                },
+            }
+        ]
+    else:
+        expected = alternatives
+
+    if other == "struct-and-int":
+        members.append(int)
+        expected.insert(0, {"type": "integer"})
+    members.append(None)
+    expected.append({"type": "null"})
+
+    schema = msgspec.json.schema(Union[tuple(members)])
+    assert schema["anyOf"] == expected
+
+
 def test_struct_array_union():
     class Point(msgspec.Struct, array_like=True, tag=True):
         x: int
