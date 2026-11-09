@@ -547,6 +547,24 @@ class TestToBuiltins:
             del sol[key]
             assert to_builtins(x) == sol
 
+    def test_dataclass_dict_key_eq_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            to_builtins(obj)
+
     @pytest.mark.parametrize("slots_base", slots_params)
     @pytest.mark.parametrize("slots", slots_params)
     def test_dataclass_subclasses(self, slots_base, slots):
@@ -828,3 +846,17 @@ class TestOrder:
 
         res = to_builtins(Ex(0, 1), order="sorted")
         self.assert_eq(res, {"x": 1, "y": 2, "z": 0})
+
+    @pytest.mark.parametrize("fail_on_call", [2, 3, 4])
+    def test_sorted_dict_key_hash_error(self, fail_on_call):
+        class Key:
+            calls = 0
+
+            def __hash__(self):
+                Key.calls += 1
+                if Key.calls == fail_on_call:
+                    raise ValueError("hash failed")
+                return 123
+
+        with pytest.raises(ValueError, match="hash failed"):
+            to_builtins({Key(): 1}, builtin_types=(Key,), order="sorted")
