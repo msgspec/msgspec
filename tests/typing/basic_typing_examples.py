@@ -7,7 +7,7 @@ import pickle
 from typing import Annotated, Any, Final, Literal, final
 
 import msgspec
-from typing_extensions import assert_type, Buffer
+from typing_extensions import Buffer, TypeForm, assert_type
 
 
 def check___version__() -> None:
@@ -344,6 +344,7 @@ def check_struct_attributes() -> None:
         y: int
 
     assert_type(Point.__struct_fields__, tuple[str, ...])
+    assert_type(Point.__struct_defaults__, tuple[Any, ...])
 
     for field in Point.__match_args__:
         # mypy inferences `field` as `str`,
@@ -354,6 +355,7 @@ def check_struct_attributes() -> None:
 
     assert_type(p.__struct_fields__, tuple[str, ...])
     assert_type(p.__struct_encode_fields__, tuple[str, ...])
+    assert_type(p.__struct_defaults__, tuple[Any, ...])
 
 
 def check_struct_config() -> None:
@@ -377,6 +379,8 @@ def check_struct_config() -> None:
     assert_type(config.cache_hash, bool)
     assert_type(config.tag, str | int | None)
     assert_type(config.tag_field, str | None)
+
+    config.frozen = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 ##########################################################
@@ -476,6 +480,8 @@ def check_asdict() -> None:
     assert_type(o, dict[str, Any])
     assert_type(o["foo"], Any)
 
+    msgspec.structs.asdict(struct=x)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
+
 
 def check_astuple() -> None:
     class Test(msgspec.Struct):
@@ -487,6 +493,8 @@ def check_astuple() -> None:
     assert_type(o, tuple[Any, ...])
     assert_type(o[0], Any)
 
+    msgspec.structs.astuple(struct=x)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
+
 
 def check_force_setattr() -> None:
     class Point(msgspec.Struct, frozen=True):
@@ -495,6 +503,8 @@ def check_force_setattr() -> None:
 
     obj = Point(1, 2)
     msgspec.structs.force_setattr(obj, "x", 3)
+
+    msgspec.structs.force_setattr(struct=obj, name="x", value=3)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
 
 
 def check_fields() -> None:
@@ -583,11 +593,15 @@ def check_meta_constructor() -> None:
     Meta(gt=1.0, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
     Meta(multiple_of=1, max_length=1.5)  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
 
+    # Cannot assign to attrs:
+    Meta(gt=1, lt=5).gt = 0  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+
 
 def check_meta_attributes() -> None:
     c = msgspec.Meta()
     assert_type(c.title, str | None)
     assert_type(c.description, str | None)
+    assert_type(c.tz, bool | None)
 
 
 def check_meta_equal() -> None:
@@ -612,6 +626,8 @@ def check_raw_constructor() -> None:
     r3 = msgspec.Raw(bytearray(b"test"))
     r4 = msgspec.Raw(memoryview(b"test"))
     r2 = msgspec.Raw("test")
+
+    msgspec.Raw(msg=b"test")  # type: ignore[call-overload]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[no-matching-overload]
 
 
 def check_raw_copy() -> None:
@@ -649,6 +665,7 @@ def check_msgpack_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_msgpack_encode() -> None:
@@ -664,6 +681,7 @@ def check_msgpack_Decoder_decode_any() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[Any])
     assert_type(o, Any)
+    assert_type(dec.type, TypeForm[Any])
 
 
 def check_msgpack_Decoder_decode_typed() -> None:
@@ -673,6 +691,19 @@ def check_msgpack_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.msgpack.Decoder[list[int]])
     assert_type(o, list[int])
+    assert_type(dec.type, TypeForm[list[int]])
+
+    dec2 = msgspec.msgpack.Decoder(Literal[True])
+    b2 = msgspec.msgpack.encode(True)
+    o2 = dec2.decode(b2)
+    assert_type(o2, Literal[True])
+    assert_type(dec2.type, TypeForm[Literal[True]])
+
+
+def check_msgpack_Decoder_decode_readonly() -> None:
+    dec = msgspec.msgpack.Decoder(list[int])
+    dec.type = list  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+    dec.strict = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_msgpack_Decoder_decode_union() -> None:
@@ -703,8 +734,11 @@ def check_msgpack_decode_any() -> None:
 def check_msgpack_decode_typed() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = msgspec.msgpack.decode(b, type=list[int])
-
     assert_type(o, list[int])
+
+    b2 = msgspec.msgpack.encode(True)
+    o2 = msgspec.msgpack.decode(b2, type=Literal[True])
+    assert_type(o2, Literal[True])
 
 
 def check_msgpack_decode_from_buffer() -> None:
@@ -750,6 +784,8 @@ def check_msgpack_Encoder_uuid_format() -> None:
     msgspec.msgpack.Encoder(uuid_format="bytes")
     assert_type(enc.uuid_format, Literal['canonical', 'hex', 'bytes'])
 
+    enc.uuid_format = "hex"  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+
 
 def check_msgpack_decode_dec_hook() -> None:
     def dec_hook(typ: type, obj: Any) -> Any:
@@ -786,8 +822,13 @@ def check_msgpack_Ext() -> None:
     assert_type(msgspec.msgpack.Ext(1, memoryview(b'')), msgspec.msgpack.Ext)
     assert_type(msgspec.msgpack.Ext(1, array.array('i', [1, 2, 3])), msgspec.msgpack.Ext)
 
+    msgspec.msgpack.Ext(code=1, data=b"test")  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # pyrefly: ignore[unexpected-keyword]
+
     # Non buffers:
     msgspec.msgpack.Ext(1, {})  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
+
+    # Attributes are read-only:
+    ext.code = 1  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 ##########################################################
@@ -816,6 +857,7 @@ def check_json_Encoder_encode_into() -> None:
     buf = bytearray(48)
     enc.encode_into([1, 2, 3], buf)
     enc.encode_into([1, 2, 3], buf, 2)
+    enc.encode_into([1, 2, 3], buf, None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # pyrefly: ignore[bad-argument-type]
 
 
 def check_json_encode() -> None:
@@ -840,6 +882,19 @@ def check_json_Decoder_decode_typed() -> None:
 
     assert_type(dec, msgspec.json.Decoder[list[int]])
     assert_type(o, list[int])
+    assert_type(dec.type, TypeForm[list[int]])
+
+    dec2 = msgspec.json.Decoder(Literal[True])
+    b2 = msgspec.json.encode(True)
+    o2 = dec2.decode(b2)
+    assert_type(o2, Literal[True])
+    assert_type(dec2.type, TypeForm[Literal[True]])
+
+
+def check_json_Decoder_decode_readonly() -> None:
+    dec = msgspec.json.Decoder(list[int])
+    dec.type = list  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
+    dec.strict = False  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_json_Decoder_decode_type_comment() -> None:
@@ -887,8 +942,11 @@ def check_json_decode_any() -> None:
 def check_json_decode_typed() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b, type=list[int])
-
     assert_type(o, list[int])
+
+    b2 = msgspec.json.encode(True)
+    o2 = msgspec.json.decode(b2, type=Literal[True])
+    assert_type(o2, Literal[True])
 
 
 def check_json_decode_typed_union() -> None:
@@ -937,6 +995,8 @@ def check_json_Encoder_uuid_format() -> None:
     enc = msgspec.json.Encoder(uuid_format="canonical")
     msgspec.json.Encoder(uuid_format="hex")
     assert_type(enc.uuid_format, Literal['canonical', 'hex'])
+
+    enc.uuid_format = "hex"  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]  # pyrefly: ignore[read-only]
 
 
 def check_json_decode_dec_hook() -> None:

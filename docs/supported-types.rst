@@ -604,6 +604,13 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
     >>> encoder.encode(x)
     b'1.2345'
 
+.. note::
+
+    It is impossible to represent ``NaN``, ``sNaN``, ``Inf``,
+    and other non-finite decimal values as numbers.
+    `ValueError` will be raised in this case.
+    Prefer string format if these values are needed.
+
 For JSON and MessagePack you may also pass a callable to ``decimal_format`` to
 customize how decimals are encoded. The callable will be called with the
 `decimal.Decimal` instance as the only argument, and must return a JSON-serializable
@@ -1560,6 +1567,16 @@ field (``point``) depends on the value of another (``dimensions``).
 
     >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
     Point3D(x=1, y=2, z=3)
+
+.. note::
+
+    `msgspec.Raw` values are only populated by `msgspec.json.decode` and
+    `msgspec.msgpack.decode`, which can capture the original encoded bytes of
+    a field before decoding it further. `msgspec.convert` (and anything
+    built on it, like `msgspec.yaml.decode` and `msgspec.toml.decode`)
+    operates on already-decoded Python objects, so there's no encoded byte
+    buffer left to capture -- a `Raw`-typed field will only accept an
+    already-constructed `Raw` object as input, not an arbitrary value.
 
 
 ``Any``

@@ -20,9 +20,12 @@ on:
     - setup.py
     - MANIFEST.in
     # Changes to CI execution
+    - .github/actions/**
+    - .github/dependabot.yml
     - .github/workflows/*
     - .cibuildwheel.toml
     - .justfile
+    - scripts/**
     # Changes to testing
     - tests/**
     - .codecov.yml
@@ -34,6 +37,10 @@ on:
   release:
     types:
     - published
+  schedule:
+    # Weekly full wheel build (build-all), so a musllinux or riscv64 breakage
+    # surfaces before the release run that would otherwise be the first to try it.
+    - cron: '17 4 * * 1'
 
 permissions: {}
 
@@ -42,6 +49,34 @@ env:
   UV_NO_SYNC: "true"
 
 jobs:
+  lint-workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Lint workflows and local actions
+      env:
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        docker run --rm \
+          --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+          --workdir /workspace \
+          --env GH_TOKEN \
+          ghcr.io/zizmorcore/zizmor:1.25.2@sha256:14ea7f5cc7c67933394a35b5a38a277397818d232602635edb2010b313afb110 \
+          --strict-collection \
+          --collect all \
+          --persona regular \
+          --format github \
+          -- \
+          .github
+
   prepare:
     name: Validate build
     uses: ./.github/workflows/prepare-build.yml
@@ -71,7 +106,7 @@ jobs:
         - "3.12"
         - "3.13"
         - "3.14"
-        - "3.15-dev"
+        - "3.15"
 
     steps:
     - name: Checkout code
@@ -200,7 +235,7 @@ jobs:
       contents: read
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
-      build-all: ${{ github.event_name == 'release' }}
+      build-all: ${{ github.event_name == 'release' || github.event_name == 'schedule' }}
 
   upload-pypi:
     name: Upload artifacts to PyPI
@@ -221,4 +256,4 @@ jobs:
         path: dist
 
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0
+      uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

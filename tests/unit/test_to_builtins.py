@@ -305,6 +305,22 @@ class TestToBuiltins:
         assert to_builtins({FruitInt.BANANA: 1}, str_keys=True) == {"2": 1}
         assert to_builtins({2: 1}, str_keys=True) == {"2": 1}
 
+    def test_dict_str_keys_builtin_types(self):
+        """With `str_keys`, keys of a type in `builtin_types` still become strings"""
+        builtin_types = (datetime.datetime, datetime.date, datetime.time)
+        msg = {
+            datetime.datetime(2022, 1, 2, 3, 4, 5): 1,
+            datetime.date(2022, 1, 2): 2,
+            datetime.time(12, 34): 3,
+        }
+        res = to_builtins(msg, builtin_types=builtin_types, str_keys=True)
+        assert res == {"2022-01-02T03:04:05": 1, "2022-01-02": 2, "12:34:00": 3}
+
+        # Values are still passed through unchanged
+        dt = datetime.datetime(2022, 1, 2, 3, 4, 5)
+        res = to_builtins({"x": dt}, builtin_types=builtin_types, str_keys=True)
+        assert res["x"] is dt
+
     def test_dict_sequence_keys(self):
         msg = {frozenset([1, 2]): 1}
         assert to_builtins(msg) == {(1, 2): 1}
@@ -475,6 +491,27 @@ class TestToBuiltins:
         sol = {("Ex", 1, -1) if tagged else (1, -1): "abc"}
         assert to_builtins(msg) == sol
 
+    @pytest.mark.parametrize("tagged", [False, True])
+    @pytest.mark.parametrize("is_key", [False, True])
+    @pytest.mark.parametrize("error", [False, True])
+    def test_struct_array_field_refcounts(self, tagged, is_key, error):
+        class Ex(Struct, array_like=True, tag=tagged, frozen=True):
+            x: Any
+            y: Any
+
+        value = float("1.5")
+        obj = Ex((value,), Bad() if error else value)
+        msg = {obj: None} if is_key else obj
+        count = sys.getrefcount(value)
+
+        if error:
+            with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+                to_builtins(msg)
+        else:
+            to_builtins(msg)
+
+        assert sys.getrefcount(value) == count
+
     @pytest.mark.parametrize("array_like", [False, True])
     def test_struct_unsupported_value(self, array_like):
         class Ex(Struct):
@@ -509,6 +546,24 @@ class TestToBuiltins:
             delattr(x, key)
             del sol[key]
             assert to_builtins(x) == sol
+
+    def test_dataclass_dict_key_eq_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            to_builtins(obj)
 
     @pytest.mark.parametrize("slots_base", slots_params)
     @pytest.mark.parametrize("slots", slots_params)
@@ -791,3 +846,17 @@ class TestOrder:
 
         res = to_builtins(Ex(0, 1), order="sorted")
         self.assert_eq(res, {"x": 1, "y": 2, "z": 0})
+
+    @pytest.mark.parametrize("fail_on_call", [2, 3, 4])
+    def test_sorted_dict_key_hash_error(self, fail_on_call):
+        class Key:
+            calls = 0
+
+            def __hash__(self):
+                Key.calls += 1
+                if Key.calls == fail_on_call:
+                    raise ValueError("hash failed")
+                return 123
+
+        with pytest.raises(ValueError, match="hash failed"):
+            to_builtins({Key(): 1}, builtin_types=(Key,), order="sorted")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import Generic, TypeVar
 
 import pytest
@@ -11,6 +12,11 @@ from .utils import temp_module
 T = TypeVar("T")
 S = TypeVar("S")
 U = TypeVar("U")
+
+PY311 = sys.version_info[:2] >= (3, 11)
+py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
+PY312 = sys.version_info[:2] >= (3, 12)
+py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
 
 class Base(Generic[T]):
@@ -208,3 +214,106 @@ class TestGetClassAnnotations:
             x: int | None = None
 
         assert get_class_annotations(Ex) == {"x": int | None}
+
+    @py312_plus
+    def test_pep695_generic_syntax(self):
+        source = """
+        from __future__ import annotations
+        class Ex[T]:
+            x: T
+            y: list[T]
+            z: int
+        """
+        with temp_module(source) as mod:
+            Ex = mod.Ex
+            (tvar,) = Ex.__type_params__
+            assert get_class_annotations(Ex) == {
+                "x": tvar,
+                "y": list[tvar],
+                "z": int,
+            }
+            assert get_class_annotations(Ex[int]) == {
+                "x": int,
+                "y": list[int],
+                "z": int,
+            }
+
+    @py312_plus
+    def test_pep695_generic_typeddict(self):
+        # `from __future__ import annotations` is load-bearing: it triggers the
+        # module-bound ForwardRefs that previously failed to resolve `T`. The
+        # legacy TypeVar ensures the module global doesn't shadow the PEP 695
+        # type parameter.
+        source = """
+        from __future__ import annotations
+        from typing import TypeVar, TypedDict
+        T = TypeVar("T")
+        class Ex[T](TypedDict):
+            x: T
+            y: list[T]
+        """
+        with temp_module(source) as mod:
+            Ex = mod.Ex
+            (tvar,) = Ex.__type_params__
+            assert get_class_annotations(Ex) == {"x": tvar, "y": list[tvar]}
+            assert get_class_annotations(Ex[int]) == {"x": int, "y": list[int]}
+
+    # typing.TypedDict can't be generic before 3.11.
+    @py311_plus
+    def test_generic_typeddict_subclass_keeps_type_argument(self):
+        # TypedDict copies base annotations onto the subclass and drops the
+        # base from the MRO, so Base[int] used to leave the field as a TypeVar.
+        source = """
+        from typing import Generic, TypedDict, TypeVar
+        L = TypeVar("L")
+
+        class Base(TypedDict, Generic[L]):
+            b: L
+            items: list[L]
+
+        class Sub(Base[int]):
+            n: str
+
+        class Override(Base[int]):
+            b: str
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {
+                "b": int,
+                "items": list[int],
+                "n": str,
+            }
+            assert get_class_annotations(mod.Override) == {
+                "b": str,
+                "items": list[int],
+            }
+
+    @py312_plus
+    def test_pep695_typeddict_subclass_resolves_type_argument(self):
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict
+
+        class Base[Q](TypedDict):
+            b: Q
+
+        class Sub(Base[int]):
+            n: str
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {"b": int, "n": str}
+
+    @py312_plus
+    def test_pep695_generic_subclass(self):
+        source = """
+        from __future__ import annotations
+        class Base[T]:
+            x: T
+        class Sub[U](Base[U]):
+            y: list[U]
+        """
+        with temp_module(source) as mod:
+            Sub = mod.Sub
+            (uvar,) = Sub.__type_params__
+            assert get_class_annotations(Sub) == {"x": uvar, "y": list[uvar]}
+            assert get_class_annotations(Sub[int]) == {"x": int, "y": list[int]}

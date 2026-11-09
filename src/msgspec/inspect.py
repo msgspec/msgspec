@@ -25,6 +25,7 @@ from ._typing_utils import is_struct, is_struct_type
 from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
+    _is_typeddict,
     get_class_annotations as _get_class_annotations,
     get_dataclass_info as _get_dataclass_info,
     get_typeddict_info as _get_typeddict_info,
@@ -717,13 +718,6 @@ def _is_dataclass(t):
 
 def _is_attrs(t):
     return hasattr(t, "__attrs_attrs__")
-
-
-def _is_typeddict(t):
-    try:
-        return issubclass(t, dict) and hasattr(t, "__total__")
-    except TypeError:
-        return False
 
 
 def _is_namedtuple(t):

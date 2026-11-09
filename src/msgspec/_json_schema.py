@@ -197,20 +197,32 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     def fullname(cls):
         return normalize(f"{cls.__module__}.{cls.__qualname__}")
 
-    conflicts = set()
-    names: dict[str, Any] = {}
-
-    for cls in component_types:
-        name = normalize(_get_class_name(cls))
-        if name in names:
-            old = names.pop(name)
-            conflicts.add(name)
-            names[fullname(old)] = old
-        if name in conflicts:
-            names[fullname(cls)] = cls
-        else:
-            names[name] = cls
-    return {v: k for k, v in names.items()}
+    short_names = {cls: normalize(_get_class_name(cls)) for cls in component_types}
+    counts: dict[str, int] = {}
+    for name in short_names.values():
+        counts[name] = counts.get(name, 0) + 1
+    preferred = {
+        cls: fullname(cls) if counts[name] > 1 else name
+        for cls, name in short_names.items()
+    }
+    # Distinct classes created by a factory can share a full import path.
+    # Reserve preferred names before adding suffixes, so generated names cannot
+    # displace another component.
+    reserved = set(preferred.values())
+    used = set()
+    names = {}
+    for cls, name in preferred.items():
+        candidate = name
+        suffix = 2
+        if candidate in used:
+            while True:
+                candidate = f"{name}_{suffix}"
+                suffix += 1
+                if candidate not in used and candidate not in reserved:
+                    break
+        names[cls] = candidate
+        used.add(candidate)
+    return names
 
 
 class _SchemaGenerator:
@@ -233,7 +245,7 @@ class _SchemaGenerator:
             t = t.type
 
         if check_ref and hasattr(t, "cls"):
-            if name := self.name_map.get(t.cls):
+            if (name := self.name_map.get(t.cls)) is not None:
                 schema["$ref"] = self.ref_template.format(name=name)
                 return schema
 
@@ -310,15 +322,23 @@ class _SchemaGenerator:
                 schema["items"] = False
         elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             schema["type"] = "object"
-            # If there are restrictions on the keys, specify them as propertyNames
-            if isinstance(key_type := t.key_type, mi.StrType):
-                property_names: dict[str, Any] = {}
-                if key_type.min_length is not None:
-                    property_names["minLength"] = key_type.min_length
-                if key_type.max_length is not None:
-                    property_names["maxLength"] = key_type.max_length
-                if key_type.pattern is not None:
-                    property_names["pattern"] = key_type.pattern
+            # If keys have schema metadata or constraints, include them as propertyNames
+            key_type = t.key_type
+            while isinstance(key_type, mi.Metadata):
+                key_type = key_type.type
+            if (
+                isinstance(key_type, mi.StrType)
+                or isinstance(key_type, mi.LiteralType)
+                and all(isinstance(value, str) for value in key_type.values)
+                or isinstance(key_type, mi.EnumType)
+                and all(
+                    isinstance(member.value, str)
+                    for member in key_type.cls.__members__.values()
+                )
+            ):
+                property_names = self.to_schema(t.key_type)
+                # Object property names are always strings, so omit the redundant type
+                property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
@@ -384,7 +404,11 @@ class _SchemaGenerator:
             schema.setdefault("title", t.cls.__name__)
             if doc := _get_doc(t):
                 schema.setdefault("description", doc)
-            schema["enum"] = sorted(e.value for e in t.cls)
+            # Flag iteration omits zero and composite members. Deduplicate by
+            # Enum member identity: aliases share a member even when their values
+            # are large or unhashable.
+            members = {id(member): member for member in t.cls.__members__.values()}
+            schema["enum"] = sorted(member.value for member in members.values())
         elif isinstance(t, mi.StructType):
             schema.setdefault("title", _get_class_name(t.cls))
             if doc := _get_doc(t):
@@ -405,15 +429,18 @@ class _SchemaGenerator:
                 elif field.default is not mi.NODEFAULT:
                     field_schema["default"] = to_builtins(field.default, str_keys=True)
                 elif field.default_factory in (list, dict, set, bytearray):
-                    field_schema["default"] = field.default_factory()
+                    field_schema["default"] = to_builtins(
+                        field.default_factory(), str_keys=True
+                    )
                 names.append(field.encode_name)
                 fields.append(field_schema)
 
             if t.array_like:
                 n_trailing_defaults = 0
-                for n_trailing_defaults, f in enumerate(reversed(t.fields)):
+                for f in reversed(t.fields):
                     if f.required:
                         break
+                    n_trailing_defaults += 1
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
                 schema["minItems"] = len(fields) - n_trailing_defaults
@@ -438,6 +465,10 @@ class _SchemaGenerator:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
                     field_schema["default"] = to_builtins(field.default, str_keys=True)
+                elif field.default_factory in (list, dict, set, bytearray):
+                    field_schema["default"] = to_builtins(
+                        field.default_factory(), str_keys=True
+                    )
                 names.append(field.encode_name)
                 fields.append(field_schema)
             if isinstance(t, mi.NamedTupleType):

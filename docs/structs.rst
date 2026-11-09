@@ -1104,6 +1104,12 @@ container types. It is your responsibility to ensure cycles with these objects
 don't occur, as a cycle containing only ``gc=False`` structs will *never* be
 collected (leading to a memory leak).
 
+``gc=False`` cannot be combined with a weakref slot, whether that slot comes
+from ``weakref=True`` or from a base class. Setting both raises ``ValueError``
+at class creation. On Python 3.12 and later such a slot is stored in a
+pre-header in front of the instance, and disabling garbage collection for the
+type makes releasing an instance unsafe.
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
 .. _PEP 636: https://peps.python.org/pep-0636/
