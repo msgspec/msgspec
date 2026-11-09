@@ -649,6 +649,26 @@ def check_raw_pass_to_decode() -> None:
     res2 = msgspec.msgpack.decode(r)
 
 
+def check_raw_optional() -> None:
+    assert_type(msgspec.json.decode(b"null", type=msgspec.Raw | None), msgspec.Raw | None)
+    assert_type(msgspec.msgpack.decode(b"\xc0", type=msgspec.Raw | None), msgspec.Raw | None)
+
+    json_decoder = msgspec.json.Decoder(msgspec.Raw | None)
+    assert_type(json_decoder, msgspec.json.Decoder[msgspec.Raw | None])
+    assert_type(json_decoder.decode(b"123"), msgspec.Raw | None)
+
+    msgpack_decoder = msgspec.msgpack.Decoder(msgspec.Raw | None)
+    assert_type(msgpack_decoder, msgspec.msgpack.Decoder[msgspec.Raw | None])
+    assert_type(msgpack_decoder.decode(b"\x01"), msgspec.Raw | None)
+
+    class Example(msgspec.Struct):
+        value: msgspec.Raw | None
+
+    converted = msgspec.convert({"value": None}, type=Example)
+    assert_type(converted, Example)
+    assert_type(converted.value, msgspec.Raw | None)
+
+
 ##########################################################
 # MessagePack                                            #
 ##########################################################

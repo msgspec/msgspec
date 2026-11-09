@@ -1458,6 +1458,9 @@ Union restrictions are as follows:
 - Unions with custom types are unsupported beyond optionality (i.e.
   ``CustomType | None``)
 
+- Unions containing `msgspec.Raw` may only combine it with `None`. As with
+  other unions, a union containing `Any` is treated as `Any` instead.
+
 .. code-block:: python
 
     >>> # A decoder expecting either an int, a str, or a list of strings
@@ -1568,6 +1571,23 @@ field (``point``) depends on the value of another (``dimensions``).
     >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
     Point3D(x=1, y=2, z=3)
 
+To distinguish an explicit null from other encoded values, use
+``msgspec.Raw | None`` (or ``Optional[msgspec.Raw]``). JSON ``null`` and
+MessagePack ``nil`` decode as `None`; all other values are captured as
+`msgspec.Raw`. With `msgspec.Raw` alone, null values are captured as raw bytes
+as well.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b'null', type=msgspec.Raw | None) is None
+    True
+
+    >>> bytes(msgspec.json.decode(b'123', type=msgspec.Raw | None))
+    b'123'
+
+    >>> msgspec.msgpack.decode(b'\xc0', type=msgspec.Raw | None) is None
+    True
+
 .. note::
 
     `msgspec.Raw` values are only populated by `msgspec.json.decode` and
@@ -1577,6 +1597,7 @@ field (``point``) depends on the value of another (``dimensions``).
     operates on already-decoded Python objects, so there's no encoded byte
     buffer left to capture -- a `Raw`-typed field will only accept an
     already-constructed `Raw` object as input, not an arbitrary value.
+    For ``Raw | None``, `msgspec.convert` accepts a `Raw` object or `None`.
 
 
 ``Any``
