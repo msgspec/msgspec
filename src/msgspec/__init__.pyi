@@ -19,7 +19,7 @@ from typing_extensions import (
     disjoint_base,
 )
 
-from . import inspect, json, msgpack, structs, toml, yaml
+from . import inspect, json, json5, msgpack, structs, toml, yaml
 
 # PEP 673 explicitly rejects using Self in metaclass definitions:
 # https://peps.python.org/pep-0673/#valid-locations-for-self

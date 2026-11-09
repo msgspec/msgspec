@@ -112,6 +112,16 @@ TOML
 .. autofunction:: decode
 
 
+JSON5
+-----
+
+.. currentmodule:: msgspec.json5
+
+.. autofunction:: encode
+
+.. autofunction:: decode
+
+
 JSON Schema
 -----------
 

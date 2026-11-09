@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import datetime as _datetime
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from . import (
-    DecodeError as _DecodeError,
-    convert as _convert,
-    to_builtins as _to_builtins,
-)
+from . import DecodeError, convert as _convert, to_builtins as _to_builtins
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,15 +35,18 @@ def _import_json5_encode() -> Callable[[Any], str]:
     try:
         import pyjson5  # type: ignore
 
-        return pyjson5.dumps
+        return pyjson5.encode
     except ImportError:
         pass
 
     try:
+        import functools
+
         import json5  # type: ignore
-        return json5.dumps
+
+        return functools.partial(json5.dumps, quote_keys=True)
     except ImportError:
-       raise _import_error_with_msg("encode") from None
+        raise _import_error_with_msg("encode") from None
 
 
 def _import_json5_decode() -> Callable[[Buffer | str], Any]:
@@ -59,23 +57,31 @@ def _import_json5_decode() -> Callable[[Buffer | str], Any]:
         import pyjson5  # type: ignore
 
         def decode(bits: Buffer | str) -> Any:
-            if isinstance(bits, str):
-                return pyjson5.decode(bits)
-            return pyjson5.decode_buffer(bytes(bits))
+            try:
+                if isinstance(bits, str):
+                    return pyjson5.decode(bits)
+                return pyjson5.decode_buffer(bytes(bits))
+            except pyjson5.Json5Exception as e:
+                raise DecodeError(e.message) from e
+
         return decode
     except ImportError:
         pass
 
     try:
         import json5  # type: ignore
+
         def decode(bits: Buffer | str) -> Any:
-            if isinstance(bits, str):
-                return json5.loads(bits)
-            return json5.loads(bytes(bits))
+            try:
+                if isinstance(bits, str):
+                    return json5.loads(bits)
+                return json5.loads(bytes(bits))
+            except (ValueError, UnicodeDecodeError) as e:
+                raise DecodeError(e.args) from e
+
         return decode
     except ImportError:
-       raise _import_error_with_msg("decode") from None
-
+        raise _import_error_with_msg("decode") from None
 
 
 def encode(
@@ -125,13 +131,10 @@ def encode(
     """
 
     json5_encode = _import_json5_encode()
-    return json5_encode(
-        _to_builtins(
-        obj,
-        enc_hook=enc_hook,
-        order=order
-        )
-    ).encode('utf-8')
+    return json5_encode(_to_builtins(obj, enc_hook=enc_hook, order=order)).encode(
+        "utf-8"
+    )
+
 
 _T = TypeVar("_T")
 
@@ -205,5 +208,8 @@ def decode(
     json5_decode = _import_json5_decode()
 
     return _convert(
-        json5_decode(buf), type, dec_hook=dec_hook, strict=strict
+        json5_decode(buf),
+        type,
+        dec_hook=dec_hook,
+        strict=strict,
     )
