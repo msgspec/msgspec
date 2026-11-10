@@ -179,6 +179,18 @@ class TestDecoder:
         msg = proto.encode(2)
         assert dec.decode(msg) == 2
 
+    def test_decoder_unhashable_origin(self, proto):
+        class Origin:
+            def __hash__(self):
+                raise RuntimeError("hash failed")
+
+        class Ex:
+            __origin__ = Origin()
+            __args__ = ()
+
+        with pytest.raises(TypeError, match="not supported"):
+            proto.Decoder(Ex())
+
     def test_decoder_dec_hook_attribute(self, proto):
         def dec_hook(typ, obj):
             pass
@@ -1185,6 +1197,27 @@ class TestUnionTypeErrors:
             assert dec.decode(proto.encode(msg)) == msg
         with pytest.raises(ValidationError):
             assert dec.decode(proto.encode(1.5))
+
+
+class _UnionLeakCustom:
+    pass
+
+
+class _UnionLeakPoint(msgspec.Struct):
+    x: int
+
+
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="needs refcounts")
+@pytest.mark.parametrize(
+    "member, other", [(_UnionLeakCustom, type(None)), (_UnionLeakPoint, int)]
+)
+def test_resolving_a_union_does_not_leak_its_args(member, other):
+    msgspec.json.Decoder(member | other)
+    before = sys.getrefcount(member)
+    for _ in range(10):
+        msgspec.json.Decoder(member | other)
+        msgspec.convert(1 if other is int else None, member | other)
+    assert sys.getrefcount(member) == before
 
 
 class TestStructUnion:
@@ -3546,6 +3579,24 @@ class TestDataclass:
 
         with pytest.raises(TypeError, match="Encoding objects of type type"):
             proto.encode(Ex)
+
+    def test_encode_dataclass_dict_key_eq_error(self, proto):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            proto.encode(obj)
 
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
