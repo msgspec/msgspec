@@ -3181,6 +3181,15 @@ class TestRaw:
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
 
+    def test_struct_broken_annotations(self):
+        class BrokenAnnotations(msgspec.Struct):
+            x: int
+
+        BrokenAnnotations.__annotations__ = {}
+
+        with pytest.raises(TypeError, match="__annotations__"):
+            msgspec.json.decode(b'{"x": 1}', type=BrokenAnnotations)
+
 
 class TestFormat:
     @pytest.mark.parametrize(
