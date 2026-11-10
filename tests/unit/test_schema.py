@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import enum
+import json
 import sys
 import typing
 import uuid
@@ -295,6 +296,7 @@ def test_enum():
         C = "x"
         B = "z"
         A = "y"
+        ALIAS = "x"
 
     assert msgspec.json.schema(Example) == {
         "$ref": "#/$defs/Example",
@@ -305,6 +307,99 @@ def test_enum():
                 "enum": ["x", "y", "z"],
             }
         },
+    }
+
+
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+def test_enum_zero_composite_and_alias_members(enum_type):
+    class Example(enum_type):
+        NONE = 0
+        READ = 1
+        WRITE = 2
+        BOTH = 3
+        BOTH_ALIAS = 3
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [0, 1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("value", [0, 3])
+def test_enum_single_flag_member(enum_type, value):
+    Example = enum_type("Example", {"MEMBER": value})
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("value_type,values", [(int, [1, 2]), (str, ["a", "b"])])
+def test_enum_unhashable_scalar_values(value_type, values):
+    class Value(value_type):
+        __hash__ = None
+
+    class Example(enum.Enum):
+        A = values[0]
+        B = Value(values[1])
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+@pytest.mark.parametrize(
+    "enum_type", [enum.Enum, enum.IntEnum, enum.Flag, enum.IntFlag]
+)
+@pytest.mark.parametrize("value", [10_000, 1 << 60])
+def test_enum_large_value_aliases(enum_type, value):
+    class Example(enum_type):
+        # Construct equal values separately instead of reusing an integer constant.
+        A = int(str(value))
+        ALIAS = int(str(value))
+        ALIAS2 = value
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [value]}},
+    }
+
+
+@pytest.mark.parametrize("enum_type", [enum.Flag, enum.IntFlag])
+@pytest.mark.parametrize("shift", [0, 60])
+def test_enum_flag_expressions(enum_type, shift):
+    class Example(enum_type):
+        A = 1 << shift
+        B = 2 << shift
+        C = A | B
+        D = ~A
+        C_ALIAS = A | B
+        D_ALIAS = ~A
+
+    # Python 3.15 normalizes negative flag declarations during class creation.
+    values = sorted({Example.D.value, 1 << shift, 2 << shift, 3 << shift})
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": values}},
+    }
+
+
+def test_enum_unhashable_members():
+    class Example(enum.Enum):
+        __hash__ = None
+        A = 1
+        B = 2
+        ALIAS = B
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2]}},
     }
 
 
@@ -371,6 +466,24 @@ def test_struct_object():
             },
         },
     }
+
+
+@pytest.mark.parametrize(
+    "factory, default",
+    [
+        (list, []),
+        (dict, {}),
+        (set, []),
+        (bytearray, ""),
+    ],
+)
+def test_struct_default_factory_default(factory, default):
+    class Example(msgspec.Struct):
+        x: factory = msgspec.field(default_factory=factory)
+
+    schema = msgspec.json.schema(Example)["$defs"]["Example"]
+    assert schema["properties"]["x"]["default"] == default
+    json.dumps(schema)
 
 
 @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
@@ -781,6 +894,7 @@ def test_dataclass_or_attrs(module):
                     "metadata": {
                         "type": "object",
                         "additionalProperties": {"type": "string"},
+                        "default": {},
                     },
                 },
                 "required": ["vertices"],
@@ -1241,6 +1355,73 @@ def test_dict_key_metadata_with_schema_metadata(meta, property_names):
     }
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_literal_key_schema(annotated):
+    key_type = Literal["apple", "banana"]
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"enum": ["apple", "banana"]}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["additionalProperties"] == {"type": "integer"}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {"apple": 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+@pytest.mark.parametrize("base", [enum.Enum, str])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_dict_string_enum_key_schema(base, annotated):
+    if base is str:
+
+        class Fruit(str, enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    else:
+
+        class Fruit(enum.Enum):
+            APPLE = "apple"
+            BANANA = "banana"
+
+    key_type = Fruit
+    if annotated:
+        key_type = Annotated[key_type, Meta(title="fruit")]
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    expected = {"$ref": "#/$defs/Fruit"}
+    if annotated:
+        expected["title"] = "fruit"
+    assert schema["propertyNames"] == expected
+    assert schema["$defs"]["Fruit"]["enum"] == ["apple", "banana"]
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == {Fruit.APPLE: 1}
+    with pytest.raises(msgspec.ValidationError, match="Invalid enum value"):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
+def test_dict_integer_keys_do_not_use_string_property_names():
+    class Number(enum.IntEnum):
+        ONE = 1
+        TWO = 2
+
+    for key_type in (int, Literal[1, 2], Number):
+        schema = msgspec.json.schema(dict[key_type, int])
+        assert "propertyNames" not in schema
+
+
+@py315_or_later_only
+def test_frozendict_string_literal_key_schema():
+    typ = frozendict[Literal["apple", "banana"], int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == {"enum": ["apple", "banana"]}
+    assert msgspec.json.decode(b'{"apple": 1}', type=typ) == frozendict(apple=1)
+
+
 @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
 @pytest.mark.parametrize(
     "field, n, constraint",
@@ -1309,6 +1490,38 @@ def test_generic_metadata():
     }
 
 
+@pytest.mark.parametrize("name", ["", "Node"])
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+def test_component_name_references(name, recursive, ref_template):
+    fields = '[("child", "Node | None", None)]' if recursive else '[("value", int)]'
+    code = f"import msgspec\nNode = msgspec.defstruct({name!r}, {fields})"
+    ref = {"$ref": ref_template.format(name=name)}
+    properties = (
+        {"child": {"anyOf": [ref, {"type": "null"}], "default": None}}
+        if recursive
+        else {"value": {"type": "integer"}}
+    )
+    expected = {
+        name: {
+            "title": name,
+            "type": "object",
+            "properties": properties,
+            "required": [] if recursive else ["value"],
+        }
+    }
+    with temp_module(code) as mod:
+        obj = mod.Node(mod.Node()) if recursive else mod.Node(1)
+        assert msgspec.json.decode(msgspec.json.encode(obj), type=mod.Node) == obj
+        assert msgspec.json.schema_components(
+            [mod.Node], ref_template=ref_template
+        ) == ((ref,), expected)
+        assert msgspec.json.schema(mod.Node, ref_template=ref_template) == {
+            **ref,
+            "$defs": expected,
+        }
+
+
 def test_component_names_collide():
     s1 = """
     import msgspec
@@ -1339,6 +1552,78 @@ def test_component_names_collide():
             "type": "object",
         },
     }
+
+
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_component_names_collide_in_same_module(ref_template, reverse):
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    third = msgspec.defstruct("Response", [("value", bool)])
+    cases = [(first, 1, "integer"), (second, "ok", "string"), (third, True, "boolean")]
+    if reverse:
+        cases.reverse()
+    types = [case[0] for case in cases]
+    schemas, components = msgspec.json.schema_components(
+        types, ref_template=ref_template
+    )
+    assert len(components) == 3
+    assert len({schema["$ref"] for schema in schemas}) == 3
+    for (cls, value, expected_type), schema in zip(cases, schemas):
+        encoded = msgspec.json.encode(cls(value))
+        assert msgspec.json.decode(encoded, type=cls) == cls(value)
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected_type}
+    assert msgspec.json.schema_components(types, ref_template=ref_template) == (
+        schemas,
+        components,
+    )
+
+
+def test_component_names_collide_with_reserved_suffix():
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    # A normal class in the same module already needs the generated suffix.
+    third = msgspec.defstruct("Response_2", [("value", bool)])
+    fourth = msgspec.defstruct("Response_2", [("value", float)])
+    types = [first, second, third, fourth]
+    schemas, components = msgspec.json.schema_components(types)
+    assert len(components) == 4
+    assert len({schema["$ref"] for schema in schemas}) == 4
+    for schema, expected in zip(schemas, ["integer", "string", "boolean", "number"]):
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected}
+    assert schemas[2]["$ref"] == f"#/$defs/{third.__module__}.Response_2"
+
+
+def test_component_names_collide_recursive_union():
+    source = """
+    import msgspec
+    ResponseA = msgspec.defstruct(
+        "Response", [("value", int), ("child", "ResponseA | None", None)], tag="a"
+    )
+    ResponseB = msgspec.defstruct(
+        "Response", [("value", str), ("child", "ResponseB | None", None)], tag="b"
+    )
+    """
+    with temp_module(source) as mod:
+        typ = mod.ResponseA | mod.ResponseB
+        schema = msgspec.json.schema(typ)
+        refs = [item["$ref"] for item in schema["anyOf"]]
+        assert len(set(refs)) == 2
+        assert len(schema["$defs"]) == 2
+        for cls, tag, value, ref in zip(
+            [mod.ResponseA, mod.ResponseB], ["a", "b"], [1, "ok"], refs
+        ):
+            obj = cls(value, cls(value))
+            assert msgspec.json.decode(msgspec.json.encode(obj), type=typ) == obj
+            component = schema["$defs"][ref.rsplit("/", 1)[1]]
+            assert component["properties"]["type"] == {"enum": [tag]}
+            assert component["properties"]["child"]["anyOf"] == [
+                {"$ref": ref},
+                {"type": "null"},
+            ]
+            assert schema["discriminator"]["mapping"][tag] == ref
 
 
 def test_schema_components_collects_subtypes():

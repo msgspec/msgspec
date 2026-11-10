@@ -6,11 +6,7 @@ from typing import (
     ClassVar,
     Final,
     Literal,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     final,
     overload,
 )
@@ -76,7 +72,7 @@ _T = TypeVar("_T")
 @final
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
-    def __bool__(self) -> Literal[False]: ...
+    def __bool__(self, /) -> Literal[False]: ...
 
 UNSET: Final = UnsetType.UNSET
 
@@ -126,8 +122,8 @@ class Struct(metaclass=StructMeta):
         dict: bool = False,
         cache_hash: bool = False,
     ) -> None: ...
-    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
-    def __replace__(self, **changes: Any) -> Self: ...
+    def __rich_repr__(self, /) -> list[tuple[str, Any]]: ...
+    def __replace__(self, /, **changes: Any) -> Self: ...
 
 def defstruct(
     name: str,
@@ -165,8 +161,8 @@ class Raw(bytes):
     @overload
     def __new__(cls) -> "Raw": ...
     @overload
-    def __new__(cls, msg: Buffer | str) -> "Raw": ...
-    def copy(self) -> "Raw": ...
+    def __new__(cls, msg: Buffer | str, /) -> "Raw": ...
+    def copy(self, /) -> "Raw": ...
 
 #: We can't represent this in types, only via a name:
 _NonNegativeInt: TypeAlias = int
@@ -258,7 +254,7 @@ class Meta:
     examples: Final[list[Any] | None]
     extra_json_schema: Final[dict[str, Any] | None]
     extra: Final[dict[str, Any] | None]
-    def __rich_repr__(self) -> list[tuple[str, Any]]: ...
+    def __rich_repr__(self, /) -> list[tuple[str, Any]]: ...
 
 def to_builtins(
     obj: Any,

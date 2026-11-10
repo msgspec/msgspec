@@ -803,6 +803,17 @@ class TestRepr:
         with pytest.raises(ValueError, match=msg):
             repr(t)
 
+    def test_repr_null_deref(self):
+        class A(msgspec.Struct, repr_omit_defaults=True):
+            x: list[int] = []
+
+        a = A()
+        del a.x
+
+        # must not crash:
+        with pytest.raises(AttributeError, match="'x' is unset"):
+            a.__rich_repr__()
+
 
 def test_struct_copy():
     x = copy.copy(Struct())
@@ -944,6 +955,90 @@ def test_struct_reference_counting():
 
     assert t == t2
     assert sys.getrefcount(data) <= 4
+
+
+def test_struct_definition_does_not_leak_annotations():
+    """Defining a struct type must not retain its `__annotations__` dict"""
+
+    class Annotation:
+        pass
+
+    ref = weakref.ref(Annotation)
+
+    cls = defstruct("Temp", [("x", Annotation)])
+    del cls, Annotation
+    gc.collect()
+
+    assert ref() is None
+
+
+def test_struct_definition_does_not_leak_class_body_annotations():
+    """A class body must not retain the annotations built for it"""
+
+    def define_struct_type():
+        class Annotation:
+            pass
+
+        class Example(Struct):
+            x: Annotation
+
+        return weakref.ref(Annotation)
+
+    refs = [define_struct_type() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
+@pytest.mark.parametrize("spelling", ["ClassVar", "typing.ClassVar"])
+def test_struct_definition_does_not_leak_module_namespace(spelling):
+    """A string `ClassVar` annotation must not retain the module namespace"""
+
+    class Sentinel:
+        pass
+
+    def define_in_temp_module():
+        with temp_module(
+            "import typing\nfrom typing import ClassVar\nimport msgspec\n"
+        ) as mod:
+            sentinel = Sentinel()
+            mod.__dict__["sentinel"] = sentinel
+            exec(
+                "from __future__ import annotations\n"
+                "class Ex(msgspec.Struct):\n"
+                f"    a: {spelling}[int] = 1\n"
+                "    x: int = 0\n",
+                mod.__dict__,
+            )
+            # The leak only exists while the annotations are strings
+            assert mod.Ex.__annotations__["x"] == "int"
+            return weakref.ref(sentinel)
+
+    refs = [define_in_temp_module() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
+
+
+def test_struct_definition_does_not_leak_non_struct_base_dict():
+    """Defining a struct must not retain the type dict of a non-struct base"""
+
+    class Sentinel:
+        pass
+
+    def define_struct_type():
+        sentinel = Sentinel()
+        Mixin = type("Mixin", (), {"sentinel": sentinel})
+
+        class Example(Mixin, Struct):
+            x: int
+
+        return weakref.ref(sentinel)
+
+    refs = [define_struct_type() for _ in range(3)]
+    gc.collect()
+
+    assert [ref() for ref in refs] == [None, None, None]
 
 
 def test_struct_gc_not_added_if_not_needed():
@@ -1114,6 +1209,67 @@ class TestStructGC:
 
             class Test(Base, **opts):
                 pass
+
+    @staticmethod
+    def assert_gc_false_with_weakref_rejected(base, **opts):
+        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+
+            class Test(base, **opts):
+                pass
+
+    def test_struct_gc_false_forbids_weakref_true(self):
+        self.assert_gc_false_with_weakref_rejected(Struct, gc=False, weakref=True)
+
+    def test_struct_gc_false_forbids_weakref_base(self):
+        class Base(Struct, weakref=True):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_base_forbids_weakref_true(self):
+        class Base(Struct, gc=False):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, weakref=True)
+
+    def test_struct_gc_false_forbids_weakref_grandparent(self):
+        class Grandparent(Struct, weakref=True):
+            pass
+
+        class Base(Grandparent):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_forbids_weakref_slot_from_mixin(self):
+        class Mixin:
+            __slots__ = ("__weakref__",)
+
+        class Base(Mixin, Struct):
+            pass
+
+        self.assert_gc_false_with_weakref_rejected(Base, gc=False)
+
+    def test_struct_gc_false_forbids_weakref_true_defstruct(self):
+        with pytest.raises(ValueError, match="Cannot set gc=False and weakref=True"):
+            defstruct("Test", ["x"], gc=False, weakref=True)
+
+    def test_struct_gc_false_and_weakref_still_allowed_apart(self):
+        class NoGC(Struct, gc=False):
+            x: list
+
+        class SubNoGC(NoGC, gc=False):
+            y: list
+
+        class WithWeakRef(Struct, weakref=True):
+            x: list
+
+        assert not gc.is_tracked(NoGC([1]))
+        assert not gc.is_tracked(SubNoGC([1], [2]))
+
+        obj = WithWeakRef([1])
+        assert gc.is_tracked(obj)
+        assert weakref.ref(obj)() is obj
 
 
 class TestStructDealloc:
@@ -2164,6 +2320,28 @@ class TestDefStruct:
         assert Test.__struct_fields__ == ("x", "y", "z")
         assert Test.__annotations__ == {"x": int, "y": int, "z": int}
 
+    @pytest.mark.parametrize("spelling", ["ClassVar", "typing.ClassVar"])
+    @pytest.mark.parametrize("module", ["", "module=None"])
+    def test_defstruct_classvar_string_annotation_without_module(
+        self,
+        spelling,
+        module,
+    ):
+        source = f"""
+        import typing
+        from typing import ClassVar
+        from msgspec import defstruct
+
+        Ex = defstruct(
+            "Ex",
+            [("a", int), ("cv", "{spelling}[int]", 1)],
+            {module})
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
     def test_defstruct_errors(self):
         with pytest.raises(TypeError, match="must be str, not int"):
             defstruct(1)
@@ -2634,9 +2812,38 @@ class TestClassVar:
             assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
 
-    def test_wrong_classvar(self):
-        # See https://github.com/msgspec/msgspec/issues/1096
+    def test_classvar_string_annotation_without_module(self):
         source = """
+        from typing import ClassVar
+        from msgspec import Struct
+
+        namespace = {"__annotations__": {"a": int, "cv": "ClassVar[int]"}, "cv": 1}
+        Ex = type(Struct)("Ex", (Struct,), namespace)
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
+    def test_classvar_string_annotation_module_not_loaded(self):
+        with pytest.raises(KeyError, match="is not loaded"):
+
+            class Ex(Struct):
+                __module__ = "not_a_loaded_module"
+                cv: "ClassVar[int]" = 1  # noqa: F821
+
+    def test_classvar_string_annotation_unhashable_module(self):
+        with pytest.raises(TypeError, match="unhashable"):
+
+            class Ex(Struct):
+                __module__ = []
+                cv: "ClassVar[int]" = 1  # noqa: F821
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])
+    def test_wrong_classvar(self, annotation, default):
+        # See https://github.com/msgspec/msgspec/issues/1096 and #1221
+        source = f"""
         from __future__ import annotations
         from msgspec import Struct
 
@@ -2644,14 +2851,73 @@ class TestClassVar:
             pass
 
         class Ex(Struct):
-            a: typing.ClassVar
+            a: {annotation}{default}
         """
-
         with pytest.raises(
             AttributeError,
             match="'typing' has no attribute 'ClassVar'",
         ):
-            temp_module(source).__enter__()  # It used to crash, but must not!
+            with temp_module(source):
+                pass  # Class creation must raise, not abort the interpreter.
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_attribute_lookup_error(self, default):
+        source = f"""
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace:
+            @property
+            def ClassVar(self):
+                raise RuntimeError("classvar lookup failed")
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]{default}
+        """
+        with pytest.raises(RuntimeError, match="classvar lookup failed"):
+            with temp_module(source):
+                pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_attribute(self, default):
+        source = f"""
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace: ...
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]{default}
+        """
+        with pytest.raises(AttributeError, match="ClassVar"):
+            with temp_module(source):
+                pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_typing_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "typing.ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_not_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
 
 
 class TestPostInit:

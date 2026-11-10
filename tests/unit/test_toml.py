@@ -127,6 +127,12 @@ def test_roundtrip_any(val):
         (("one", 2), tuple[str, int]),
         ({"one": 2}, dict[str, int]),
         ({1: "two"}, dict[int, str]),
+        ({datetime.date(2022, 1, 2): 1}, dict[datetime.date, int]),
+        (
+            {datetime.datetime(2022, 1, 2, 3, 4, 5, 6, UTC): 1},
+            dict[datetime.datetime, int],
+        ),
+        ({datetime.time(12, 34): 1}, dict[datetime.time, int]),
         (ExStruct(1, "two"), ExStruct),
         (ExDataclass(1, "two"), ExDataclass),
     ],
@@ -200,6 +206,16 @@ def test_decode_str_or_bytes_like():
 def test_decode_parse_error(msg):
     with pytest.raises(msgspec.DecodeError):
         msgspec.toml.decode(msg)
+
+
+@needs_decode
+@pytest.mark.parametrize("buffer_type", [bytes, bytearray, memoryview])
+def test_decode_invalid_utf8(buffer_type):
+    with pytest.raises(msgspec.DecodeError, match="utf-8"):
+        msgspec.toml.decode(buffer_type(b"name = '\xff'"))
+    assert msgspec.toml.decode(buffer_type(b"name = 'caf\xc3\xa9'")) == {
+        "name": "caf\u00e9"
+    }
 
 
 @needs_decode
