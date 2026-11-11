@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix decoding ISO 8601 durations with very large day counts, which could
+  overflow and return an incorrect `timedelta` or raise `OverflowError` instead
+  of `ValidationError`.
 - Fix JSON Schema generation for distinct types sharing the same module and
   qualified name, such as dynamically generated structs.
 - Include string Literal and Enum dictionary key constraints in generated JSON
