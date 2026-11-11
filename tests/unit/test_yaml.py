@@ -139,6 +139,17 @@ def test_encode_enc_hook():
     assert msgspec.yaml.decode(msg) == "1.5"
 
 
+@pytest.mark.parametrize("value", [Decimal("19.95"), datetime.date(2022, 1, 2)])
+def test_encode_enum_value(value):
+    class Example(enum.Enum):
+        x = value
+
+    msg = msgspec.yaml.encode({"value": Example.x})
+    assert msgspec.yaml.decode(msg) == msgspec.yaml.decode(
+        msgspec.yaml.encode({"value": value})
+    )
+
+
 @pytest.mark.parametrize("order", [None, "deterministic"])
 def test_encode_order(order):
     msg = {"y": 1, "x": 2, "z": 3}

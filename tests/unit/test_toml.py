@@ -178,6 +178,19 @@ def test_encode_enc_hook():
     assert msgspec.toml.decode(msg) == {"x": "1.5"}
 
 
+@pytest.mark.parametrize("value", [Decimal("19.95"), datetime.date(2022, 1, 2)])
+@needs_encode
+@needs_decode
+def test_encode_enum_value(value):
+    class Example(enum.Enum):
+        x = value
+
+    msg = msgspec.toml.encode({"value": Example.x})
+    assert msgspec.toml.decode(msg) == msgspec.toml.decode(
+        msgspec.toml.encode({"value": value})
+    )
+
+
 @needs_encode
 @pytest.mark.parametrize("order", [None, "deterministic"])
 def test_encode_order(order):
