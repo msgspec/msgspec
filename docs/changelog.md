@@ -5,6 +5,8 @@
 - Fix decoding ISO 8601 durations with very large day counts, which could
   overflow and return an incorrect `timedelta` or raise `OverflowError` instead
   of `ValidationError`.
+- Fix JSON Schema generation for distinct types sharing the same module and
+  qualified name, such as dynamically generated structs.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
 - Fix JSON Schema references for dynamically defined types with empty names,
@@ -39,6 +41,10 @@
   and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
 - Fix a possible crash when `Meta(pattern='...')`
   was used in loops ({pr}`1256`)
+- Fix a possible crash with `defstruct` with empty `module=`
+  and complex typing forms ({pr}`1271`)
+- Fix a possible crash when iterating over `@dataclass` instances
+  with complex `__dict__` objects ({pr}`1271`)
 - Fix a possible crash when too big ints are passed
   into `Meta`'s constructor ({pr}`1260`)
 - Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
