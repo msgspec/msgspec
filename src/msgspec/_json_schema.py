@@ -197,20 +197,32 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     def fullname(cls):
         return normalize(f"{cls.__module__}.{cls.__qualname__}")
 
-    conflicts = set()
-    names: dict[str, Any] = {}
-
-    for cls in component_types:
-        name = normalize(_get_class_name(cls))
-        if name in names:
-            old = names.pop(name)
-            conflicts.add(name)
-            names[fullname(old)] = old
-        if name in conflicts:
-            names[fullname(cls)] = cls
-        else:
-            names[name] = cls
-    return {v: k for k, v in names.items()}
+    short_names = {cls: normalize(_get_class_name(cls)) for cls in component_types}
+    counts: dict[str, int] = {}
+    for name in short_names.values():
+        counts[name] = counts.get(name, 0) + 1
+    preferred = {
+        cls: fullname(cls) if counts[name] > 1 else name
+        for cls, name in short_names.items()
+    }
+    # Distinct classes created by a factory can share a full import path.
+    # Reserve preferred names before adding suffixes, so generated names cannot
+    # displace another component.
+    reserved = set(preferred.values())
+    used = set()
+    names = {}
+    for cls, name in preferred.items():
+        candidate = name
+        suffix = 2
+        if candidate in used:
+            while True:
+                candidate = f"{name}_{suffix}"
+                suffix += 1
+                if candidate not in used and candidate not in reserved:
+                    break
+        names[cls] = candidate
+        used.add(candidate)
+    return names
 
 
 class _SchemaGenerator:
