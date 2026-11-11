@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import re
 import textwrap
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any, Final
 
 from . import inspect as mi, to_builtins
@@ -198,43 +198,80 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     def fullname(cls):
         return normalize(f"{cls.__module__}.{cls.__qualname__}")
 
-    conflicts = set()
-    names: dict[str, Any] = {}
-
-    for cls in component_types:
-        name = normalize(_get_class_name(cls))
-        if name in names:
-            old = names.pop(name)
-            conflicts.add(name)
-            names[fullname(old)] = old
-        if name in conflicts:
-            names[fullname(cls)] = cls
-        else:
-            names[name] = cls
-    return {v: k for k, v in names.items()}
+    short_names = {cls: normalize(_get_class_name(cls)) for cls in component_types}
+    counts: dict[str, int] = {}
+    for name in short_names.values():
+        counts[name] = counts.get(name, 0) + 1
+    preferred = {
+        cls: fullname(cls) if counts[name] > 1 else name
+        for cls, name in short_names.items()
+    }
+    # Distinct classes created by a factory can share a full import path.
+    # Reserve preferred names before adding suffixes, so generated names cannot
+    # displace another component.
+    reserved = set(preferred.values())
+    used = set()
+    names = {}
+    for cls, name in preferred.items():
+        candidate = name
+        suffix = 2
+        if candidate in used:
+            while True:
+                candidate = f"{name}_{suffix}"
+                suffix += 1
+                if candidate not in used and candidate not in reserved:
+                    break
+        names[cls] = candidate
+        used.add(candidate)
+    return names
 
 
 def _to_json_default(value: Any) -> Any:
-    result = [to_builtins(value, str_keys=True)]
-    pending = [(result, 0, False)]
-    while pending:
-        parent, key, restore_tuple = pending.pop()
-        obj = parent[key]
-        if restore_tuple:
-            parent[key] = tuple(obj)
-            continue
-        if isinstance(obj, tuple):
-            obj = list(obj)
-            parent[key] = obj
-            pending.append((parent, key, True))
-        if isinstance(obj, list):
-            pending.extend((obj, index, False) for index in range(len(obj)))
-        elif isinstance(obj, dict):
-            pending.extend((obj, name, False) for name in obj)
-        elif isinstance(obj, float) and not math.isfinite(obj):
+    result: list[Any] = [None]
+    parent: list[Any] | dict[Any, Any] = result
+    key: Any = 0
+    obj = to_builtins(value, str_keys=True)
+    pending: list[
+        tuple[
+            Iterator[tuple[Any, Any]],
+            list[Any] | dict[Any, Any],
+            list[Any] | dict[Any, Any],
+            Any,
+            bool,
+        ]
+    ] = []
+    while True:
+        if isinstance(obj, (list, tuple, dict)):
+            # Enum values may be returned by reference, so copy each container.
+            output: list[Any] | dict[Any, Any]
+            items: Iterator[tuple[Any, Any]]
+            if isinstance(obj, dict):
+                output = {}
+                items = iter(obj.items())
+            else:
+                output = [None] * len(obj)
+                items = iter(enumerate(obj))
+            parent[key] = output
+            pending.append((items, output, parent, key, isinstance(obj, tuple)))
+        else:
             # Match the JSON encoder's representation of non-finite floats.
-            parent[key] = None
-    return result[0]
+            parent[key] = (
+                None if isinstance(obj, float) and not math.isfinite(obj) else obj
+            )
+
+        while pending:
+            items, output, previous_parent, previous_key, restore_tuple = pending[-1]
+            try:
+                key, obj = next(items)
+            except StopIteration:
+                pending.pop()
+                if restore_tuple:
+                    previous_parent[previous_key] = tuple(output)
+            else:
+                parent = output
+                break
+        else:
+            return result[0]
 
 
 class _SchemaGenerator:
