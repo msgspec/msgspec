@@ -635,6 +635,50 @@ def test_generic_typeddict():
     assert mi.type_info(Example[int]) == sol
 
 
+def test_namedtuple_like_types():
+    # `is_namedtuple_class` in `_core.c` only treats a tuple subclass as a
+    # namedtuple when `_fields` is a tuple and `_field_defaults` is a dict;
+    # anything else is a custom type. `inspect` used to accept any tuple
+    # subclass with a `_fields` attribute, so it reported a `NamedTupleType`
+    # for types the decoder doesn't treat as namedtuples, and crashed with an
+    # `AttributeError` when `_field_defaults` was missing or not a dict.
+    class FieldsNotTuple(tuple):
+        _fields = ["a"]
+        _field_defaults = {}
+
+    class NotSequenceFields(tuple):
+        _fields = 1
+
+    class MissingDefaults(tuple):
+        _fields = ("a",)
+
+    class DefaultsNotDict(tuple):
+        _fields = ("a",)
+        _field_defaults = []
+
+    class NotTupleSubclass:
+        _fields = ("a",)
+        _field_defaults = {}
+
+    for cls in (
+        FieldsNotTuple,
+        NotSequenceFields,
+        MissingDefaults,
+        DefaultsNotDict,
+        NotTupleSubclass,
+    ):
+        assert mi.type_info(cls) == mi.CustomType(cls)
+
+    # Structurally valid namedtuple-likes are still reported as namedtuples
+    class NamedTupleLike(tuple):
+        _fields = ("a",)
+        _field_defaults = {}
+        __annotations__ = {"a": int}
+
+    sol = mi.NamedTupleType(NamedTupleLike, fields=(mi.Field("a", "a", mi.IntType()),))
+    assert mi.type_info(NamedTupleLike) == sol
+
+
 def test_dataclass():
     @dataclass
     class Example:
