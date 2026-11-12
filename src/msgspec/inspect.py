@@ -721,10 +721,18 @@ def _is_attrs(t):
 
 
 def _is_namedtuple(t):
+    # Keep in sync with `is_namedtuple_class` in `_core.c`: a namedtuple-like
+    # type is a tuple subclass whose `_fields` is a tuple and whose
+    # `_field_defaults` is a dict. Anything else is treated as a custom type by
+    # the decoder, and so must be reported as one here as well.
     try:
-        return issubclass(t, tuple) and hasattr(t, "_fields")
+        if not (issubclass(t, tuple) and hasattr(t, "_fields")):
+            return False
     except TypeError:
         return False
+    return (
+        type(t._fields) is tuple and type(getattr(t, "_field_defaults", None)) is dict
+    )
 
 
 def _merge_json(a, b):

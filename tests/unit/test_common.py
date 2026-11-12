@@ -4572,6 +4572,10 @@ class TestTime:
             "01:02:03.0000004+00:000",
             "01:02:03.0000004+00000",
             "01:02:03.0000004Z0",
+            # NUL byte
+            "01:02:03\x00",
+            "01:02:03\x00Z",
+            "01:02:03.004\x00+05:06",
             # Truncated
             "01:02:3",
             # Missing +/-
@@ -4764,6 +4768,10 @@ class TestTimeDelta:
         "msg",
         [
             "P1000000000D",
+            "P106751991167301D",
+            "-P106751991167301D",
+            "P140737488355328D",
+            "-P140737488355328D",
             "PT140737488355329S",
             "P999999999DT86399.9999995S",
             "-P999999999DT0.0000005S",
@@ -5374,6 +5382,28 @@ class TestSet:
         gc.collect()
 
         assert all(ref() is None for ref in refs)
+
+    @pytest.mark.parametrize("type", [set, frozenset])
+    def test_decode_unhashable_item(self, proto, type):
+        """Unhashable items can't be added to a set. This should raise a
+        `ValidationError` (a `DecodeError`), not a bare `TypeError`."""
+        msg = proto.encode([{"a": 1}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\[0\]`",
+        ):
+            proto.decode(msg, type=type)
+
+    def test_decode_unhashable_item_nested_path(self, proto):
+        class Ex(msgspec.Struct):
+            values: set
+
+        msg = proto.encode({"values": [{"a": 1}]})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            proto.decode(msg, type=Ex)
 
 
 class TestOrder:
