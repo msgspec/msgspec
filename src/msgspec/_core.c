@@ -10070,11 +10070,12 @@ encoder_encode_into_common(
         .resize_buffer = ms_resize_bytearray
     };
 
-    if (encode(&state, obj) < 0) {
-        return NULL;
-    }
+    int status = encode(&state, obj);
 
+    /* Drop any unused space, also on error, so old contents of an extended
+     * buffer don't remain visible */
     FAST_BYTEARRAY_SHRINK(buf, state.output_len);
+    if (status < 0) return NULL;
     Py_RETURN_NONE;
 }
 

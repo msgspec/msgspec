@@ -322,6 +322,20 @@ class TestEncoderMisc:
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
 
+    @pytest.mark.parametrize("msg", [object(), [1, 2, object()]])
+    def test_encode_into_offset_error_hides_stale_bytes(self, msg):
+        enc = msgspec.json.Encoder()
+        prefix = enc.encode(0)
+        buf = bytearray(b"Z" * 256)
+        enc.encode_into(0, buf)
+        assert buf == prefix
+
+        # An error after extending the buffer doesn't expose its old contents
+        with pytest.raises(TypeError):
+            enc.encode_into(msg, buf, 20)
+        assert buf.startswith(prefix + bytes(20 - len(prefix)))
+        assert b"Z" not in buf
+
     @pytest.mark.parametrize("n", range(3))
     @pytest.mark.parametrize("iterable", [False, True])
     def test_encode_lines(self, n, iterable):
