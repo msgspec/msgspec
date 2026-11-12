@@ -1551,6 +1551,24 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         out = msgspec.msgpack.decode(data, type=set)
         assert orig == out
 
+    @pytest.mark.parametrize(
+        "data, got",
+        [
+            # [{"a": 1}] as a map item
+            (b"\x91\x81\xa1a\x01", "dict"),
+            # [Ext(1, b"\x02")] as a fixext1 item
+            (b"\x91\xd4\x01\x02", "msgspec.msgpack.Ext"),
+        ],
+    )
+    def test_decode_unhashable_item(self, data, got):
+        """Maps and extensions aren't hashable, decoding one into a set should
+        raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            msgspec.msgpack.decode(data, type=set)
+
     def test_decode_hashable_struct_in_key(self):
         class Test(msgspec.Struct):
             data: list[int]
