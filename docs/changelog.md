@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
+  raising `TypeError`, preserving constraints and schema metadata.
 - Fix decoding ISO 8601 durations with very large day counts, which could
   overflow and return an incorrect `timedelta` or raise `OverflowError` instead
   of `ValidationError`.
