@@ -658,6 +658,34 @@ def test_schema_enum_default_containers_are_not_mutated(default):
     assert msgspec.json.schema(Example) == schema
 
 
+@pytest.mark.parametrize("container", [list, tuple])
+@pytest.mark.parametrize("reported_length", [0, 4])
+def test_schema_enum_default_does_not_depend_on_container_length(
+    container, reported_length
+):
+    class InaccurateLength(container):
+        def __len__(self):
+            return reported_length
+
+    default = InaccurateLength([1.25, float("inf")])
+
+    class E(enum.Enum):
+        A = default
+
+    Example = namedtuple("Example", "value", defaults=[E.A])
+    before = repr(default)
+    expected = msgspec.json.decode(msgspec.json.encode(E.A))
+    schema = msgspec.json.schema(Example)
+    result = schema["$defs"]["Example"]["prefixItems"][0]["default"]
+
+    assert json.loads(json.dumps(result, allow_nan=False)) == expected == [1.25, None]
+    assert isinstance(result, container)
+    assert repr(default) == before
+    assert E.A.value is default
+    assert result is not default
+    assert msgspec.json.schema(Example) == schema
+
+
 def test_nonfinite_schema_default_does_not_change_value_conversion():
     value = float("nan")
     default = {"items": [value, (float("inf"),)]}

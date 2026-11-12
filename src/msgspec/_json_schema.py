@@ -249,7 +249,7 @@ def _to_json_default(value: Any) -> Any:
                 output = {}
                 items = iter(obj.items())
             else:
-                output = [None] * len(obj)
+                output = []
                 items = iter(enumerate(obj))
             parent[key] = output
             pending.append((items, output, parent, key, isinstance(obj, tuple)))
@@ -269,6 +269,8 @@ def _to_json_default(value: Any) -> Any:
                     previous_parent[previous_key] = tuple(output)
             else:
                 parent = output
+                if isinstance(parent, list):
+                    parent.append(None)
                 break
         else:
             return result[0]
