@@ -22857,6 +22857,16 @@ convert_dict(
 }
 
 static PyObject *
+getattr_then_getitem(PyObject *obj, PyObject *key) {
+    PyObject *out = PyObject_GetAttr(obj, key);
+    if (out == NULL) {
+        PyErr_Clear();
+        out = PyObject_GetItem(obj, key);
+    }
+    return out;
+}
+
+static PyObject *
 convert_object_to_struct(
     ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
     PyObject* (*getter)(PyObject *, PyObject *), bool tag_already_read
@@ -22896,22 +22906,36 @@ convert_object_to_struct(
         fields = struct_type->struct_fields;
     }
 
-    /* int_keys: for mapping inputs, a field's integer key is tried first, then
-     * its canonical decimal string ("1", as emitted by `json.encode` /
-     * `to_builtins(str_keys=True)`), then its name (mirroring
-     * `convert_dict_to_struct`). Attribute lookups have no integer form, so
-     * this is skipped under `from_attributes`. */
-    PyObject *int_keys = self->from_attributes ? NULL : struct_type->struct_encode_int_keys;
+    /* int_keys: when `obj` supports item access (the dispatcher passes
+     * `getattr_then_getitem` for mappings, with or without `from_attributes`),
+     * a field's integer key is tried first, then its canonical decimal string
+     * ("1", as emitted by `json.encode` / `to_builtins(str_keys=True)`), then
+     * its name (mirroring `convert_dict_to_struct`). Attribute lookups have no
+     * integer form, so attribute-only objects are accessed by name alone. */
+    PyObject *int_keys = (
+        getter == getattr_then_getitem ? struct_type->struct_encode_int_keys : NULL
+    );
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field, *attr, *val;
 
         if (MS_UNLIKELY(int_keys != NULL) && PyTuple_GET_ITEM(int_keys, i) != Py_None) {
             field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
-            attr = getter(obj, PyTuple_GET_ITEM(int_keys, i));
+            if (self->from_attributes) {
+                /* Attributes were asked for, so an attribute named after the
+                 * field wins over the integer key. This keeps objects that
+                 * offer both attribute and positional item access (e.g.
+                 * database rows) from having `obj[1]` read as a column
+                 * index. */
+                attr = PyObject_GetAttr(obj, field);
+                if (attr != NULL) goto got_attr;
+                PyErr_Clear();
+            }
+            /* The keys aren't attribute names, use item access directly */
+            attr = PyObject_GetItem(obj, PyTuple_GET_ITEM(int_keys, i));
             if (attr != NULL) goto got_attr;
             PyErr_Clear();
-            attr = getter(
+            attr = PyObject_GetItem(
                 obj, PyTuple_GET_ITEM(struct_type->struct_encode_int_key_strs, i)
             );
             if (attr != NULL) goto got_attr;
@@ -23116,16 +23140,6 @@ Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
         }
     }
     return false;
-}
-
-static PyObject *
-getattr_then_getitem(PyObject *obj, PyObject *key) {
-    PyObject *out = PyObject_GetAttr(obj, key);
-    if (out == NULL) {
-        PyErr_Clear();
-        out = PyObject_GetItem(obj, key);
-    }
-    return out;
 }
 
 static PyObject *
