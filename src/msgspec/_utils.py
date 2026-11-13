@@ -349,7 +349,85 @@ def get_typeddict_info(obj):
         raise RuntimeError(
             f"Required set {required} contains keys that are no in hints: {hints.keys()}"
         )
-    return hints, required
+    return hints, required, _get_typeddict_extra_items(obj)
+
+
+def _get_typeddict_extra_items(obj):
+    no_extra_items = []
+    if hasattr(typing, "NoExtraItems"):
+        no_extra_items.append(typing.NoExtraItems)
+    try:
+        import typing_extensions
+
+        if hasattr(typing_extensions, "NoExtraItems"):
+            no_extra_items.append(typing_extensions.NoExtraItems)
+    except ImportError:
+        typing_extensions = None
+    # Earlier typing_extensions uses None for ordinary open types and a
+    # different legacy syntax for extras. Preserve its existing behavior.
+    if not no_extra_items:
+        return None
+    cls = typing.get_origin(obj) or obj
+    _, mappings = _get_class_mro_and_typevar_mappings(obj)
+    pending = [cls]
+    seen = set()
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        if current.__dict__.get("__closed__") is True:
+            return None  # Closed TypedDict support is a separate change.
+        extra = current.__dict__.get("__extra_items__")
+        if extra is not None and extra not in no_extra_items:
+            if extra in (typing.NoReturn, getattr(typing, "Never", typing.NoReturn)):
+                return None  # Closed TypedDict support is a separate change.
+            if isinstance(extra, str):
+                extra = _forward_ref(extra)
+            module = sys.modules.get(current.__module__)
+            extra = _eval_type(
+                extra, vars(module) if module else {}, dict(vars(current))
+            )
+            extra = _apply_params(extra, mappings.get(current, {}))
+
+            def unwrap(annotation):
+                origin = typing.get_origin(annotation)
+                if isinstance(annotation, _AnnotatedAlias):
+                    inner = unwrap(annotation.__origin__)
+                    return typing.Annotated[(inner, *annotation.__metadata__)]
+                if (
+                    origin
+                    in (
+                        getattr(typing, "ReadOnly", None),
+                        getattr(typing_extensions, "ReadOnly", None),
+                    )
+                    and origin is not None
+                ):
+                    return unwrap(typing.get_args(annotation)[0])
+                return annotation
+
+            extra = unwrap(extra)
+            inner = extra.__origin__ if isinstance(extra, _AnnotatedAlias) else extra
+            if inner in (
+                typing.NoReturn,
+                getattr(typing, "Never", typing.NoReturn),
+                getattr(typing_extensions, "Never", typing.NoReturn),
+            ):
+                return None
+            return extra
+        # extra_items=None explicitly allows only None values.
+        if "__extra_items__" in current.__dict__ and extra is None:
+            return type(None)
+        pending.extend(
+            reversed(
+                [
+                    typing.get_origin(base) or base
+                    for base in getattr(current, "__orig_bases__", ())
+                    if _is_typeddict(typing.get_origin(base) or base)
+                ]
+            )
+        )
+    return None
 
 
 def get_dataclass_info(obj):

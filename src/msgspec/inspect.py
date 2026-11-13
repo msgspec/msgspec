@@ -533,10 +533,14 @@ class TypedDictType(Type):
         The corresponding TypedDict type.
     fields: tuple[Field, ...]
         A tuple of fields in the TypedDict.
+    extra_items: Type or None, optional
+        The value type of explicitly declared extra items, or None if no
+        typed extra items are declared.
     """
 
     cls: type
     fields: tuple[Field, ...]
+    extra_items: Type | None = None
 
 
 class NamedTupleType(Type):
@@ -978,7 +982,9 @@ class _Translator:
             if cls in self.cache:
                 return self.cache[cls]
             self.cache[cls] = out = TypedDictType(cls, ())
-            hints, required = _get_typeddict_info(cls)
+            hints, required, extra_items = _get_typeddict_info(cls)
+            if extra_items is not None:
+                out.extra_items = self.translate(extra_items)
             out.fields = tuple(
                 Field(
                     name=name,

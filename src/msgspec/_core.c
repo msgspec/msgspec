@@ -3017,6 +3017,7 @@ typedef struct {
 typedef struct {
     PyObject_VAR_HEAD
     Py_ssize_t nrequired;
+    TypeNode *extra_type;
     TypedDictField fields[];
 } TypedDictInfo;
 
@@ -8816,7 +8817,7 @@ static PyTypeObject LiteralInfo_Type = {
 
 static PyObject *
 TypedDictInfo_Convert(PyObject *obj) {
-    PyObject *annotations = NULL, *required = NULL;
+    PyObject *annotations = NULL, *required = NULL, *extra = NULL;
     TypedDictInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false, succeeded = false;
@@ -8833,6 +8834,8 @@ TypedDictInfo_Convert(PyObject *obj) {
     Py_INCREF(annotations);
     required = PyTuple_GET_ITEM(temp, 1);
     Py_INCREF(required);
+    extra = PyTuple_GET_ITEM(temp, 2);
+    Py_INCREF(extra);
     Py_DECREF(temp);
 
     /* Allocate and zero-out a new TypedDictInfo object */
@@ -8846,6 +8849,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     /* Initialize nrequired to -1 as a flag in case of a recursive TypedDict
     * definition. */
     info->nrequired = -1;
+    info->extra_type = NULL;
 
     /* If not already cached, then cache on TypedDict object _before_
     * traversing fields. This is to ensure self-referential TypedDicts work. */
@@ -8853,6 +8857,11 @@ TypedDictInfo_Convert(PyObject *obj) {
         goto cleanup;
     }
     cache_set = true;
+
+    if (extra != Py_None) {
+        info->extra_type = TypeNode_Convert(extra);
+        if (info->extra_type == NULL) goto cleanup;
+    }
 
     /* Traverse fields and initialize TypedDictInfo */
     Py_ssize_t pos = 0, i = 0;
@@ -8892,6 +8901,7 @@ cleanup:
     }
     Py_XDECREF(annotations);
     Py_XDECREF(required);
+    Py_XDECREF(extra);
     return (PyObject *)info;
 }
 
@@ -8953,6 +8963,10 @@ TypedDictInfo_error_missing(TypedDictInfo *self, PyObject *dict, PathNode *path)
 static int
 TypedDictInfo_traverse(TypedDictInfo *self, visitproc visit, void *arg)
 {
+    if (self->extra_type != NULL) {
+        int out = TypeNode_traverse(self->extra_type, visit, arg);
+        if (out != 0) return out;
+    }
     for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
         TypedDictField *field = &(self->fields[i]);
         if (field->key != NULL) {
@@ -8966,6 +8980,8 @@ TypedDictInfo_traverse(TypedDictInfo *self, visitproc visit, void *arg)
 static int
 TypedDictInfo_clear(TypedDictInfo *self)
 {
+    TypeNode_Free(self->extra_type);
+    self->extra_type = NULL;
     for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
         Py_CLEAR(self->fields[i].key);
         TypeNode_Free(self->fields[i].type);
@@ -16598,6 +16614,20 @@ mpack_decode_typeddict(
                 nrequired++;
             }
         }
+        else if (info->extra_type != NULL) {
+            PyObject *extra_key = PyUnicode_DecodeUTF8(key, key_size, NULL);
+            if (extra_key == NULL) goto error;
+            PathNode field_path = {path, PATH_STR, extra_key};
+            PyObject *val = mpack_decode(self, info->extra_type, &field_path, false);
+            if (val == NULL) {
+                Py_DECREF(extra_key);
+                goto error;
+            }
+            int status = PyDict_SetItem(res, extra_key, val);
+            Py_DECREF(extra_key);
+            Py_DECREF(val);
+            if (status < 0) goto error;
+        }
         else {
             /* Unknown field, skip */
             if (mpack_skip(self) < 0) goto error;
@@ -19148,6 +19178,20 @@ json_decode_typeddict(
             if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_EXTRA_FLAG)) {
                 nrequired++;
             }
+        }
+        else if (info->extra_type != NULL) {
+            PyObject *extra_key = PyUnicode_DecodeUTF8(key, key_size, NULL);
+            if (extra_key == NULL) goto error;
+            PathNode field_path = {path, PATH_STR, extra_key};
+            PyObject *val = json_decode(self, info->extra_type, &field_path);
+            if (val == NULL) {
+                Py_DECREF(extra_key);
+                goto error;
+            }
+            int status = PyDict_SetItem(out, extra_key, val);
+            Py_DECREF(extra_key);
+            Py_DECREF(val);
+            if (status < 0) goto error;
         }
         else {
             /* Skip unknown fields */
@@ -22234,6 +22278,10 @@ convert_dict_to_typeddict(
         PyObject *field = TypedDictInfo_lookup_key(
             info, key, key_size, &field_type, &pos
         );
+        if (field == NULL && info->extra_type != NULL) {
+            field = key_obj;
+            field_type = info->extra_type;
+        }
         if (field != NULL) {
             if (field_type->types & MS_EXTRA_FLAG) nrequired++;
             PathNode field_path = {path, PATH_STR, field};
@@ -22551,6 +22599,7 @@ convert_mapping_to_typeddict(
 ) {
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
+    PyObject *keys = NULL;
     PyObject *out = PyDict_New();
     if (out == NULL) goto error;
 
@@ -22563,12 +22612,32 @@ convert_mapping_to_typeddict(
         );
         goto error;
     }
-    Py_ssize_t nrequired = 0;
-    for (Py_ssize_t i = 0; i < Py_SIZE(info); i++) {
-        PyObject *field = info->fields[i].key;
-        assert(field != NULL);
-        TypeNode *field_type = info->fields[i].type;
-        assert(field_type != NULL);
+    Py_ssize_t count = Py_SIZE(info);
+    if (info->extra_type != NULL) {
+        keys = PyMapping_Keys(obj);
+        if (keys == NULL) goto error;
+        count = PyList_GET_SIZE(keys);
+    }
+    Py_ssize_t nrequired = 0, pos = 0;
+    for (Py_ssize_t i = 0; i < count; i++) {
+        PyObject *field;
+        TypeNode *field_type;
+        if (keys == NULL) {
+            field = info->fields[i].key;
+            field_type = info->fields[i].type;
+        }
+        else {
+            PyObject *key_obj = PyList_GET_ITEM(keys, i);
+            if (!convert_is_str_key(key_obj, path)) goto error;
+            Py_ssize_t key_size;
+            const char *key = unicode_str_and_size(key_obj, &key_size);
+            if (key == NULL) goto error;
+            field = TypedDictInfo_lookup_key(info, key, key_size, &field_type, &pos);
+            if (field == NULL) {
+                field = key_obj;
+                field_type = info->extra_type;
+            }
+        }
         /* Item lookup only, to avoid collisions with mapping methods. */
         PyObject *item = PyObject_GetItem(obj, field);
         if (item == NULL) {
@@ -22576,24 +22645,29 @@ convert_mapping_to_typeddict(
             PyErr_Clear();
             continue;
         }
-        if (field_type->types & MS_EXTRA_FLAG) nrequired++;
         PathNode field_path = {path, PATH_STR, field};
         PyObject *val = convert(self, item, field_type, &field_path);
         Py_DECREF(item);
         if (val == NULL) goto error;
+        Py_ssize_t cur_size = PyDict_GET_SIZE(out);
         int status = PyDict_SetItem(out, field, val);
         Py_DECREF(val);
         if (status < 0) goto error;
+        if (PyDict_GET_SIZE(out) != cur_size && (field_type->types & MS_EXTRA_FLAG)) {
+            nrequired++;
+        }
     }
     if (nrequired < info->nrequired) {
         /* A required field is missing, determine which one and raise */
         TypedDictInfo_error_missing(info, out, path);
         goto error;
     }
+    Py_XDECREF(keys);
     Py_LeaveRecursiveCall();
     return out;
 
 error:
+    Py_XDECREF(keys);
     Py_LeaveRecursiveCall();
     Py_XDECREF(out);
     return NULL;
