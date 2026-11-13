@@ -1054,6 +1054,7 @@ def check_yaml_decode_any() -> None:
 def check_yaml_decode_typed() -> None:
     assert_type(msgspec.yaml.decode(b"[1, 2, 3]", type=list[int]), list[int])
     assert_type(msgspec.yaml.decode("[]", type=list[str]), list[str])
+    assert_type(msgspec.yaml.decode(b"true", type=Literal[True]), Literal[True])
 
 
 def check_yaml_decode_typed_union() -> None:
@@ -1107,6 +1108,9 @@ def check_toml_decode_any() -> None:
 def check_toml_decode_typed() -> None:
     o = msgspec.toml.decode(b"a = 1", type=dict[str, int])
     assert_type(o, dict[str, int])
+
+    o2 = msgspec.toml.decode(b"a = 1", type=Annotated[dict[str, int], msgspec.Meta(min_length=1)])
+    assert_type(o2, dict[str, int])
 
 
 def check_toml_decode_from_str() -> None:
@@ -1294,3 +1298,12 @@ def check_convert() -> None:
 
     o7 = msgspec.convert("1", int, str_keys=True)
     assert_type(o7, int)
+
+    o8 = msgspec.convert(True, Literal[True])
+    assert_type(o8, Literal[True])
+
+    o9 = msgspec.convert(1, int | str)
+    assert_type(o9, int | str)
+
+    o10 = msgspec.convert(1, Annotated[int, msgspec.Meta(ge=0)])
+    assert_type(o10, int)

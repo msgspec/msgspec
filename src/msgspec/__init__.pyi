@@ -15,6 +15,7 @@ from typing_extensions import (
     Buffer,
     Self,
     TypeAlias,
+    TypeForm,
     dataclass_transform,
     disjoint_base,
 )
@@ -267,7 +268,7 @@ def to_builtins(
 @overload
 def convert(
     obj: Any,
-    type: type[_T],
+    type: TypeForm[_T],
     *,
     strict: bool = True,
     from_attributes: bool = False,
