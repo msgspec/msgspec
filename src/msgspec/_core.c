@@ -10304,12 +10304,31 @@ ms_decode_int_enum_or_literal_pyint(PyObject *val, TypeNode *type, PathNode *pat
     return IntLookup_GetPyIntOrError(lookup, val, path);
 }
 
+
+static MS_NOINLINE PyObject* 
+ms_decode_try_dunder(PyObject* custom_cls, MsgspecState* st, PyObject* obj, PathNode* path){
+    PyObject* out = NULL;
+    PyObject* dunder_decode = PyObject_GetAttr(custom_cls, st->str___msgspec_decode__);
+    if (dunder_decode != NULL) {
+        out = PyObject_CallOneArg(dunder_decode, obj);
+        Py_DECREF(dunder_decode);
+        if (out == NULL) {
+            ms_maybe_wrap_validation_error(path);
+            return NULL;
+        }
+    } else {
+        /* Cleanse previous PyObject_GetAttr exception. */
+        PyErr_Clear();
+    }
+    return out;
+}
+
 static MS_NOINLINE PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
     bool generic = type->types & MS_TYPE_CUSTOM_GENERIC;
-
+    bool has_hook;
     if (obj == NULL) return NULL;
 
     if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
@@ -10317,7 +10336,9 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     MsgspecState *st = msgspec_get_global_state();
     custom_obj = TypeNode_get_custom(type);
 
-    if (dec_hook != NULL) {
+    has_hook = dec_hook != NULL;
+
+    if (has_hook) {
         out = PyObject_CallFunctionObjArgs(dec_hook, custom_obj, obj, NULL);
         Py_DECREF(obj);
         if (out == NULL) {
@@ -10338,16 +10359,12 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     else {
         custom_cls = custom_obj;
     }
-    PyObject* dunder_decode = PyObject_GetAttr(custom_cls, st->str___msgspec_decode__);
-    if (dunder_decode != NULL) {
-        out = PyObject_CallOneArg(dunder_decode, obj);
-        Py_DECREF(dunder_decode);
-        if (out == NULL) {
-            return NULL;
+    
+    if (!has_hook){
+        PyObject* temp = ms_decode_try_dunder(custom_cls, st, obj, path);
+        if (temp != NULL){
+            out = temp;
         }
-    } else {
-        /* Cleanse previous PyObject_GetAttr exception. */
-        PyErr_Clear();
     }
 
     /* Check that the decoded value matches the expected type */
@@ -13840,7 +13857,6 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 static MS_NOINLINE int
 mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
 {
-    PyObject* built_in_encoder;
     if (obj == Py_None) {
         return mpack_encode_none(self);
     }

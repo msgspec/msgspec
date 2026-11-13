@@ -3026,6 +3026,15 @@ class TestCustom:
         value = convert({"foo": "spam"}, CustomValue)
         assert value.value["foo"] == "spam"
 
+    def test_custom_dec_hook_overrides_dunder(self):
+        def hook(ty: type[CustomValue], attr: Any):
+            if ty is CustomValue:
+                attr["foo"] = 1
+                return CustomValue(attr)
+        value = convert({"foo": "spam"}, CustomValue, dec_hook=hook)
+        assert value.value["foo"] != "spam"
+
+
 
 class TestRaw:
     def test_raw(self):
