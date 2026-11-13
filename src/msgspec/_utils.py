@@ -108,7 +108,7 @@ def _apply_params(obj, mapping):
     return obj[args]
 
 
-def _get_class_mro_and_typevar_mappings(obj):
+def _get_class_mro_and_typevar_mappings(obj, base_first=False):
     mapping = {}
 
     # in Python 3.10 a natively produced 'types.GenericAlias' (e.g. 'list[int]', or the
@@ -120,7 +120,7 @@ def _get_class_mro_and_typevar_mappings(obj):
     else:
         cls = obj.__origin__
 
-    def inner(c, scope):
+    def inner(c, scope, base_first):
         if isinstance(c, type) and not isinstance(c, types.GenericAlias):
             cls = c
             new_scope = {}
@@ -151,9 +151,12 @@ def _get_class_mro_and_typevar_mappings(obj):
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
             for b in bases:
-                inner(b, new_scope)
+                inner(b, new_scope, base_first)
+        if base_first and new_scope:
+            # Keep ancestors before subclasses, including shared generic bases.
+            mapping[cls] = mapping.pop(cls)
 
-    inner(obj, {})
+    inner(obj, {}, base_first)
     return cls.__mro__, mapping
 
 
@@ -175,14 +178,23 @@ def get_class_annotations(obj):
     tool like ``mypy``/``pyright`` already, which would catch misuse of these
     APIs.
     """
-    hints = {}
-    mro, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
-    mro_set = set(mro)
-
     if isinstance(obj, type) and not isinstance(obj, types.GenericAlias):
         origin = obj
     else:
         origin = getattr(obj, "__origin__", None)
+
+    if origin is not None and _is_typeddict(origin):
+        mro, typevar_mappings = _get_class_mro_and_typevar_mappings(
+            obj, base_first=True
+        )
+        copied_fields = _get_copied_typeddict_fields(origin, typevar_mappings, mro)
+        if copied_fields:
+            return _get_typeddict_annotations(mro, typevar_mappings, copied_fields)
+    else:
+        mro, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
+
+    hints = {}
+    mro_set = set(mro)
 
     for cls in mro:
         if cls in (typing.Generic, object):
@@ -231,32 +243,104 @@ def get_class_annotations(obj):
                 value = type(None)
             hints[name] = value
 
-    return _substitute_copied_typeddict_params(origin, hints, typevar_mappings, mro)
+    return hints
 
 
-def _substitute_copied_typeddict_params(origin, hints, typevar_mappings, mro):
-    """Apply type-parameter bindings TypedDict inheritance leaves unresolved.
+def _get_typeddict_annotations(mro, typevar_mappings, copied_fields):
+    hints = {}
+    mro_set = set(mro)
 
-    ``TypedDict`` copies base annotations onto the subclass and omits the base
-    from the MRO, so the mapping built for ``Base[int]`` is never applied to
-    the copied ``TypeVar``. Substitute only fields still identical to the
-    base annotation; an override on the subclass is left alone.
+    for cls in mro:
+        if cls in (typing.Generic, object):
+            continue
+
+        mapping = typevar_mappings.get(cls)
+        cls_locals = dict(vars(cls))
+
+        # resolve type parameters (e.g. class Foo[T]: pass)
+        type_params = getattr(cls, "__type_params__", ())
+        if type_params:
+            cls_locals.update({p.__name__: p for p in type_params})
+
+        try:
+            cls_module = cls.__module__
+        except AttributeError:
+            cls_globals = {}
+        else:
+            cls_globals = getattr(sys.modules.get(cls_module, None), "__dict__", {})
+
+        # TypedDict copies postponed annotations from a parametrized base, and
+        # ForwardRef evaluation looks those names up as type parameters. The
+        # base is not in the MRO, so add its parameters here. Skip names this
+        # class already defines so a subclass type parameter is not replaced.
+        all_type_params = tuple(type_params)
+        seen_names = {getattr(param, "__name__", None) for param in all_type_params}
+        for parent, scope in typevar_mappings.items():
+            if parent in mro_set:
+                continue
+            for tvar in scope:
+                name = getattr(tvar, "__name__", None)
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    all_type_params = all_type_params + (tvar,)
+
+        ann = _get_class_annotations(cls)
+        for name, value in ann.items():
+            if name in hints:
+                continue
+            if name in copied_fields:
+                value, parent_locals, parent_globals, parent_params, scope = (
+                    copied_fields[name]
+                )
+                if isinstance(value, str):
+                    value = _forward_ref(value)
+                value = _eval_type(value, parent_locals, parent_globals, parent_params)
+                value = _apply_params(value, scope)
+            else:
+                if isinstance(value, str):
+                    value = _forward_ref(value)
+                value = _eval_type(value, cls_locals, cls_globals, all_type_params)
+                if mapping is not None:
+                    value = _apply_params(value, mapping)
+            if value is None:
+                value = type(None)
+            hints[name] = value
+
+    return hints
+
+
+def _get_copied_typeddict_fields(origin, typevar_mappings, mro):
+    """Find the original scope of annotations copied by TypedDict inheritance.
+
+    Resolve copied fields in their base's scope before applying child bindings.
+    An override with a different annotation is left alone.
     """
-    if origin is None or not _is_typeddict(origin):
-        return hints
-
+    fields = {}
     mro_set = set(mro)
     child_raw = _get_class_annotations(origin)
     for parent, scope in typevar_mappings.items():
         if parent in mro_set or not scope:
             continue
         parent_raw = _get_class_annotations(parent)
+        parent_locals = dict(vars(parent))
+        parent_globals = getattr(
+            sys.modules.get(getattr(parent, "__module__", None)), "__dict__", {}
+        )
+        parent_params = getattr(parent, "__type_params__", ())
         for key, parent_value in parent_raw.items():
-            # TypedDict copies the base annotation object onto the subclass.
-            # An override is a different object and must be left alone.
-            if key in hints and child_raw.get(key) == parent_value:
-                hints[key] = _apply_params(hints[key], scope)
-    return hints
+            if (
+                key not in fields
+                and key in child_raw
+                and child_raw[key] == parent_value
+            ):
+                fields[key] = (
+                    parent_value,
+                    parent_locals,
+                    parent_globals,
+                    parent_params,
+                    scope,
+                )
+    return fields
 
 
 def _is_typeddict(t):
