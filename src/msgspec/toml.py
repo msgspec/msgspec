@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Literal
 
-    from typing_extensions import Buffer
+    from typing_extensions import Buffer, TypeForm
 
 
 __all__ = ("encode", "decode")
@@ -115,7 +115,7 @@ _T = TypeVar("_T")
 def decode(
     buf: Buffer | str,
     *,
-    type: type[_T],
+    type: TypeForm[_T],
     strict: bool = True,
     dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> _T: ...
@@ -125,7 +125,7 @@ def decode(
 def decode(
     buf: Buffer | str,
     *,
-    type: Any = ...,
+    type: Any = Any,
     strict: bool = True,
     dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> Any: ...

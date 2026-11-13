@@ -38,6 +38,8 @@
   to `READONLY` and C level getters ({pr}`1244`)
 - Support `TypeForm[]` type instead of `Type[]` in decoders,
   requires `mypy>=2.1` ({pr}`1245`)
+- Support `TypeForm[]` in `msgspec.convert`, `msgspec.yaml.decode`
+  and `msgspec.toml.decode` too ({pr}`1341`)
 - Fix how we detect `NamedTuple` subclasses,
   now we also check `_fields` to exist and to be a `tuple`
   and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
