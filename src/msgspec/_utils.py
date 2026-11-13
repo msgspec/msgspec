@@ -90,7 +90,7 @@ else:
 
 
 def _apply_params(obj, mapping):
-    if isinstance(obj, typing.TypeVar):
+    if isinstance(obj, (typing.TypeVar, typing.ParamSpec)):
         return mapping.get(obj, obj)
 
     try:
@@ -104,8 +104,103 @@ def _apply_params(obj, mapping):
         return obj
 
     # Parametrized
-    args = tuple(mapping.get(p, p) for p in parameters)
-    return obj[args]
+    typevartuple = getattr(typing, "TypeVarTuple", ())
+    args = []
+    for p in parameters:
+        value = mapping.get(p, p)
+        if isinstance(p, typevartuple) and isinstance(value, tuple):
+            value = typing.Unpack[tuple[value]]
+        elif isinstance(p, typevartuple) and value is p:
+            value = typing.Unpack[p]
+        args.append(value)
+    return obj[tuple(args)]
+
+
+def _has_default(param):
+    # Type parameter defaults are 3.13+
+    has_default = getattr(param, "has_default", None)
+    return has_default is not None and has_default()
+
+
+def _param_default(param, mapping):
+    default = param.__default__
+    if isinstance(param, typing.ParamSpec) and isinstance(default, (list, tuple)):
+        default = type(default)(_apply_params(item, mapping) for item in default)
+    else:
+        default = _apply_params(default, mapping)
+    return (default,) if isinstance(param, typing.TypeVarTuple) else default
+
+
+def _resolve_type_alias(alias, args):
+    params = alias.__type_params__
+    value = alias.__value__
+
+    # 'args is None' -> bare alias; '()' -> 'Alias[()]'
+    nargs = 0 if args is None else len(args)
+    if args is None:
+        bound = {}
+    else:
+        required = sum(
+            not isinstance(p, typing.TypeVarTuple) and not _has_default(p)
+            for p in params
+        )
+        if nargs < required:
+            raise TypeError(
+                f"Too few type arguments for {alias.__name__}: "
+                f"got {nargs}, expected at least {required}"
+            )
+
+        # 'alias.__parameters__' contains 'Unpack[Ts]' rather than the raw
+        # TypeVarTuple, so use the declared type params directly.
+        declared = types.SimpleNamespace(__parameters__=params)
+        prepared = tuple(args)
+        try:
+            for p in params:
+                prepare = getattr(p, "__typing_prepare_subst__", None)
+                if prepare is not None:
+                    prepared = prepare(declared, prepared)
+        except TypeError as exc:
+            raise TypeError(
+                f"Invalid type arguments for {alias.__name__}: {exc}"
+            ) from exc
+
+        if len(prepared) != len(params):
+            raise TypeError(
+                f"Too {'many' if len(prepared) > len(params) else 'few'} "
+                f"type arguments for {alias.__name__}: got {nargs}, "
+                f"expected {len(params)}"
+            )
+        bound = dict(zip(params, prepared))
+
+    omitted = {p for i, p in enumerate(params) if _has_default(p) and i >= nargs}
+    for p in params:
+        if p not in omitted:
+            continue
+        bound[p] = _param_default(p, bound)
+
+    if not bound:
+        return value
+    if isinstance(value, typing.TypeVar):
+        return bound.get(value, value)
+
+    value_params = getattr(value, "__parameters__", ())
+    if not value_params:
+        return value
+
+    new_args = []
+    for p in value_params:
+        if p not in bound and _has_default(p):
+            # A nested bare alias may leave 'p' unbound; apply its default
+            # rather than substituting 'p' for itself.
+            bound[p] = _param_default(p, bound)
+        if isinstance(p, typing.TypeVarTuple):
+            if p in bound:
+                new_args.extend(bound[p])
+            else:
+                new_args.append(typing.Unpack[p])
+        else:
+            new_args.append(bound.get(p, p))
+    return value[tuple(new_args)]
 
 
 def _get_class_mro_and_typevar_mappings(obj):
