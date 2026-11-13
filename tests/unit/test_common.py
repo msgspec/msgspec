@@ -7,6 +7,7 @@ import decimal
 import enum
 import gc
 import inspect
+import subprocess
 import sys
 import textwrap
 import types
@@ -177,6 +178,18 @@ class TestDecoder:
         assert isinstance(dec, proto.Decoder)
         msg = proto.encode(2)
         assert dec.decode(msg) == 2
+
+    def test_decoder_unhashable_origin(self, proto):
+        class Origin:
+            def __hash__(self):
+                raise RuntimeError("hash failed")
+
+        class Ex:
+            __origin__ = Origin()
+            __args__ = ()
+
+        with pytest.raises(TypeError, match="not supported"):
+            proto.Decoder(Ex())
 
     def test_decoder_dec_hook_attribute(self, proto):
         def dec_hook(typ, obj):
@@ -808,7 +821,7 @@ class TestEnum:
     def test_random_enum_different_lengths(self, rand, nitems):
         def strgen():
             """Yields unique random strings"""
-            seen = set()
+            seen = {"mro"}  # names that `Enum` does not allow, see #1286
             while True:
                 x = rand.str(1, 32)
                 if x in seen:
@@ -1184,6 +1197,27 @@ class TestUnionTypeErrors:
             assert dec.decode(proto.encode(msg)) == msg
         with pytest.raises(ValidationError):
             assert dec.decode(proto.encode(1.5))
+
+
+class _UnionLeakCustom:
+    pass
+
+
+class _UnionLeakPoint(msgspec.Struct):
+    x: int
+
+
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="needs refcounts")
+@pytest.mark.parametrize(
+    "member, other", [(_UnionLeakCustom, type(None)), (_UnionLeakPoint, int)]
+)
+def test_resolving_a_union_does_not_leak_its_args(member, other):
+    msgspec.json.Decoder(member | other)
+    before = sys.getrefcount(member)
+    for _ in range(10):
+        msgspec.json.Decoder(member | other)
+        msgspec.convert(1 if other is int else None, member | other)
+    assert sys.getrefcount(member) == before
 
 
 class TestStructUnion:
@@ -2791,6 +2825,87 @@ class TestStructDefaults:
 
 
 class TestTypedDict:
+    def test_failed_recursive_type_releases_field_types(self):
+        source = """
+        from typing import TypedDict
+
+        class Custom:
+            pass
+
+        class A(TypedDict, total=False):
+            first: Custom
+            child: "B"
+            bad: list | tuple
+
+        class B(TypedDict):
+            parent: A
+        """
+        with temp_module(source) as mod:
+            ref = weakref.ref(mod.Custom)
+            with pytest.raises(TypeError, match="more than one array-like"):
+                msgspec.convert({}, mod.A)
+        del mod
+        gc.collect()
+        assert ref() is None
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("operation", ["json", "msgpack", "convert"])
+    @pytest.mark.parametrize("value", [{}, {"x": 1}, {"child": {}}])
+    def test_failed_recursive_type_does_not_decode_partial_cache(
+        self, module, operation, value
+    ):
+        if sys.platform == "emscripten":
+            pytest.skip("Subprocesses are not available on Emscripten")
+        ns = pytest.importorskip(module)
+        if not hasattr(ns, "NotRequired"):
+            pytest.skip(f"{module}.NotRequired is not available")
+
+        # Run against the real extension in a child process: on the broken
+        # implementation, nonempty objects can dereference uninitialized keys.
+        source = textwrap.dedent(
+            f"""
+            from {module} import TypedDict, NotRequired
+            import msgspec
+
+            class A(TypedDict):
+                child: NotRequired["B"]
+                bad: list | tuple
+
+            class B(TypedDict):
+                parent: A
+
+            try:
+                msgspec.convert({{}}, A)
+            except TypeError:
+                pass
+            else:
+                raise AssertionError("Unsupported union was accepted")
+
+            value = {{"parent": {value!r}}}
+            if {operation!r} == "convert":
+                def decode(value):
+                    return msgspec.convert(value, B)
+            else:
+                proto = getattr(msgspec, {operation!r})
+                def decode(value):
+                    return proto.decode(proto.encode(value), type=B)
+
+            for _ in range(2):
+                try:
+                    decode(value)
+                except TypeError:
+                    pass
+                else:
+                    raise AssertionError("Incomplete TypedDict was decoded")
+
+            assert msgspec.convert({{"x": 1}}, dict[str, int]) == {{"x": 1}}
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", source], capture_output=True, text=True, timeout=30
+        )
+        assert result.returncode == 0, result.stderr
+
     def test_postponed_annotations(self, proto):
         # Regression test for Python 3.12.0-3.12.3, where the fourth argument
         # to typing._eval_type is recursive_guard rather than type_params.
@@ -2805,6 +2920,35 @@ class TestTypedDict:
         with temp_module(source) as mod:
             msg = proto.encode({"x": 1})
             assert proto.decode(msg, type=mod.Ex) == {"x": 1}
+
+    # typing.TypedDict can't be generic before 3.11.
+    @py311_plus
+    def test_generic_subclass_keeps_type_argument(self, proto):
+        # TypedDict drops a parametrized base from the MRO and copies its
+        # annotations unchanged, so Sub(Base[int]) used to accept any value
+        # for the inherited field.
+        source = """
+        from typing import Generic, TypedDict, TypeVar
+
+        L = TypeVar("L")
+
+        class Base(TypedDict, Generic[L]):
+            b: L
+
+        class Sub(Base[int]):
+            n: str
+        """
+        with temp_module(source) as mod:
+            msg = proto.encode({"b": 1, "n": "a"})
+            assert proto.decode(msg, type=mod.Sub) == {"b": 1, "n": "a"}
+            bad = proto.encode({"b": "not an int", "n": "a"})
+            with pytest.raises(ValidationError):
+                proto.decode(bad, type=mod.Sub)
+
+            base_msg = proto.encode({"b": 1})
+            assert proto.decode(base_msg, type=mod.Base[int]) == {"b": 1}
+            with pytest.raises(ValidationError):
+                proto.decode(proto.encode({"b": "x"}), type=mod.Base[int])
 
     def test_types_generic_alias_non_generic_errors(self):
         # mostly a smoke test to weed out some bogus stuff that may get passed to us.
@@ -2966,9 +3110,10 @@ class TestTypedDict:
         x2 = {"a": 1, "b": "two"}
         assert dec.decode(proto.encode(x2)) == x2
 
-        with pytest.raises(ValidationError) as rec:
-            dec.decode(proto.encode({"b": "two"}))
-        assert "Object missing required field `a`" == str(rec.value)
+        for msg in [{"b": "two"}, {"b": "two", "c": "extra"}]:
+            with pytest.raises(ValidationError) as rec:
+                dec.decode(proto.encode(msg))
+            assert "Object missing required field `a`" == str(rec.value)
 
     @pytest.mark.parametrize("use_typing_extensions", [False, True])
     def test_broken_typeddict(self, proto, use_typing_extensions):
@@ -3030,6 +3175,70 @@ class TestTypedDict:
             with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode({"a": 2}))
             assert "Object missing required field `d`" == str(rec.value)
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            "{qualifier}[Annotated[int, Meta(ge=0), Meta(le=10, title='Bounded')]]",
+            "Annotated[{qualifier}[int], Meta(ge=0), Meta(le=10, title='Bounded')]",
+            "Annotated[{qualifier}[Annotated[int, Meta(ge=0)]], Meta(le=10, title='Bounded')]",
+        ],
+        ids=["inner", "outer", "both"],
+    )
+    def test_annotated_required_and_notrequired(
+        self, proto, module, future_annotations, annotation
+    ):
+        ns = pytest.importorskip(module)
+        if not hasattr(ns, "Required"):
+            pytest.skip(f"{module}.Required is not available")
+
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from typing import Annotated
+        from {module} import TypedDict, Required, NotRequired
+        from msgspec import Meta
+
+        class Base(TypedDict):
+            x: {annotation.format(qualifier="NotRequired")}
+
+        class Ex(Base, total=False):
+            y: {annotation.format(qualifier="Required")}
+            z: Annotated[int, Meta(ge=0)]
+        """
+
+        with temp_module(source) as mod:
+            dec = proto.Decoder(mod.Ex)
+            for value in ({"y": 1}, {"x": 0, "y": 10, "z": 2}):
+                assert dec.decode(proto.encode(value)) == value
+                assert msgspec.convert(value, mod.Ex) == value
+
+            with pytest.raises(ValidationError, match="missing required field `y`"):
+                dec.decode(proto.encode({"x": 1}))
+
+            for field in ("x", "y"):
+                for invalid in (-1, 11):
+                    value = {"y": 1, field: invalid}
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        dec.decode(proto.encode(value))
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        msgspec.convert(value, mod.Ex)
+
+            schema = msgspec.json.schema(mod.Ex)["$defs"]["Ex"]
+            assert schema["required"] == ["y"]
+            field_schema = {
+                "title": "Bounded",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10,
+            }
+            assert schema["properties"] == {
+                "x": field_schema,
+                "y": field_schema,
+                "z": {"type": "integer", "minimum": 0},
+            }
 
     def test_keys_are_their_interned_values(self, proto):
         """Ensure that we're not allocating new keys here, but reusing the
@@ -3434,6 +3643,24 @@ class TestDataclass:
 
         with pytest.raises(TypeError, match="Encoding objects of type type"):
             proto.encode(Ex)
+
+    def test_encode_dataclass_dict_key_eq_error(self, proto):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            proto.encode(obj)
 
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
@@ -4345,6 +4572,10 @@ class TestTime:
             "01:02:03.0000004+00:000",
             "01:02:03.0000004+00000",
             "01:02:03.0000004Z0",
+            # NUL byte
+            "01:02:03\x00",
+            "01:02:03\x00Z",
+            "01:02:03.004\x00+05:06",
             # Truncated
             "01:02:3",
             # Missing +/-
@@ -4537,6 +4768,10 @@ class TestTimeDelta:
         "msg",
         [
             "P1000000000D",
+            "P106751991167301D",
+            "-P106751991167301D",
+            "P140737488355328D",
+            "-P140737488355328D",
             "PT140737488355329S",
             "P999999999DT86399.9999995S",
             "-P999999999DT0.0000005S",
@@ -5148,6 +5383,28 @@ class TestSet:
 
         assert all(ref() is None for ref in refs)
 
+    @pytest.mark.parametrize("type", [set, frozenset])
+    def test_decode_unhashable_item(self, proto, type):
+        """Unhashable items can't be added to a set. This should raise a
+        `ValidationError` (a `DecodeError`), not a bare `TypeError`."""
+        msg = proto.encode([{"a": 1}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\[0\]`",
+        ):
+            proto.decode(msg, type=type)
+
+    def test_decode_unhashable_item_nested_path(self, proto):
+        class Ex(msgspec.Struct):
+            values: set
+
+        msg = proto.encode({"values": [{"a": 1}]})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            proto.decode(msg, type=Ex)
+
 
 class TestOrder:
     def test_encoder_order_attribute(self, proto):
@@ -5541,7 +5798,7 @@ class TestLax:
             with pytest.raises(ValidationError, match="Invalid epoch timestamp"):
                 proto.decode(msg, type=datetime.datetime, strict=False)
 
-    @pytest.mark.parametrize("val", [-62135596801, 253402300801])
+    @pytest.mark.parametrize("val", [-62135596801, 253402300800, 253402300801])
     @pytest.mark.parametrize("type", [int, float, str])
     def test_lax_datetime_out_of_range(self, val, type, proto):
         msg = proto.encode(type(val))

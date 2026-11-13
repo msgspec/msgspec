@@ -803,6 +803,17 @@ class TestRepr:
         with pytest.raises(ValueError, match=msg):
             repr(t)
 
+    def test_repr_null_deref(self):
+        class A(msgspec.Struct, repr_omit_defaults=True):
+            x: list[int] = []
+
+        a = A()
+        del a.x
+
+        # must not crash:
+        with pytest.raises(AttributeError, match="'x' is unset"):
+            a.__rich_repr__()
+
 
 def test_struct_copy():
     x = copy.copy(Struct())
@@ -2309,6 +2320,28 @@ class TestDefStruct:
         assert Test.__struct_fields__ == ("x", "y", "z")
         assert Test.__annotations__ == {"x": int, "y": int, "z": int}
 
+    @pytest.mark.parametrize("spelling", ["ClassVar", "typing.ClassVar"])
+    @pytest.mark.parametrize("module", ["", "module=None"])
+    def test_defstruct_classvar_string_annotation_without_module(
+        self,
+        spelling,
+        module,
+    ):
+        source = f"""
+        import typing
+        from typing import ClassVar
+        from msgspec import defstruct
+
+        Ex = defstruct(
+            "Ex",
+            [("a", int), ("cv", "{spelling}[int]", 1)],
+            {module})
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
     def test_defstruct_errors(self):
         with pytest.raises(TypeError, match="must be str, not int"):
             defstruct(1)
@@ -2779,9 +2812,38 @@ class TestClassVar:
             assert not hasattr(mod.Ex, "cv1")
             assert mod.Ex.cv2 == 1
 
-    def test_wrong_classvar(self):
-        # See https://github.com/msgspec/msgspec/issues/1096
+    def test_classvar_string_annotation_without_module(self):
         source = """
+        from typing import ClassVar
+        from msgspec import Struct
+
+        namespace = {"__annotations__": {"a": int, "cv": "ClassVar[int]"}, "cv": 1}
+        Ex = type(Struct)("Ex", (Struct,), namespace)
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__module__ == mod.__name__
+            assert mod.Ex.__struct_fields__ == ("a",)
+            assert mod.Ex.cv == 1
+
+    def test_classvar_string_annotation_module_not_loaded(self):
+        with pytest.raises(KeyError, match="is not loaded"):
+
+            class Ex(Struct):
+                __module__ = "not_a_loaded_module"
+                cv: "ClassVar[int]" = 1  # noqa: F821
+
+    def test_classvar_string_annotation_unhashable_module(self):
+        with pytest.raises(TypeError, match="unhashable"):
+
+            class Ex(Struct):
+                __module__ = []
+                cv: "ClassVar[int]" = 1  # noqa: F821
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    @pytest.mark.parametrize("annotation", ["typing.ClassVar", "typing.ClassVar[int]"])
+    def test_wrong_classvar(self, annotation, default):
+        # See https://github.com/msgspec/msgspec/issues/1096 and #1221
+        source = f"""
         from __future__ import annotations
         from msgspec import Struct
 
@@ -2789,14 +2851,73 @@ class TestClassVar:
             pass
 
         class Ex(Struct):
-            a: typing.ClassVar
+            a: {annotation}{default}
         """
-
         with pytest.raises(
             AttributeError,
             match="'typing' has no attribute 'ClassVar'",
         ):
-            temp_module(source).__enter__()  # It used to crash, but must not!
+            with temp_module(source):
+                pass  # Class creation must raise, not abort the interpreter.
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_attribute_lookup_error(self, default):
+        source = f"""
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace:
+            @property
+            def ClassVar(self):
+                raise RuntimeError("classvar lookup failed")
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]{default}
+        """
+        with pytest.raises(RuntimeError, match="classvar lookup failed"):
+            with temp_module(source):
+                pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_attribute(self, default):
+        source = f"""
+        from __future__ import annotations
+        from msgspec import Struct
+
+        class Namespace: ...
+
+        typing = Namespace()
+
+        class Ex(Struct):
+            a: typing.ClassVar[int]{default}
+        """
+        with pytest.raises(AttributeError, match="ClassVar"):
+            with temp_module(source):
+                pass
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_no_typing_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "typing.ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
+
+    @pytest.mark.parametrize("default", ["", " = 1"])
+    def test_classvar_not_in_namespace(self, default):
+        source = f"""
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: "ClassVar[int]"{default}
+        """
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a",)
 
 
 class TestPostInit:
