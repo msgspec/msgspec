@@ -341,6 +341,15 @@ class _SchemaGenerator:
                 property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
+            elif isinstance(key_type, mi.IntType):
+                property_names = {"pattern": "^-?(0|[1-9][0-9]*)$"}
+                key_meta = t.key_type
+                while isinstance(key_meta, mi.Metadata):
+                    property_names = mi._merge_json(
+                        property_names, key_meta.extra_json_schema
+                    )
+                    key_meta = key_meta.type
+                schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)
             if t.max_length is not None:

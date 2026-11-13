@@ -2,6 +2,7 @@ import datetime
 import decimal
 import enum
 import json
+import re
 import sys
 import typing
 import uuid
@@ -1409,9 +1410,44 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (Literal[1, 2], Number):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
+
+
+@pytest.mark.parametrize(
+    "key_type, extra",
+    [
+        (int, {}),
+        (Annotated[int, Meta(ge=0, title="id")], {"title": "id"}),
+        (
+            Annotated[int, Meta(description="key", examples=[1])],
+            {"description": "key", "examples": [1]},
+        ),
+    ],
+)
+def test_dict_int_key_schema(key_type, extra):
+    assert msgspec.json.schema(dict[key_type, str]) == {
+        "type": "object",
+        "additionalProperties": {"type": "string"},
+        "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$", **extra},
+    }
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["0", "-0", "7", "-12", "10000000000000000000000", "", "-", "+1", "01", "-01"]
+    + ["1.0", "1e3", " 1", "1 ", "abc"],
+)
+def test_dict_int_key_pattern_matches_decoder(key):
+    pattern = msgspec.json.schema(dict[int, str])["propertyNames"]["pattern"]
+    try:
+        msgspec.json.decode(json.dumps({key: "x"}).encode(), type=dict[int, str])
+    except msgspec.ValidationError:
+        decodes = False
+    else:
+        decodes = True
+    assert (re.search(pattern, key) is not None) == decodes
 
 
 @py315_or_later_only
