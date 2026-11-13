@@ -5,6 +5,8 @@
 - Render non-finite float values in generated JSON Schema field defaults as
   `null`, matching their JSON-encoded form, including nested defaults.
 
+- Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
+  raising `TypeError`, preserving constraints and schema metadata.
 - Fix decoding ISO 8601 durations with very large day counts, which could
   overflow and return an incorrect `timedelta` or raise `OverflowError` instead
   of `ValidationError`.
