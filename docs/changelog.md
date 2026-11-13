@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Constrain integer dictionary keys in generated JSON Schema with a
+  `propertyNames` pattern matching the keys `msgspec.json.decode` accepts
+  ({issue}`1340`).
 - Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
   raising `TypeError`, preserving constraints and schema metadata.
 - Fix decoding ISO 8601 durations with very large day counts, which could

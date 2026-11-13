@@ -341,6 +341,8 @@ class _SchemaGenerator:
                 property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
+            elif isinstance(key_type, mi.IntType):
+                schema["propertyNames"] = {"pattern": "^-?(0|[1-9][0-9]*)$"}
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)
             if t.max_length is not None:
