@@ -175,7 +175,7 @@ def decode(
         buf = bytes(memoryview(buf))
     try:
         obj = yaml.load(buf, Loader)
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, ValueError) as exc:
         raise _DecodeError(str(exc)) from None
 
     if type is Any:
