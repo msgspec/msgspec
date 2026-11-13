@@ -1415,12 +1415,22 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         assert "propertyNames" not in schema
 
 
-@pytest.mark.parametrize("key_type", [int, Annotated[int, Meta(ge=0, title="id")]])
-def test_dict_int_key_schema(key_type):
+@pytest.mark.parametrize(
+    "key_type, extra",
+    [
+        (int, {}),
+        (Annotated[int, Meta(ge=0, title="id")], {"title": "id"}),
+        (
+            Annotated[int, Meta(description="key", examples=[1])],
+            {"description": "key", "examples": [1]},
+        ),
+    ],
+)
+def test_dict_int_key_schema(key_type, extra):
     assert msgspec.json.schema(dict[key_type, str]) == {
         "type": "object",
         "additionalProperties": {"type": "string"},
-        "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$"},
+        "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$", **extra},
     }
 
 
