@@ -1007,6 +1007,33 @@ class TestSequences:
         with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
             assert convert(1, out_type)
 
+    @pytest.mark.parametrize(
+        "obj, out_annot, got",
+        [
+            ([{"a": 1}], set, "dict"),
+            ([{"a": 1}], frozenset, "dict"),
+            ([[1, 2]], set[list[int]], "list"),
+        ],
+    )
+    def test_unhashable_item(self, obj, out_annot, got):
+        """Unhashable items can't be added to a set, this should raise a
+        `ValidationError` rather than a bare `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            assert convert(obj, out_annot)
+
+    def test_unhashable_item_nested_path(self):
+        class Ex(msgspec.Struct):
+            values: set
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            convert({"values": [{"a": 1}]}, Ex)
+
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     @pytest.mark.skipif(
         PY312,
@@ -1215,6 +1242,26 @@ class TestDict:
             ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
         ):
             convert(dictcls({"x": 1}), dict[int, str])
+
+    def test_unhashable_key(self, dictcls):
+        """A key that converts to an unhashable value can't be added to the
+        output dict, this should raise a `ValidationError` rather than a bare
+        `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$`",
+        ):
+            convert(dictcls({(1, 2): 0}), dict[list[int], int])
+
+    def test_unhashable_key_nested_path(self):
+        class Ex(Struct):
+            values: dict[list[int], int]
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$\.values`",
+        ):
+            convert({"values": {(1, 2): 0}}, Ex)
 
     def test_dict_wrong_type(self):
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
@@ -2526,6 +2573,23 @@ class TestStructUnion:
 
         with pytest.raises(ValidationError, match="got `Ex3`"):
             convert(Ex3(1), typ)
+
+    def test_struct_union_tag_lookup_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("type")
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        class Ex1(Struct, tag=True):
+            x: int
+
+        class Ex2(Struct, tag=True):
+            x: int
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            convert({Key(): "Ex1", "x": 1}, Ex1 | Ex2)
 
 
 class TestGenericStruct:

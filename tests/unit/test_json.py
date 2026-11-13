@@ -1015,6 +1015,10 @@ class TestDatetime:
             b'"0001-02-03T04:05:06.000007Z0"',
             b'"0001-02-03T04:05:06a"',
             b'"0001-02-03T04:05:06.000007a"',
+            # NUL byte
+            b'"0001-02-03T04:05:06\\u0000"',
+            b'"0001-02-03T04:05:06\\u0000Z"',
+            b'"0001-02-03T04:05:06.000007\\u0000+05:00"',
             # Truncated
             b'"0001-02-03T04:05:"',
             # Missing +/-
@@ -1855,6 +1859,16 @@ class TestSequences:
         assert dec.decode(b"[]") == frozenset()
         assert dec.decode(b"[1]") == frozenset({1})
         assert dec.decode(b"[1,2]") == frozenset({1, 2})
+
+    @pytest.mark.parametrize("type", [set, frozenset, set[list[int]]])
+    def test_decode_unhashable_item(self, type):
+        """JSON arrays decode as lists, which can't be added to a set. This
+        should raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `list` - at `\$\[0\]`",
+        ):
+            msgspec.json.decode(b"[[1, 2]]", type=type)
 
     def test_decode_typed_vartuple(self):
         dec = msgspec.json.Decoder(tuple[int, ...])
@@ -3180,6 +3194,15 @@ class TestRaw:
 
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+    def test_struct_broken_annotations(self):
+        class BrokenAnnotations(msgspec.Struct):
+            x: int
+
+        BrokenAnnotations.__annotations__ = {}
+
+        with pytest.raises(TypeError, match="__annotations__"):
+            msgspec.json.decode(b'{"x": 1}', type=BrokenAnnotations)
 
 
 class TestFormat:
