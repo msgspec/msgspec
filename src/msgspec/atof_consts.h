@@ -3,7 +3,42 @@
 #ifndef MSGSPEC_ATOF_CONSTS_H
 #define MSGSPEC_ATOF_CONSTS_H
 
-static const uint64_t ms_atof_powers_of_10[596][2] = {
+static const uint64_t ms_atof_powers_of_10[631][2] = {
+{0x113faa2906a13b3f, 0xeef453d6923bd65a},  // 1e-342
+{0x4ac7ca59a424c507, 0x9558b4661b6565f8},  // 1e-341
+{0x5d79bcf00d2df649, 0xbaaee17fa23ebf76},  // 1e-340
+{0xf4d82c2c107973dc, 0xe95a99df8ace6f53},  // 1e-339
+{0x79071b9b8a4be869, 0x91d8a02bb6c10594},  // 1e-338
+{0x9748e2826cdee284, 0xb64ec836a47146f9},  // 1e-337
+{0xfd1b1b2308169b25, 0xe3e27a444d8d98b7},  // 1e-336
+{0xfe30f0f5e50e20f7, 0x8e6d8c6ab0787f72},  // 1e-335
+{0xbdbd2d335e51a935, 0xb208ef855c969f4f},  // 1e-334
+{0xad2c788035e61382, 0xde8b2b66b3bc4723},  // 1e-333
+{0x4c3bcb5021afcc31, 0x8b16fb203055ac76},  // 1e-332
+{0xdf4abe242a1bbf3d, 0xaddcb9e83c6b1793},  // 1e-331
+{0xd71d6dad34a2af0d, 0xd953e8624b85dd78},  // 1e-330
+{0x8672648c40e5ad68, 0x87d4713d6f33aa6b},  // 1e-329
+{0x680efdaf511f18c2, 0xa9c98d8ccb009506},  // 1e-328
+{0x0212bd1b2566def2, 0xd43bf0effdc0ba48},  // 1e-327
+{0x014bb630f7604b57, 0x84a57695fe98746d},  // 1e-326
+{0x419ea3bd35385e2d, 0xa5ced43b7e3e9188},  // 1e-325
+{0x52064cac828675b9, 0xcf42894a5dce35ea},  // 1e-324
+{0x7343efebd1940993, 0x818995ce7aa0e1b2},  // 1e-323
+{0x1014ebe6c5f90bf8, 0xa1ebfb4219491a1f},  // 1e-322
+{0xd41a26e077774ef6, 0xca66fa129f9b60a6},  // 1e-321
+{0x8920b098955522b4, 0xfd00b897478238d0},  // 1e-320
+{0x55b46e5f5d5535b0, 0x9e20735e8cb16382},  // 1e-319
+{0xeb2189f734aa831d, 0xc5a890362fddbc62},  // 1e-318
+{0xa5e9ec7501d523e4, 0xf712b443bbd52b7b},  // 1e-317
+{0x47b233c92125366e, 0x9a6bb0aa55653b2d},  // 1e-316
+{0x999ec0bb696e840a, 0xc1069cd4eabe89f8},  // 1e-315
+{0xc00670ea43ca250d, 0xf148440a256e2c76},  // 1e-314
+{0x380406926a5e5728, 0x96cd2a865764dbca},  // 1e-313
+{0xc605083704f5ecf2, 0xbc807527ed3e12bc},  // 1e-312
+{0xf7864a44c633682e, 0xeba09271e88d976b},  // 1e-311
+{0x7ab3ee6afbe0211d, 0x93445b8731587ea3},  // 1e-310
+{0x5960ea05bad82964, 0xb8157268fdae9e4c},  // 1e-309
+{0x6fb92487298e33bd, 0xe61acf033d1a45df},  // 1e-308
 {0xa5d3b6d479f8e056, 0x8fd0c16206306bab},  // 1e-307
 {0x8f48a4899877186c, 0xb3c4f1ba87bc8696},  // 1e-306
 {0x331acdabfe94de87, 0xe0b62e2929aba83c},  // 1e-305

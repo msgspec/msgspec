@@ -179,6 +179,18 @@ class TestDecoder:
         msg = proto.encode(2)
         assert dec.decode(msg) == 2
 
+    def test_decoder_unhashable_origin(self, proto):
+        class Origin:
+            def __hash__(self):
+                raise RuntimeError("hash failed")
+
+        class Ex:
+            __origin__ = Origin()
+            __args__ = ()
+
+        with pytest.raises(TypeError, match="not supported"):
+            proto.Decoder(Ex())
+
     def test_decoder_dec_hook_attribute(self, proto):
         def dec_hook(typ, obj):
             pass
@@ -3164,6 +3176,70 @@ class TestTypedDict:
                 dec.decode(proto.encode({"a": 2}))
             assert "Object missing required field `d`" == str(rec.value)
 
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            "{qualifier}[Annotated[int, Meta(ge=0), Meta(le=10, title='Bounded')]]",
+            "Annotated[{qualifier}[int], Meta(ge=0), Meta(le=10, title='Bounded')]",
+            "Annotated[{qualifier}[Annotated[int, Meta(ge=0)]], Meta(le=10, title='Bounded')]",
+        ],
+        ids=["inner", "outer", "both"],
+    )
+    def test_annotated_required_and_notrequired(
+        self, proto, module, future_annotations, annotation
+    ):
+        ns = pytest.importorskip(module)
+        if not hasattr(ns, "Required"):
+            pytest.skip(f"{module}.Required is not available")
+
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from typing import Annotated
+        from {module} import TypedDict, Required, NotRequired
+        from msgspec import Meta
+
+        class Base(TypedDict):
+            x: {annotation.format(qualifier="NotRequired")}
+
+        class Ex(Base, total=False):
+            y: {annotation.format(qualifier="Required")}
+            z: Annotated[int, Meta(ge=0)]
+        """
+
+        with temp_module(source) as mod:
+            dec = proto.Decoder(mod.Ex)
+            for value in ({"y": 1}, {"x": 0, "y": 10, "z": 2}):
+                assert dec.decode(proto.encode(value)) == value
+                assert msgspec.convert(value, mod.Ex) == value
+
+            with pytest.raises(ValidationError, match="missing required field `y`"):
+                dec.decode(proto.encode({"x": 1}))
+
+            for field in ("x", "y"):
+                for invalid in (-1, 11):
+                    value = {"y": 1, field: invalid}
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        dec.decode(proto.encode(value))
+                    with pytest.raises(ValidationError, match=rf"\$\.{field}"):
+                        msgspec.convert(value, mod.Ex)
+
+            schema = msgspec.json.schema(mod.Ex)["$defs"]["Ex"]
+            assert schema["required"] == ["y"]
+            field_schema = {
+                "title": "Bounded",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10,
+            }
+            assert schema["properties"] == {
+                "x": field_schema,
+                "y": field_schema,
+                "z": {"type": "integer", "minimum": 0},
+            }
+
     def test_keys_are_their_interned_values(self, proto):
         """Ensure that we're not allocating new keys here, but reusing the
         existing keys on the TypedDict schema"""
@@ -3567,6 +3643,24 @@ class TestDataclass:
 
         with pytest.raises(TypeError, match="Encoding objects of type type"):
             proto.encode(Ex)
+
+    def test_encode_dataclass_dict_key_eq_error(self, proto):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            proto.encode(obj)
 
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
@@ -4478,6 +4572,10 @@ class TestTime:
             "01:02:03.0000004+00:000",
             "01:02:03.0000004+00000",
             "01:02:03.0000004Z0",
+            # NUL byte
+            "01:02:03\x00",
+            "01:02:03\x00Z",
+            "01:02:03.004\x00+05:06",
             # Truncated
             "01:02:3",
             # Missing +/-
@@ -4670,6 +4768,10 @@ class TestTimeDelta:
         "msg",
         [
             "P1000000000D",
+            "P106751991167301D",
+            "-P106751991167301D",
+            "P140737488355328D",
+            "-P140737488355328D",
             "PT140737488355329S",
             "P999999999DT86399.9999995S",
             "-P999999999DT0.0000005S",
@@ -5280,6 +5382,28 @@ class TestSet:
         gc.collect()
 
         assert all(ref() is None for ref in refs)
+
+    @pytest.mark.parametrize("type", [set, frozenset])
+    def test_decode_unhashable_item(self, proto, type):
+        """Unhashable items can't be added to a set. This should raise a
+        `ValidationError` (a `DecodeError`), not a bare `TypeError`."""
+        msg = proto.encode([{"a": 1}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\[0\]`",
+        ):
+            proto.decode(msg, type=type)
+
+    def test_decode_unhashable_item_nested_path(self, proto):
+        class Ex(msgspec.Struct):
+            values: set
+
+        msg = proto.encode({"values": [{"a": 1}]})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            proto.decode(msg, type=Ex)
 
 
 class TestOrder:

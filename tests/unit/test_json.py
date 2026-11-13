@@ -1082,6 +1082,10 @@ class TestDatetime:
             b'"0001-02-03T04:05:06.000007Z0"',
             b'"0001-02-03T04:05:06a"',
             b'"0001-02-03T04:05:06.000007a"',
+            # NUL byte
+            b'"0001-02-03T04:05:06\\u0000"',
+            b'"0001-02-03T04:05:06\\u0000Z"',
+            b'"0001-02-03T04:05:06.000007\\u0000+05:00"',
             # Truncated
             b'"0001-02-03T04:05:"',
             # Missing +/-
@@ -1321,6 +1325,37 @@ class TestLiteral:
 
 
 class TestFloat:
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("exponent", range(-343, -306))
+    @pytest.mark.parametrize(
+        "mantissa",
+        ["0", "1", "2", "5", "99", "1234567890123456789", "9999999999999999999"],
+    )
+    def test_decode_small_float_shared_paths(self, sign, exponent, mantissa):
+        text = f"{sign}{mantissa}e{exponent}"
+        expected = float(text).hex()
+        assert msgspec.json.decode(text).hex() == expected
+        assert msgspec.json.decode(text, type=float).hex() == expected
+        key = next(
+            iter(msgspec.json.decode(f'{{"{text}": null}}', type=dict[float, None]))
+        )
+        assert key.hex() == expected
+        assert msgspec.convert(text, type=float, strict=False).hex() == expected
+        assert msgspec.json.decode(text, type=Decimal) == Decimal(text)
+        assert msgspec.json.Decoder(float_hook=str).decode(text) == text
+
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("lower", [0, 1, 2, 2**51 - 1, 2**52 - 1, 2**52])
+    def test_decode_subnormal_rounding_boundaries(self, sign, lower):
+        # Exact decimal halfway between adjacent multiples of 2**-1074, plus
+        # neighbours one decimal digit below/above it. No Decimal context rounding.
+        halfway = (2 * lower + 1) * 5**1075
+        for offset in [-1, 0, 1]:
+            text = f"{sign}{halfway + offset}e-1075"
+            expected = float(text).hex()
+            assert msgspec.json.decode(text).hex() == expected
+            assert msgspec.convert(text, type=float, strict=False).hex() == expected
+
     @pytest.mark.parametrize(
         "x",
         [
@@ -1922,6 +1957,16 @@ class TestSequences:
         assert dec.decode(b"[]") == frozenset()
         assert dec.decode(b"[1]") == frozenset({1})
         assert dec.decode(b"[1,2]") == frozenset({1, 2})
+
+    @pytest.mark.parametrize("type", [set, frozenset, set[list[int]]])
+    def test_decode_unhashable_item(self, type):
+        """JSON arrays decode as lists, which can't be added to a set. This
+        should raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `list` - at `\$\[0\]`",
+        ):
+            msgspec.json.decode(b"[[1, 2]]", type=type)
 
     def test_decode_typed_vartuple(self):
         dec = msgspec.json.Decoder(tuple[int, ...])
@@ -3247,6 +3292,15 @@ class TestRaw:
 
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+    def test_struct_broken_annotations(self):
+        class BrokenAnnotations(msgspec.Struct):
+            x: int
+
+        BrokenAnnotations.__annotations__ = {}
+
+        with pytest.raises(TypeError, match="__annotations__"):
+            msgspec.json.decode(b'{"x": 1}', type=BrokenAnnotations)
 
 
 class TestFormat:
