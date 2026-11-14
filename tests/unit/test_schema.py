@@ -84,6 +84,53 @@ def test_custom_schema_hook():
         msgspec.json.schema(slice, schema_hook=schema_hook)
 
 
+@pytest.mark.parametrize("kind", ["struct", "dataclass", "namedtuple"])
+def test_custom_schema_hook_shared_defaults(kind):
+    class CustomUUID(uuid.UUID):
+        pass
+
+    first = CustomUUID(int=1)
+    second = CustomUUID(int=2)
+    if kind == "struct":
+
+        class Example(msgspec.Struct):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    elif kind == "dataclass":
+
+        @dataclass
+        class Example:
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    else:
+
+        class Example(NamedTuple):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    shared = {"type": "string", "format": "uuid"}
+
+    def schema_hook(cls):
+        assert cls is CustomUUID
+        return shared
+
+    result = msgspec.json.schema(Example, schema_hook=schema_hook)
+    component = result["$defs"]["Example"]
+    fields = (
+        component["prefixItems"]
+        if kind == "namedtuple"
+        else list(component["properties"].values())
+    )
+    assert fields == [
+        {"type": "string", "format": "uuid", "default": str(first)},
+        {"type": "string", "format": "uuid", "default": str(second)},
+    ]
+    assert shared == {"type": "string", "format": "uuid"}
+    assert msgspec.json.schema(CustomUUID, schema_hook=schema_hook) == shared
+
+
 def test_none():
     assert msgspec.json.schema(None) == {"type": "null"}
 

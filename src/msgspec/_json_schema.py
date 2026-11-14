@@ -485,7 +485,7 @@ class _SchemaGenerator:
         elif isinstance(t, mi.CustomType):
             if self.schema_hook:
                 try:
-                    schema = mi._merge_json(self.schema_hook(t.cls), schema)
+                    schema = mi._merge_json(self.schema_hook(t.cls).copy(), schema)
                 except NotImplementedError:
                     pass
             if not schema:
