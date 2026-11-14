@@ -9647,6 +9647,9 @@ next_field:
                 val = get(descr, iter->obj, (PyObject *)type);
                 Py_DECREF(descr);
                 if (val != NULL) goto found_val;
+                /* Preserve KeyError omission for existing dataclass-like objects. */
+                if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                    !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
                 PyErr_Clear();
             }
         }
@@ -9655,6 +9658,9 @@ next_field:
     else {
         val = type->tp_getattro(iter->obj, name);
         if (val == NULL) {
+            /* Preserve KeyError omission for existing dataclass-like objects. */
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
             PyErr_Clear();
             goto next_field;
         }
