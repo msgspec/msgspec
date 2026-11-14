@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
+  `offset` inside the buffer. An `offset` past the end of the buffer now fills
+  the gap with zeros instead of leaving it uninitialized, and a failed encode no
+  longer leaves the buffer's old contents past the written output.
 - Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
   raising `TypeError`, preserving constraints and schema metadata.
 - Fix decoding ISO 8601 durations with very large day counts, which could
