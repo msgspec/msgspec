@@ -797,10 +797,6 @@ class TestDatetime:
         "offset",
         [
             datetime.timedelta(0),
-            datetime.timedelta(days=1, microseconds=-1),
-            datetime.timedelta(days=-1, microseconds=1),
-            datetime.timedelta(days=1, seconds=-29),
-            datetime.timedelta(days=-1, seconds=29),
             datetime.timedelta(days=0, seconds=30),
             datetime.timedelta(days=0, seconds=-30),
         ],
@@ -826,6 +822,22 @@ class TestDatetime:
                 datetime.timedelta(minutes=19, seconds=32, microseconds=130000),
                 b'"1234-12-31T14:56:27.123456+00:20"',
             ),
+            (
+                datetime.timedelta(days=1, seconds=-29),
+                b'"1234-12-31T14:56:27.123456+23:59"',
+            ),
+            (
+                datetime.timedelta(days=-1, seconds=29),
+                b'"1234-12-31T14:56:27.123456-23:59"',
+            ),
+            (
+                datetime.timedelta(days=1, microseconds=-1),
+                b'"1234-12-31T14:56:27.123456+23:59"',
+            ),
+            (
+                datetime.timedelta(days=-1, microseconds=1),
+                b'"1234-12-31T14:56:27.123456-23:59"',
+            ),
         ],
     )
     def test_encode_datetime_offset_rounds_to_nearest_minute(self, offset, expected):
@@ -833,6 +845,21 @@ class TestDatetime:
         x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
         s = msgspec.json.encode(x)
         assert s == expected
+
+    @pytest.mark.parametrize(
+        "offset",
+        [
+            datetime.timedelta(days=1, seconds=-15),
+            datetime.timedelta(days=-1, seconds=15),
+            datetime.timedelta(days=1, microseconds=-1),
+            datetime.timedelta(days=-1, microseconds=1),
+        ],
+    )
+    def test_encode_datetime_offset_near_24_hours(self, offset):
+        x = datetime.datetime(2020, 1, 1, 12, tzinfo=datetime.timezone(offset))
+        res = msgspec.json.decode(msgspec.json.encode(x), type=datetime.datetime)
+        # The closest valid offset is +/-23:59, so the error stays under a minute
+        assert abs(res - x) < datetime.timedelta(minutes=1)
 
     def test_encode_datetime_zoneinfo(self):
         import zoneinfo
