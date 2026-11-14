@@ -61,6 +61,12 @@ toml = [
 yaml = [
   "pyyaml",
 ]
+json5 = [
+  "json5>=0.17.3",
+]
+pyjson5 = [
+  "pyjson5>=2.0.1",
+]
 
 [project.urls]
 Homepage = "https://msgspec.dev"
