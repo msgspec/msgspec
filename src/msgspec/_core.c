@@ -20364,6 +20364,7 @@ typedef struct {
     MsgspecState *mod;
     PyObject *enc_hook;
     bool str_keys;
+    bool json_schema;
     enum order_mode order;
     uint32_t builtin_types;
     PyObject *builtin_types_seq;
@@ -20372,9 +20373,17 @@ typedef struct {
 static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
 
 static PyObject *
-to_builtins_enum(ToBuiltinsState *self, PyObject *obj)
+to_builtins_enum(ToBuiltinsState *self, PyObject *obj, bool is_key)
 {
-    return PyObject_GetAttr(obj, self->mod->str__value_);
+    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
+    if (value == NULL || !self->json_schema) return value;
+    PyObject *out = NULL;
+    if (!Py_EnterRecursiveCall(" while serializing an object")) {
+        out = to_builtins(self, value, is_key);
+        Py_LeaveRecursiveCall();
+    }
+    Py_DECREF(value);
+    return out;
 }
 
 static PyObject *
@@ -20838,9 +20847,14 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         obj == Py_None ||
         type == &PyBool_Type ||
         type == &PyLong_Type ||
-        type == &PyFloat_Type ||
         type == &PyUnicode_Type
     ) {
+        goto builtin;
+    }
+    else if (type == &PyFloat_Type) {
+        if (self->json_schema && !is_key && !isfinite(PyFloat_AS_DOUBLE(obj))) {
+            Py_RETURN_NONE;
+        }
         goto builtin;
     }
     else if (type == &PyBytes_Type) {
@@ -20902,7 +20916,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return to_builtins_struct(self, obj, is_key);
     }
     else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
-        return to_builtins_enum(self, obj);
+        return to_builtins_enum(self, obj, is_key);
     }
     else if (is_key & PyUnicode_Check(obj)) {
         return PyObject_Str(obj);
@@ -21140,6 +21154,7 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 
     state.mod = msgspec_get_state(self);
     state.str_keys = str_keys;
+    state.json_schema = false;
     state.builtin_types = 0;
     state.builtin_types_seq = NULL;
 
@@ -21169,6 +21184,21 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *out = to_builtins(&state, obj, false);
     Py_XDECREF(state.builtin_types_seq);
     return out;
+}
+
+static PyObject*
+msgspec_to_json_default(PyObject *self, PyObject *obj)
+{
+    ToBuiltinsState state = {
+        .mod = msgspec_get_state(self),
+        .enc_hook = NULL,
+        .str_keys = true,
+        .json_schema = true,
+        .order = ORDER_DEFAULT,
+        .builtin_types = 0,
+        .builtin_types_seq = NULL,
+    };
+    return to_builtins(&state, obj, false);
 }
 
 /*************************************************************************
@@ -23032,6 +23062,9 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "to_builtins", (PyCFunction) msgspec_to_builtins, METH_VARARGS | METH_KEYWORDS,
         msgspec_to_builtins__doc__,
+    },
+    {
+        "_to_json_default", (PyCFunction) msgspec_to_json_default, METH_O, NULL,
     },
     {
         "convert", (PyCFunction) msgspec_convert, METH_VARARGS | METH_KEYWORDS,
