@@ -686,6 +686,31 @@ def test_schema_enum_default_does_not_depend_on_container_length(
     assert msgspec.json.schema(Example) == schema
 
 
+@pytest.mark.parametrize("as_enum", [False, True])
+def test_schema_default_converts_nonfinite_dict_keys(as_enum):
+    value = {float("inf"): float("nan"), -float("inf"): [float("inf")]}
+    value[float("nan")] = (1.25,)
+    if as_enum:
+
+        class E(enum.Enum):
+            A = value
+
+        default = E.A
+    else:
+        default = value
+
+    Example = namedtuple("Example", "value", defaults=[default])
+    schema = msgspec.json.schema(Example)
+    result = schema["$defs"]["Example"]["prefixItems"][0]["default"]
+    assert result == {"inf": None, "-inf": [None], "nan": (1.25,)}
+    assert json.loads(json.dumps(result, allow_nan=False)) == msgspec.json.decode(
+        msgspec.json.encode(default)
+    )
+    assert math.isnan(value[float("inf")])
+    if as_enum:
+        assert msgspec.to_builtins(default, str_keys=True) is value
+
+
 def test_nonfinite_schema_default_does_not_change_value_conversion():
     value = float("nan")
     default = {"items": [value, (float("inf"),)]}

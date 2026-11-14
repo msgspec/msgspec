@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-import math
 import re
 import textwrap
-from collections.abc import Callable, Iterable, Iterator
-from typing import Any, Final
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, Final
 
 from . import inspect as mi, to_builtins
+
+if TYPE_CHECKING:
+
+    def _to_json_default(value: Any, /) -> Any: ...
+
+else:
+    from ._core import _to_json_default
 
 __all__ = ("schema", "schema_components")
 
@@ -224,56 +230,6 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
         names[cls] = candidate
         used.add(candidate)
     return names
-
-
-def _to_json_default(value: Any) -> Any:
-    result: list[Any] = [None]
-    parent: list[Any] | dict[Any, Any] = result
-    key: Any = 0
-    obj = to_builtins(value, str_keys=True)
-    pending: list[
-        tuple[
-            Iterator[tuple[Any, Any]],
-            list[Any] | dict[Any, Any],
-            list[Any] | dict[Any, Any],
-            Any,
-            bool,
-        ]
-    ] = []
-    while True:
-        if isinstance(obj, (list, tuple, dict)):
-            # Enum values may be returned by reference, so copy each container.
-            output: list[Any] | dict[Any, Any]
-            items: Iterator[tuple[Any, Any]]
-            if isinstance(obj, dict):
-                output = {}
-                items = iter(obj.items())
-            else:
-                output = []
-                items = iter(enumerate(obj))
-            parent[key] = output
-            pending.append((items, output, parent, key, isinstance(obj, tuple)))
-        else:
-            # Match the JSON encoder's representation of non-finite floats.
-            parent[key] = (
-                None if isinstance(obj, float) and not math.isfinite(obj) else obj
-            )
-
-        while pending:
-            items, output, previous_parent, previous_key, restore_tuple = pending[-1]
-            try:
-                key, obj = next(items)
-            except StopIteration:
-                pending.pop()
-                if restore_tuple:
-                    previous_parent[previous_key] = tuple(output)
-            else:
-                parent = output
-                if isinstance(parent, list):
-                    parent.append(None)
-                break
-        else:
-            return result[0]
 
 
 class _SchemaGenerator:
