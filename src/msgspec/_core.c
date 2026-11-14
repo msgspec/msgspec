@@ -20366,9 +20366,17 @@ typedef struct {
 static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
 
 static PyObject *
-to_builtins_enum(ToBuiltinsState *self, PyObject *obj)
+to_builtins_enum(ToBuiltinsState *self, PyObject *obj, bool is_key)
 {
-    return PyObject_GetAttr(obj, self->mod->str__value_);
+    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
+    if (value == NULL) return NULL;
+    PyObject *out = NULL;
+    if (!Py_EnterRecursiveCall(" while serializing an object")) {
+        out = to_builtins(self, value, is_key);
+        Py_LeaveRecursiveCall();
+    }
+    Py_DECREF(value);
+    return out;
 }
 
 static PyObject *
@@ -20896,7 +20904,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return to_builtins_struct(self, obj, is_key);
     }
     else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
-        return to_builtins_enum(self, obj);
+        return to_builtins_enum(self, obj, is_key);
     }
     else if (is_key & PyUnicode_Check(obj)) {
         return PyObject_Str(obj);

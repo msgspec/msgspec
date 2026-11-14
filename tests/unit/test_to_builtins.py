@@ -227,7 +227,60 @@ class TestToBuiltins:
             x = (1, 2)
 
         res = to_builtins(Complex.x)
-        assert res is Complex.x.value
+        assert res == Complex.x.value
+        assert type(res) is tuple
+        assert hash(res) == hash(Complex.x.value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            decimal.Decimal("19.95"),
+            datetime.date(2022, 1, 2),
+            b"data",
+            (decimal.Decimal("19.95"), datetime.date(2022, 1, 2)),
+            {"price": decimal.Decimal("19.95")},
+        ],
+    )
+    def test_enum_value_conversion(self, value):
+        class Example(enum.Enum):
+            x = value
+
+        assert to_builtins({"value": Example.x}) == {"value": to_builtins(value)}
+
+    def test_enum_value_builtin_types(self):
+        class Example(enum.Enum):
+            x = datetime.date(2022, 1, 2)
+
+        assert to_builtins(Example.x, builtin_types=(datetime.date,)) is Example.x.value
+
+    def test_enum_value_enc_hook(self):
+        class Example(enum.Enum):
+            x = Bad()
+
+        assert to_builtins(Example.x, enc_hook=lambda obj: b"data") == "ZGF0YQ=="
+
+    @pytest.mark.parametrize("order", ["deterministic", "sorted"])
+    def test_enum_value_order(self, order):
+        class Example(enum.Enum):
+            x = {"b": 1, "a": 2}
+
+        assert list(to_builtins(Example.x, order=order)) == ["a", "b"]
+
+    def test_enum_value_key(self):
+        class Example(enum.Enum):
+            x = (frozenset({decimal.Decimal("19.95")}), datetime.date(2022, 1, 2))
+
+        assert to_builtins({Example.x: 1}) == {(("19.95",), "2022-01-02"): 1}
+
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_enum_value_key_builtin_types(self, str_keys):
+        class Example(enum.Enum):
+            x = datetime.date(2022, 1, 2)
+
+        key = "2022-01-02" if str_keys else Example.x.value
+        assert to_builtins(
+            {Example.x: 1}, builtin_types=(datetime.date,), str_keys=str_keys
+        ) == {key: 1}
 
     @pytest.mark.parametrize(
         "in_type, out_type",
