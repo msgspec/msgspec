@@ -1,3 +1,4 @@
+import dataclasses
 import inspect
 import sys
 import sysconfig
@@ -77,3 +78,39 @@ def package_not_installed(name):
             sys.modules[name] = orig
         else:
             del sys.modules[name]
+
+
+class FieldDescriptor:
+    def __set_name__(self, owner, name):
+        self.name = "_" + name
+
+    def __get__(self, obj, owner=None):
+        if obj is None:
+            return None
+        value = getattr(obj, self.name)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    def __set__(self, obj, value):
+        setattr(obj, self.name, value)
+
+
+@dataclasses.dataclass
+class DescriptorRow:
+    first: object
+    value: object = FieldDescriptor()
+    last: int = 3
+
+
+@dataclasses.dataclass
+class CustomRow:
+    first: object
+    value: object
+    last: int = 3
+
+    def __getattribute__(self, name):
+        value = object.__getattribute__(self, name)
+        if name == "value" and isinstance(value, BaseException):
+            raise value
+        return value

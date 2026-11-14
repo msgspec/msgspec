@@ -9647,6 +9647,9 @@ next_field:
                 val = get(descr, iter->obj, (PyObject *)type);
                 Py_DECREF(descr);
                 if (val != NULL) goto found_val;
+                /* Preserve KeyError omission for existing dataclass-like objects. */
+                if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                    !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
                 PyErr_Clear();
             }
         }
@@ -9655,6 +9658,9 @@ next_field:
     else {
         val = type->tp_getattro(iter->obj, name);
         if (val == NULL) {
+            /* Preserve KeyError omission for existing dataclass-like objects. */
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError) &&
+                !PyErr_ExceptionMatches(PyExc_KeyError)) return -1;
             PyErr_Clear();
             goto next_field;
         }
@@ -10058,9 +10064,12 @@ encoder_encode_into_common(
             return NULL;
         }
 
-        if (offset < buf_size) {
+        if (offset > buf_size) {
+            Py_ssize_t old_size = buf_size;
             buf_size = Py_MAX(8, 1.5 * offset);
             if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
+            /* Zero the gap between the old end of the buffer and `offset` */
+            memset(PyByteArray_AS_STRING(buf) + old_size, 0, offset - old_size);
         }
     }
 
@@ -10080,11 +10089,12 @@ encoder_encode_into_common(
         .resize_buffer = ms_resize_bytearray
     };
 
-    if (encode(&state, obj) < 0) {
-        return NULL;
-    }
+    int status = encode(&state, obj);
 
+    /* Drop any unused space, also on error, so old contents of an extended
+     * buffer don't remain visible */
     FAST_BYTEARRAY_SHRINK(buf, state.output_len);
+    if (status < 0) return NULL;
     Py_RETURN_NONE;
 }
 
@@ -11213,7 +11223,7 @@ ms_encode_time_parts(
                 return -1;
             }
         }
-        if (MS_LIKELY(offset_secs == 0)) {
+        if (MS_LIKELY(offset_days == 0 && offset_secs == 0)) {
             *p++ = 'Z';
         }
         else {
@@ -11233,10 +11243,14 @@ ms_encode_time_parts(
                 if (offset_min == 60) {
                     offset_min = 0;
                     offset_hour++;
-                    if (offset_hour == 24) {
-                        offset_hour = 0;
-                    }
                 }
+            }
+            /* Offsets within a minute of +/-24:00 have no valid hour:min
+             * form. Use the closest valid one rather than wrapping to UTC,
+             * which would move the encoded instant by a full day. */
+            if (MS_UNLIKELY(offset_hour == 24)) {
+                offset_hour = 23;
+                offset_min = 59;
             }
             if (offset_hour == 0 && offset_min == 0) {
                 *p++ = 'Z';
@@ -12726,7 +12740,13 @@ end_parsing:
         return json_float_hook((char *)start, p - start, path, float_hook);
     }
     else {
-        if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
+        /* These bounds match the table in scripts/generate_atof_consts.py.
+         * Below -342, even UINT64_MAX * 10**-343 < 2**-1075 (half the
+         * smallest subnormal), so no nonzero result is lost from this path.
+         * The existing upper bound 288 is conservative: even
+         * UINT64_MAX * 10**288 is finite. Larger exponents still use the
+         * exact fallback, which also handles overflow. */
+        if (MS_UNLIKELY(exponent > 288 || exponent < -342)) {
             /* Exponent is out of bounds */
             goto fallback;
         }
@@ -21426,6 +21446,9 @@ convert_str(
 ) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
         Py_INCREF(obj);
+        if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+            return ms_decode_custom(obj, self->dec_hook, type, path);
+        }
         return ms_check_str_constraints(obj, type, path);
     }
 
