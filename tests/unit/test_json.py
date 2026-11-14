@@ -52,6 +52,18 @@ class Node(msgspec.Struct):
     left: Node | None = None
     right: Node | None = None
 
+class CustomObject:
+    def __init__(self, value: int):
+        self.value = value
+
+    def __msgspec_encode__(self) -> str:
+        return str(self.value)
+
+    @classmethod
+    def __msgspec_decode__(cls, value:str):
+        return cls(int(value))
+
+
 
 class Custom:
     def __init__(self, x, y):
@@ -369,6 +381,47 @@ class TestEncoderMisc:
         with pytest.raises(ValueError, match="Oh no!"):
             enc.encode_lines(gen())
 
+    def test_dunder_encoder(self):
+        enc = msgspec.json.Encoder()
+
+        class Custom:
+            def __init__(self, value: int):
+                self._value = value
+
+            def __msgspec_encode__(self) -> str:
+                return str(self._value)
+
+        class Object(msgspec.Struct):
+            custom: Custom
+
+        obj = Object(Custom(1))
+
+        result = enc.encode(obj)
+        assert result == b'{"custom":"1"}'
+
+    def test_dunder_encoder_skipped_when_user_provided_callback(self):
+        class Custom:
+            def __init__(self, value: int):
+                self._value = value
+
+            def __msgspec_encode__(self) -> str:
+                return str(self._value)
+
+        def on_encode(obj: Any | Custom) -> Any | int:
+            if isinstance(obj, Custom):
+                return obj._value
+            return obj
+
+        enc = msgspec.json.Encoder(enc_hook=on_encode)
+
+        class Object(msgspec.Struct):
+            custom: Custom
+
+        obj = Object(Custom(1))
+
+        result = enc.encode(obj)
+        assert result == b'{"custom":1}'
+
 
 class TestDecodeFunction:
     def test_decode(self):
@@ -533,6 +586,20 @@ class TestDecoderMisc:
 
         with pytest.raises(TypeError):
             dec = msgspec.json.Decoder(float_hook=1)
+
+    def test_dunder_decoder(self):
+        enc = msgspec.json.Encoder()
+
+        class Object(msgspec.Struct):
+            custom: CustomObject
+
+        dec = msgspec.json.Decoder(Object)
+
+        obj = Object(CustomObject(1))
+        result = enc.encode(obj)
+        assert result == b'{"custom":"1"}'
+        assert dec.decode(result).custom.value == 1
+
 
 
 class TestBoolAndNone:
