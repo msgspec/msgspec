@@ -5,6 +5,10 @@
 - Constrain integer dictionary keys in generated JSON Schema with a
   `propertyNames` pattern matching the keys `msgspec.json.decode` accepts
   ({issue}`1340`).
+- Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
+  `offset` inside the buffer. An `offset` past the end of the buffer now fills
+  the gap with zeros instead of leaving it uninitialized, and a failed encode no
+  longer leaves the buffer's old contents past the written output.
 - Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
   raising `TypeError`, preserving constraints and schema metadata.
 - Fix decoding ISO 8601 durations with very large day counts, which could
@@ -14,6 +18,9 @@
   qualified name, such as dynamically generated structs.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
+- Fix encoding of `datetime` and `time` values whose UTC offset is within a
+  minute of +/-24 hours. These were written as `Z`, moving the instant by a
+  full day; they now round to the closest valid offset (`+23:59`/`-23:59`).
 - Fix JSON Schema references for dynamically defined types with empty names,
   including recursive types that previously raised `RecursionError`.
 - Fix generic `TypedDict` subclasses dropping the base type argument, so
