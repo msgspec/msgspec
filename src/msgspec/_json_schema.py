@@ -349,6 +349,11 @@ class _SchemaGenerator:
                         property_names, key_meta.extra_json_schema
                     )
                     key_meta = key_meta.type
+                if "examples" in property_names:
+                    property_names["examples"] = [
+                        str(e) if isinstance(e, int) and not isinstance(e, bool) else e
+                        for e in property_names["examples"]
+                    ]
                 schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)

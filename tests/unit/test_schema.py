@@ -1421,8 +1421,8 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         (int, {}),
         (Annotated[int, Meta(ge=0, title="id")], {"title": "id"}),
         (
-            Annotated[int, Meta(description="key", examples=[1])],
-            {"description": "key", "examples": [1]},
+            Annotated[int, Meta(description="key", examples=[1, -2])],
+            {"description": "key", "examples": ["1", "-2"]},
         ),
     ],
 )
