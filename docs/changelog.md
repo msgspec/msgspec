@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` rejecting enums
+  whose metaclass is a subclass of `enum.EnumMeta`.
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no

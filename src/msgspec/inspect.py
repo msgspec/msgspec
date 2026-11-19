@@ -709,7 +709,7 @@ def _sort_literal_args(args):
 
 
 def _is_enum(t):
-    return type(t) is enum.EnumMeta
+    return isinstance(t, enum.EnumMeta)
 
 
 def _is_dataclass(t):
