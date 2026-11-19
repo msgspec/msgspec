@@ -3,9 +3,16 @@ from __future__ import annotations
 import re
 import textwrap
 from collections.abc import Callable, Iterable
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from . import inspect as mi, to_builtins
+
+if TYPE_CHECKING:
+
+    def _to_json_default(value: Any, /) -> Any: ...
+
+else:
+    from ._core import _to_json_default
 
 __all__ = ("schema", "schema_components")
 
@@ -427,7 +434,7 @@ class _SchemaGenerator:
                 if field.required:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
-                    field_schema["default"] = to_builtins(field.default, str_keys=True)
+                    field_schema["default"] = _to_json_default(field.default)
                 elif field.default_factory in (list, dict, set, bytearray):
                     field_schema["default"] = to_builtins(
                         field.default_factory(), str_keys=True
@@ -464,7 +471,7 @@ class _SchemaGenerator:
                 if field.required:
                     required.append(field.encode_name)
                 elif field.default is not mi.NODEFAULT:
-                    field_schema["default"] = to_builtins(field.default, str_keys=True)
+                    field_schema["default"] = _to_json_default(field.default)
                 elif field.default_factory in (list, dict, set, bytearray):
                     field_schema["default"] = to_builtins(
                         field.default_factory(), str_keys=True

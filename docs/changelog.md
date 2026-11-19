@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Render non-finite float values in generated JSON Schema field defaults as
+  `null`, matching their JSON-encoded form, including nested defaults.
+
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no
