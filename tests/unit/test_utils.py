@@ -317,3 +317,76 @@ class TestGetClassAnnotations:
             (uvar,) = Sub.__type_params__
             assert get_class_annotations(Sub) == {"x": uvar, "y": list[uvar]}
             assert get_class_annotations(Sub[int]) == {"x": int, "y": list[int]}
+
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    def test_typeddict_subclass_reuses_typevar(self, module, future_annotations):
+        if module == "typing" and not PY311:
+            pytest.skip("Generic typing.TypedDict requires Python 3.11")
+        pytest.importorskip(module)
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from typing import Generic, TypeVar
+        from {module} import TypedDict
+        T = TypeVar("T")
+
+        class Base(TypedDict, Generic[T]):
+            x: T
+            items: list[T]
+
+        class Sub(Base[int], Generic[T]):
+            y: T
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {
+                "x": int,
+                "items": list[int],
+                "y": mod.T,
+            }
+            assert get_class_annotations(mod.Sub[str]) == {
+                "x": int,
+                "items": list[int],
+                "y": str,
+            }
+
+    @py312_plus
+    @pytest.mark.parametrize("module", ["typing", "typing_extensions"])
+    @pytest.mark.parametrize("future_annotations", [False, True])
+    @pytest.mark.parametrize("bases", ["Mid[float], B[str]", "B[str], Mid[float]"])
+    def test_pep695_typeddict_base_scopes(self, module, future_annotations, bases):
+        pytest.importorskip(module)
+        header = "from __future__ import annotations" if future_annotations else ""
+        source = f"""
+        {header}
+        from {module} import TypedDict
+
+        class A[T](TypedDict):
+            x: T
+
+        class B[T](TypedDict):
+            y: list[T]
+
+        class Mid[U](A[int]):
+            z: U
+
+        class Sub({bases}):
+            pass
+
+        class Right[V](A[int]):
+            w: V
+
+        class Diamond(Mid[float], Right[str]):
+            pass
+        """
+        with temp_module(source) as mod:
+            assert get_class_annotations(mod.Sub) == {
+                "x": int,
+                "y": list[str],
+                "z": float,
+            }
+            assert get_class_annotations(mod.Diamond) == {
+                "x": int,
+                "z": float,
+                "w": str,
+            }
