@@ -7,3 +7,4 @@ prune scripts
 exclude lychee.toml
 exclude .*
 include .cibuildwheel.toml
+recursive-include src/msgspec *.h

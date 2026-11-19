@@ -217,9 +217,10 @@ class TestMetaObject:
         with pytest.raises(TypeError, match=f"`{field}` must be a dict, got str"):
             Meta(**{field: "bad"})
 
-    def test_invalid_pattern_errors(self):
+    @pytest.mark.parametrize("pattern", ["[abc", r"[\8]", r"\q", r"(?au)a", r"(?L)a"])
+    def test_invalid_pattern_errors(self, pattern):
         with pytest.raises(re.error):
-            Meta(pattern="[abc")
+            Meta(pattern=pattern)
 
     def test_conflicting_bounds_errors(self):
         with pytest.raises(ValueError, match="both `gt` and `ge`"):
