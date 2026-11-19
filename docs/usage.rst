@@ -77,10 +77,11 @@ create a ``Decoder`` once and use the ``Decoder.decode`` method instead.
     {'hello': 'world'}
 
 JSON input must be encoded as UTF-8 (see `RFC 8259
-<https://datatracker.ietf.org/doc/html/rfc8259#section-8.1>`__). Other
-encodings (such as UTF-16) and a leading byte order mark are rejected with a
+<https://datatracker.ietf.org/doc/html/rfc8259#section-8.1>`__). UTF-16 or
+UTF-32 input and a leading byte order mark are rejected with a
 ``DecodeError``. If a JSON object contains the same key more than once, the
-last value is used.
+last value is used, but earlier values are still validated against the
+expected type.
 
 .. code-block:: python
 
