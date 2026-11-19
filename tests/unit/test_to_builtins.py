@@ -60,6 +60,15 @@ class FruitStr(enum.Enum):
 class Bad:
     """A type that msgspec doesn't natively handle"""
 
+class Good:
+    """A type that msgspec can natively handle as long as it has
+    `__msgspec_encode__`"""
+    def __init__(self, value: str):
+        self.value = value
+
+    def __msgspec_encode__(self):
+        return self.value
+
 
 class TestToBuiltins:
     @pytest.mark.parametrize("order", [None, "sorted"])
@@ -779,6 +788,9 @@ class TestToBuiltins:
             to_builtins(Bad(), builtin_types=builtins)
 
         assert sys.getrefcount(builtins) == count
+
+    def test_objects_that_use_dunder_methods(self):
+        assert "foo" == to_builtins(Good("foo"))
 
 
 class TestOrder:
