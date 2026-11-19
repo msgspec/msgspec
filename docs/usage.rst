@@ -76,6 +76,17 @@ create a ``Decoder`` once and use the ``Decoder.decode`` method instead.
     ... decoder.decode(b'{"hello":"world"}')
     {'hello': 'world'}
 
+JSON input must be encoded as UTF-8 (see `RFC 8259
+<https://datatracker.ietf.org/doc/html/rfc8259#section-8.1>`__). Other
+encodings (such as UTF-16) and a leading byte order mark are rejected with a
+``DecodeError``. If a JSON object contains the same key more than once, the
+last value is used.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b'{"x": 1, "x": 2}')
+    {'x': 2}
+
 
 .. _typed-decoding:
 
