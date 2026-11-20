@@ -8,6 +8,7 @@ separate submodules:
 - ``msgspec.msgpack`` (MessagePack_)
 - ``msgspec.yaml`` (YAML_)
 - ``msgspec.toml`` (TOML_)
+- ``msgspec.json5`` (JSON5_)
 
 Each supports a consistent interface, making it simple to switch between
 protocols as needed.
