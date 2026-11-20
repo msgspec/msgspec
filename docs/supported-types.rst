@@ -808,8 +808,29 @@ information during decoding. Note that ``msgspec`` supports both
 `typing.TypedDict` and ``typing_extensions.TypedDict`` (a backport).
 
 `typing.TypedDict` types map to objects/maps in all protocols. During decoding,
-any extra fields are ignored. An error is raised during decoding if the type
-doesn't match or if any required fields are missing.
+any extra fields are ignored unless the TypedDict declares ``extra_items``.
+An error is raised during decoding if the type doesn't match or if any required
+fields are missing.
+
+TypedDicts can explicitly declare a type for extra items using
+``extra_items=...`` (PEP 728, available in ``typing_extensions>=4.13``).
+These items are preserved and validated during decoding and ``convert``, and
+are represented by ``additionalProperties`` in JSON schema:
+
+.. code-block:: python
+
+   from typing_extensions import TypedDict
+   import msgspec
+
+   class Metadata(TypedDict, extra_items=int):
+       source: str
+
+   msgspec.json.decode(b'{"source": "sensor", "count": 3}', type=Metadata)
+   # {'source': 'sensor', 'count': 3}
+
+The declared fields retain their own types; here ``source`` must still be a
+string, while the value of any extra item must be an integer. This support
+covers typed extra items, not the separate ``closed=True`` restriction.
 
 When possible we recommend using `msgspec.Struct` instead of ``TypedDict`` for
 specifying schemas - :doc:`structs` are faster, more ergonomic, and support

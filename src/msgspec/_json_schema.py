@@ -133,6 +133,8 @@ def _collect_component_types(type_infos: Iterable[mi.Type]) -> dict[Any, mi.Type
                 components[t.cls] = t
                 for f in t.fields:
                     collect(f.type)
+                if isinstance(t, mi.TypedDictType) and t.extra_items is not None:
+                    collect(t.extra_items)
         elif isinstance(t, mi.EnumType):
             components[t.cls] = t
         elif isinstance(t, mi.Metadata):
@@ -480,6 +482,8 @@ class _SchemaGenerator:
                 schema["type"] = "object"
                 schema["properties"] = dict(zip(names, fields))
                 schema["required"] = required
+                if isinstance(t, mi.TypedDictType) and t.extra_items is not None:
+                    schema["additionalProperties"] = self.to_schema(t.extra_items)
         elif isinstance(t, mi.ExtType):
             raise TypeError("json-schema doesn't support msgpack Ext types")
         elif isinstance(t, mi.CustomType):
