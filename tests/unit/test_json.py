@@ -136,6 +136,53 @@ class TestEncodeFunction:
 
         assert sys.getrefcount(enc_hook) == orig_refcount
 
+    def test_encode_list_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        items = [Foo() for _ in range(5)]
+
+        def enc_hook(x):
+            items.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            msgspec.json.encode(items, enc_hook=enc_hook)
+
+        # The encoder is left in a usable state
+        assert msgspec.json.encode([1, 2, 3]) == b"[1,2,3]"
+
+    def test_encode_nested_list_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        outer = [[Foo() for _ in range(3)], Foo()]
+
+        def enc_hook(x):
+            outer.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            msgspec.json.encode(outer, enc_hook=enc_hook)
+
+    def test_encode_dict_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        data = {str(i): Foo() for i in range(5)}
+
+        def enc_hook(x):
+            data.clear()
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            msgspec.json.encode(data, enc_hook=enc_hook)
+
+        # The encoder is left in a usable state
+        assert msgspec.json.encode({"a": 1}) == b'{"a":1}'
+
     def test_encode_parse_arguments_errors(self):
         with pytest.raises(TypeError, match="Missing 1 required argument"):
             msgspec.json.encode()

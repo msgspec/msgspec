@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix a crash when a `list` or `dict` is mutated while it is being encoded
+  (for example by an `enc_hook` callback). Encoding a mutated `list` could
+  segfault in `json`, `msgpack` and `to_builtins`; encoding a mutated `dict`
+  silently dropped entries, and produced undecodable `msgpack` output when
+  the map header no longer matched the entries. Mutating a collection during
+  encoding now raises `RuntimeError` instead ({issue}`1352`).
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no

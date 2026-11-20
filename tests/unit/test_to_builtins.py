@@ -154,6 +154,40 @@ class TestToBuiltins:
     def test_to_builtins_enc_hook_explicit_none(self):
         assert to_builtins(1, enc_hook=None) == 1
 
+    def test_to_builtins_list_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        items = [Foo() for _ in range(5)]
+
+        def enc_hook(x):
+            items.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            to_builtins(items, enc_hook=enc_hook)
+
+        # Conversion is left in a usable state
+        assert to_builtins([1, 2, 3]) == [1, 2, 3]
+
+    def test_to_builtins_dict_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        data = {str(i): Foo() for i in range(5)}
+
+        def enc_hook(x):
+            data.clear()
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            to_builtins(data, enc_hook=enc_hook)
+
+        # Conversion is left in a usable state
+        assert to_builtins({"a": 1}) == {"a": 1}
+
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
     @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):
