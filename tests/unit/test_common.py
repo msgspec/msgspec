@@ -5630,6 +5630,27 @@ class TestMutationDuringEncode:
         ):
             proto.encode(data, enc_hook=enc_hook, order="sorted")
 
+    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
+    def test_sorted_dataclass_fields_added(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: int
+
+        def get_b(self):
+            Ex.__dataclass_fields__.update(c=None, d=None)
+            return 2
+
+        # `c` and `d` are only in `__dict__`, reading `b` adds them to the fields
+        Ex.b = property(get_b)
+        obj = Ex.__new__(Ex)
+        obj.__dict__.update(a=1, c=3, d=3)
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            proto.encode(obj, order="sorted")
+
     def test_list_appended_items_not_encoded(self, encode):
         items = [self.Item(), self.Item()]
 

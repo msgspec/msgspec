@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fix crashes when a list, dict, `Struct` or other object is modified while it
+  is being encoded, for example from `enc_hook`. A `RuntimeError` is now raised
+  if a list becomes too short to read the next item or a dict changes size.
+  `Encoder.encode_lines` no longer encodes items appended to the list during
+  encoding ({issue}`1352`)
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no
