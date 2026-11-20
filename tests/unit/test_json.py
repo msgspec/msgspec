@@ -389,6 +389,20 @@ class TestEncoderMisc:
         with pytest.raises(ValueError, match="Oh no!"):
             enc.encode_lines(gen())
 
+    def test_encode_lines_list_changed_size(self):
+        class Ex:
+            pass
+
+        items = [[Ex(), Ex()], 1]
+
+        def enc_hook(obj):
+            items.clear()
+            return 1
+
+        enc = msgspec.json.Encoder(enc_hook=enc_hook)
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            enc.encode_lines(items)
+
 
 class TestDecodeFunction:
     def test_decode(self):
