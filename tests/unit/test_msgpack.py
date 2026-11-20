@@ -188,6 +188,44 @@ class TestEncodeFunction:
 
         assert sys.getrefcount(enc_hook) == orig_refcount
 
+    def test_encode_list_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        items = [Foo() for _ in range(5)]
+
+        def enc_hook(x):
+            items.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            msgspec.msgpack.encode(items, enc_hook=enc_hook)
+
+        # The encoder is left in a usable state
+        assert msgspec.msgpack.decode(msgspec.msgpack.encode([1, 2, 3])) == [
+            1,
+            2,
+            3,
+        ]
+
+    def test_encode_dict_mutated_during_enc_hook(self):
+        class Foo:
+            pass
+
+        data = {str(i): Foo() for i in range(5)}
+
+        def enc_hook(x):
+            data.clear()
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            msgspec.msgpack.encode(data, enc_hook=enc_hook)
+
+        # The encoder is left in a usable state
+        assert msgspec.msgpack.decode(msgspec.msgpack.encode({"a": 1})) == {"a": 1}
+
     def test_encode_parse_arguments_errors(self):
         with pytest.raises(TypeError, match="Missing 1 required argument"):
             msgspec.msgpack.encode()

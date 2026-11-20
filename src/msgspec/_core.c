@@ -13179,7 +13179,23 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     Py_BEGIN_CRITICAL_SECTION(obj);
     for (i = 0; i < len; i++) {
-        if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
+        /* The list may be mutated by a callback (e.g. `enc_hook`) while
+         * encoding a previous item, or by another thread on free-threaded
+         * builds. Re-check the size and hold a reference to the item
+         * before encoding it, so we never read past the end of the list or
+         * encode an already-freed item. */
+        if (MS_UNLIKELY(i >= PyList_GET_SIZE(obj))) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "list changed size during encoding"
+            );
+            status = -1;
+            break;
+        }
+        PyObject *item = PyList_GET_ITEM(obj, i);
+        Py_INCREF(item);
+        int encoded = mpack_encode_inline(self, item);
+        Py_DECREF(item);
+        if (encoded < 0) {
             status = -1;
             break;
         }
@@ -13308,7 +13324,7 @@ cleanup2:
 static MS_NOINLINE int
 mpack_encode_dict(EncoderState *self, PyObject *obj)
 {
-    PyObject *key, *val;
+    PyObject *key = NULL, *val = NULL;
     Py_ssize_t pos = 0;
     int status = -1;
 
@@ -13327,11 +13343,31 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
+        /* Hold references to the key and value: a callback (e.g. `enc_hook`)
+         * may mutate the dict while encoding them. */
+        Py_INCREF(key);
+        Py_INCREF(val);
         if (mpack_encode_dict_key_inline(self, key) < 0) goto cleanup;
         if (mpack_encode_inline(self, val) < 0) goto cleanup;
+        Py_DECREF(key);
+        Py_DECREF(val);
+        key = NULL;
+        val = NULL;
+        /* If the dict changed size while encoding this entry the map header
+         * (already written with the original length) would no longer match
+         * the entries, producing output that cannot be decoded; fail loudly
+         * instead. */
+        if (MS_UNLIKELY(PyDict_GET_SIZE(obj) != len)) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "dictionary changed size during encoding"
+            );
+            goto cleanup;
+        }
     }
     status = 0;
 cleanup:;
+    Py_XDECREF(key);
+    Py_XDECREF(val);
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
@@ -14538,13 +14574,39 @@ cleanup:
 static MS_NOINLINE int
 json_encode_list(EncoderState *self, PyObject *obj)
 {
-    int ret;
+    Py_ssize_t len = PyList_GET_SIZE(obj);
+    int status = -1;
+
+    if (len == 0) return ms_write(self, "[]", 2);
+
+    if (ms_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     Py_BEGIN_CRITICAL_SECTION(obj);
-    ret = json_encode_sequence(
-        self, PyList_GET_SIZE(obj), ((PyListObject *)obj)->ob_item
-    );
+    for (Py_ssize_t i = 0; i < len; i++) {
+        /* The list may be mutated by a callback (e.g. `enc_hook`) while
+         * encoding a previous item. Re-check the size and hold a reference
+         * to the item before encoding it, so we never read past the end of
+         * the list or encode an already-freed item. */
+        if (MS_UNLIKELY(i >= PyList_GET_SIZE(obj))) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "list changed size during encoding"
+            );
+            goto cleanup;
+        }
+        PyObject *item = PyList_GET_ITEM(obj, i);
+        Py_INCREF(item);
+        int encoded = json_encode_inline(self, item);
+        Py_DECREF(item);
+        if (encoded < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
     Py_END_CRITICAL_SECTION();
-    return ret;
+    Py_LeaveRecursiveCall();
+    return status;
 }
 
 static MS_NOINLINE int
@@ -14735,7 +14797,7 @@ cleanup2:
 static MS_NOINLINE int
 json_encode_dict(EncoderState *self, PyObject *obj)
 {
-    PyObject *key, *val;
+    PyObject *key = NULL, *val = NULL;
     Py_ssize_t len, pos = 0;
     int status = -1;
 
@@ -14750,15 +14812,33 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
+        /* Hold references to the key and value: a callback (e.g. `enc_hook`)
+         * may mutate the dict while encoding them. */
+        Py_INCREF(key);
+        Py_INCREF(val);
         if (json_encode_dict_key(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode_inline(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
+        Py_DECREF(key);
+        Py_DECREF(val);
+        key = NULL;
+        val = NULL;
+        /* If the dict changed size while encoding this entry the output
+         * would be silently truncated; fail loudly instead. */
+        if (MS_UNLIKELY(PyDict_GET_SIZE(obj) != len)) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "dictionary changed size during encoding"
+            );
+            goto cleanup;
+        }
     }
     /* Overwrite trailing comma with } */
     *(self->output_buffer_raw + self->output_len - 1) = '}';
     status = 0;
 cleanup:;
+    Py_XDECREF(key);
+    Py_XDECREF(val);
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
@@ -20451,8 +20531,21 @@ to_builtins_list(ToBuiltinsState *self, PyObject *obj) {
     PyObject *out = PyList_New(size);
     if (out == NULL) goto cleanup;
     for (Py_ssize_t i = 0; i < size; i++) {
+        /* The list may be mutated by a callback (e.g. `enc_hook`) while
+         * converting a previous item. Re-check the size and hold a reference
+         * to the item before converting it, so we never read past the end
+         * of the list or convert an already-freed item. */
+        if (MS_UNLIKELY(i >= PyList_GET_SIZE(obj))) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "list changed size during encoding"
+            );
+            Py_CLEAR(out);
+            goto cleanup;
+        }
         PyObject *item = PyList_GET_ITEM(obj, i);
+        Py_INCREF(item);
         PyObject *new = to_builtins(self, item, false);
+        Py_DECREF(item);
         if (new == NULL) {
             Py_CLEAR(out);
             goto cleanup;
@@ -20554,14 +20647,19 @@ static PyObject *
 to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
 
-    PyObject *new_key = NULL, *new_val = NULL, *key, *val;
+    PyObject *new_key = NULL, *new_val = NULL, *key = NULL, *val = NULL;
     bool ok = false;
     PyObject *out = PyDict_New();
     Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
 
+    Py_ssize_t len = PyDict_GET_SIZE(obj);
     Py_ssize_t pos = 0;
     while (PyDict_Next(obj, &pos, &key, &val)) {
+        /* Hold references to the key and value: a callback (e.g. `enc_hook`)
+         * may mutate the dict while converting them. */
+        Py_INCREF(key);
+        Py_INCREF(val);
         new_key = to_builtins(self, key, true);
         if (new_key == NULL) goto cleanup;
         if (self->str_keys) {
@@ -20584,6 +20682,18 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
         if (PyDict_SetItem(out, new_key, new_val) < 0) goto cleanup;
         Py_CLEAR(new_key);
         Py_CLEAR(new_val);
+        Py_DECREF(key);
+        Py_DECREF(val);
+        key = NULL;
+        val = NULL;
+        /* If the dict changed size while converting this entry the result
+         * would silently drop entries; fail loudly instead. */
+        if (MS_UNLIKELY(PyDict_GET_SIZE(obj) != len)) {
+            PyErr_SetString(
+                PyExc_RuntimeError, "dictionary changed size during encoding"
+            );
+            goto cleanup;
+        }
     }
     if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
         sort_dict_inplace(&out);
@@ -20591,6 +20701,8 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     ok = true;
 
 cleanup:;
+    Py_XDECREF(key);
+    Py_XDECREF(val);
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
