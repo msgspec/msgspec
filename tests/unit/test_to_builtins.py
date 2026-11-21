@@ -60,9 +60,11 @@ class FruitStr(enum.Enum):
 class Bad:
     """A type that msgspec doesn't natively handle"""
 
+
 class Good:
     """A type that msgspec can natively handle as long as it has
     `__msgspec_encode__`"""
+
     def __init__(self, value: str):
         self.value = value
 

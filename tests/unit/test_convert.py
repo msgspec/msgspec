@@ -125,8 +125,9 @@ class SubFrozenSet(frozenset):
 class SubDict(dict):
     pass
 
+
 class CustomValue:
-    def __init__(self, value:dict[str, str]):
+    def __init__(self, value: dict[str, str]):
         self.value = value
 
     @classmethod
@@ -3124,9 +3125,9 @@ class TestCustom:
             if ty is CustomValue:
                 attr["foo"] = 1
                 return CustomValue(attr)
+
         value = convert({"foo": "spam"}, CustomValue, dec_hook=hook)
         assert value.value["foo"] != "spam"
-
 
 
 class TestRaw:

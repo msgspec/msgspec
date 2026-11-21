@@ -52,6 +52,7 @@ class Node(msgspec.Struct):
     left: Node | None = None
     right: Node | None = None
 
+
 class CustomObject:
     def __init__(self, value: int):
         self.value = value
@@ -60,9 +61,8 @@ class CustomObject:
         return str(self.value)
 
     @classmethod
-    def __msgspec_decode__(cls, value:str):
+    def __msgspec_decode__(cls, value: str):
         return cls(int(value))
-
 
 
 class Custom:
@@ -619,7 +619,6 @@ class TestDecoderMisc:
         result = enc.encode(obj)
         assert result == b'{"custom":"1"}'
         assert dec.decode(result).custom.value == 1
-
 
 
 class TestBoolAndNone:
