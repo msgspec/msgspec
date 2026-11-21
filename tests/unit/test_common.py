@@ -5606,7 +5606,8 @@ class TestMutationDuringEncode:
             a: object
 
         def make_sub():
-            class Sub(Base, tag="sub"):
+            # Unlike a literal, a tag built at runtime is freed along with `Sub`
+            class Sub(Base, tag="".join(["s", "u", "b"])):
                 pass
 
             return Sub
