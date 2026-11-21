@@ -154,6 +154,30 @@ class TestToBuiltins:
     def test_to_builtins_enc_hook_explicit_none(self):
         assert to_builtins(1, enc_hook=None) == 1
 
+    def test_to_builtins_struct_class_changed_during_enc_hook(self):
+        class Base(Struct, tag=True):
+            a: object
+            b: object = None
+
+        def make_sub():
+            class Sub(Base, tag="sub"):
+                pass
+
+            return Sub
+
+        obj = make_sub()(object(), [1, 2])
+
+        def enc_hook(x):
+            obj.__class__ = Base
+            gc.collect()
+            return 1
+
+        assert to_builtins(obj, enc_hook=enc_hook) == {
+            "type": "sub",
+            "a": 1,
+            "b": [1, 2],
+        }
+
     @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
     @emscripten_stack_limited
     def test_to_builtins_recursive(self, case):

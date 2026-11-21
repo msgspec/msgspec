@@ -7732,6 +7732,23 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
     return val;
 }
 
+/* Get field #index on obj, using the provided struct type for the field
+ * offsets and names. Returns a borrowed reference. Unlike
+ * `Struct_get_index`, this keeps working if `obj.__class__` is reassigned
+ * while encoding (e.g. by `enc_hook`), as long as the caller holds a
+ * reference to `st_type`. */
+static inline PyObject*
+Struct_get_index_type(PyObject *obj, StructMetaObject *st_type, Py_ssize_t index) {
+    char *addr = (char *)obj + st_type->struct_offsets[index];
+    PyObject *val = *(PyObject **)addr;
+    if (val == NULL) {
+        PyErr_Format(PyExc_AttributeError,
+                     "Struct field %R is unset",
+                     PyTuple_GET_ITEM(st_type->struct_fields, index));
+    }
+    return val;
+}
+
 static MS_INLINE int
 Struct_post_init(StructMetaObject *st_type, PyObject *obj) {
     if (st_type->post_init != NULL) {
@@ -13523,7 +13540,7 @@ mpack_encode_struct_array(
         if (mpack_encode(self, tag_value) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = Struct_get_index_type(obj, struct_type, i);
         if (val == NULL || mpack_encode(self, val) < 0) goto cleanup;
     }
     status = 0;
@@ -13564,7 +13581,7 @@ mpack_encode_struct_object(
     }
     for (Py_ssize_t i = 0; i < nunchecked; i++) {
         PyObject *key = PyTuple_GET_ITEM(fields, i);
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = Struct_get_index_type(obj, struct_type, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) {
             actual_len--;
@@ -13576,7 +13593,7 @@ mpack_encode_struct_object(
     }
     for (Py_ssize_t i = nunchecked; i < nfields; i++) {
         PyObject *key = PyTuple_GET_ITEM(fields, i);
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = Struct_get_index_type(obj, struct_type, i);
         if (val == NULL) goto cleanup;
         PyObject *default_val = PyTuple_GET_ITEM(
             struct_type->struct_defaults, i - nunchecked
@@ -13613,11 +13630,21 @@ static int
 mpack_encode_struct(EncoderState *self, PyObject *obj)
 {
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    int status;
 
+    /* The struct type owns the field names, offsets, defaults and tag
+     * used below. Encoding a field may run Python code (e.g. `enc_hook`)
+     * that reassigns `obj.__class__`, freeing the type; hold a reference
+     * to it for the duration of the encode. */
+    Py_INCREF(struct_type);
     if (struct_type->array_like == OPT_TRUE) {
-        return mpack_encode_struct_array(self, struct_type, obj);
+        status = mpack_encode_struct_array(self, struct_type, obj);
     }
-    return mpack_encode_struct_object(self, struct_type, obj);
+    else {
+        status = mpack_encode_struct_object(self, struct_type, obj);
+    }
+    Py_DECREF(struct_type);
+    return status;
 }
 
 static int
@@ -14953,7 +14980,7 @@ json_encode_struct_object(
 
     for (i = 0; i < nunchecked; i++) {
         key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
+        val = Struct_get_index_type(obj, struct_type, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
         if (json_encode_str_noescape(self, key) < 0) goto cleanup;
@@ -14963,7 +14990,7 @@ json_encode_struct_object(
     }
     for (i = nunchecked; i < nfields; i++) {
         key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
+        val = Struct_get_index_type(obj, struct_type, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
         PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
@@ -15005,7 +15032,7 @@ json_encode_struct_array(
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *val = Struct_get_index(obj, i);
+        PyObject *val = Struct_get_index_type(obj, struct_type, i);
         if (val == NULL) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -15022,11 +15049,19 @@ static int
 json_encode_struct(EncoderState *self, PyObject *obj)
 {
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    int status;
 
+    /* See `mpack_encode_struct`: hold the type, since encoding a field
+     * may run Python code that reassigns `obj.__class__`. */
+    Py_INCREF(struct_type);
     if (struct_type->array_like == OPT_TRUE) {
-        return json_encode_struct_array(self, struct_type, obj);
+        status = json_encode_struct_array(self, struct_type, obj);
     }
-    return json_encode_struct_object(self, struct_type, obj);
+    else {
+        status = json_encode_struct_object(self, struct_type, obj);
+    }
+    Py_DECREF(struct_type);
+    return status;
 }
 
 static MS_NOINLINE int
@@ -20619,6 +20654,9 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     bool ok = false;
     PyObject *out = NULL;
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    /* See `mpack_encode_struct`: hold the type, since encoding a field
+     * may run Python code that reassigns `obj.__class__`. */
+    Py_INCREF(struct_type);
     PyObject *tag_field = struct_type->struct_tag_field;
     PyObject *tag_value = struct_type->struct_tag_value;
     PyObject *fields = struct_type->struct_encode_fields;
@@ -20648,7 +20686,7 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
             }
         }
         for (Py_ssize_t i = 0; i < nfields; i++) {
-            PyObject *val = Struct_get_index(obj, i);
+            PyObject *val = Struct_get_index_type(obj, struct_type, i);
             if (val == NULL) goto cleanup;
             PyObject *val2 = to_builtins(self, val, is_key);
             if (val2 == NULL) goto cleanup;
@@ -20668,7 +20706,7 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         }
         for (Py_ssize_t i = 0; i < nfields; i++) {
             PyObject *key = PyTuple_GET_ITEM(fields, i);
-            PyObject *val = Struct_get_index(obj, i);
+            PyObject *val = Struct_get_index_type(obj, struct_type, i);
             if (MS_UNLIKELY(val == NULL)) goto cleanup;
             if (MS_UNLIKELY(val == UNSET)) continue;
             if (
@@ -20691,6 +20729,7 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
 
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_DECREF(struct_type);
     if (!ok) {
         Py_CLEAR(out);
     }

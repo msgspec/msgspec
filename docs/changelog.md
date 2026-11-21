@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix a crash when the class of a `Struct` is changed while it is being
+  encoded (for example by an `enc_hook` callback). The struct type was looked
+  up once before encoding the fields and no reference to it was held, so
+  reassigning `obj.__class__` to a base class could free the type (and its
+  field names) while encoding was still in progress, segfaulting in `json`,
+  `msgpack` and `to_builtins`. The type is now held for the duration of the
+  encode, and field values are read using that type's offsets ({issue}`1356`).
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no
