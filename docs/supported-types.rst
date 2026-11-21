@@ -68,6 +68,46 @@ Most combinations of the following types are supported (with a few restrictions)
 - `collections.abc.Mapping` / `typing.Mapping`
 - `collections.abc.MutableMapping` / `typing.MutableMapping`
 
+**Third-Party Library Types And Other Objects**
+
+Third Party Libraries or python objects that you have made can 
+have their own encoding and decoding implementations as long as 
+a ``__msgspec_encode__`` or ``__msgspec_decode__`` method is 
+provided. This methods will be utilized when there is no hooks
+available for the object being encoded or decoded.
+
+.. code-block:: python
+    >>> from typing import Self
+
+    >>> from yarl import URL
+
+    >>> import msgspec
+
+    >>> class Link:
+    ...     def __init__(self, url: str) -> None:
+    ...         self.url = URL(url)
+    ... 
+    ...     def __msgspec_encode__(self) -> str:
+    ...         return self.url.human_repr()
+    ... 
+    ...     @classmethod
+    ...     def __msgspec_decode__(cls, value:str) -> Self:
+    ...         return cls(value)
+
+
+    >>> class MyStruct(msgspec.Struct):
+    ...   url: Link
+
+    >>> link = MyStruct(Link("https://www.example.com"))
+
+      
+    >>> builtin = msgspec.to_builtins(link)
+    {'url': 'https://www.example.com/'}
+
+    >>> converted = msgspec.convert(builtin, type=MyStruct)
+    MyStruct(url=<__main__.Link object at ...>)
+
+
 **Third-Party Libraries**
 
 - attrs_ types
