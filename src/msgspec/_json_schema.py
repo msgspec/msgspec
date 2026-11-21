@@ -341,6 +341,21 @@ class _SchemaGenerator:
                 property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
+            elif isinstance(key_type, mi.IntType):
+                # Integer keys are encoded as JSON object names, which the
+                # decoder parses with the same grammar as a JSON integer:
+                # an optional minus sign followed by either a single zero or
+                # a non-zero digit and any following digits. Constrain the
+                # property names to that grammar so the schema rejects keys
+                # the decoder would reject (for example "abc" or "007").
+                # Numeric bounds from `Meta` cannot be expressed as a
+                # pattern, so they are not included here.
+                property_names = {"pattern": "^-?(0|[1-9][0-9]*)$"}
+                key_schema = self.to_schema(t.key_type)
+                for field in ("title", "description"):
+                    if field in key_schema:
+                        property_names[field] = key_schema[field]
+                schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)
             if t.max_length is not None:

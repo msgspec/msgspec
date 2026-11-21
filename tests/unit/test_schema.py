@@ -1456,9 +1456,42 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (Literal[1, 2], Number):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
+
+
+def test_dict_int_key_schema():
+    assert msgspec.json.schema(dict[int, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+        "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$"},
+    }
+
+
+def test_dict_int_key_schema_matches_decoder():
+    import re
+
+    typ = dict[int, str]
+    pattern = msgspec.json.schema(typ)["propertyNames"]["pattern"]
+    for key in ("123", "-5", "-0", "0", "9223372036854775808"):
+        assert re.fullmatch(pattern, key)
+        assert msgspec.json.decode(json.dumps({key: "val"}).encode(), type=typ) == {
+            int(key): "val"
+        }
+    for key in ("abc", "007", "+7", "7.0", "", " 7", "7 "):
+        assert not re.fullmatch(pattern, key)
+        with pytest.raises(msgspec.ValidationError):
+            msgspec.json.decode(json.dumps({key: "val"}).encode(), type=typ)
+
+
+def test_dict_int_key_schema_with_title():
+    typ = Annotated[int, Meta(title="key")]
+    schema = msgspec.json.schema(dict[typ, int])
+    assert schema["propertyNames"] == {
+        "pattern": "^-?(0|[1-9][0-9]*)$",
+        "title": "key",
+    }
 
 
 @py315_or_later_only
