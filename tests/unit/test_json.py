@@ -136,6 +136,28 @@ class TestEncodeFunction:
 
         assert sys.getrefcount(enc_hook) == orig_refcount
 
+    def test_encode_struct_class_changed_during_enc_hook(self):
+        class Base(msgspec.Struct, tag=True):
+            a: object
+            b: object = None
+
+        def make_sub():
+            class Sub(Base, tag="sub"):
+                pass
+
+            return Sub
+
+        obj = make_sub()(object(), [1, 2])
+
+        def enc_hook(x):
+            obj.__class__ = Base
+            gc.collect()
+            return 1
+
+        assert msgspec.json.encode(obj, enc_hook=enc_hook) == (
+            b'{"type":"sub","a":1,"b":[1,2]}'
+        )
+
     def test_encode_parse_arguments_errors(self):
         with pytest.raises(TypeError, match="Missing 1 required argument"):
             msgspec.json.encode()
