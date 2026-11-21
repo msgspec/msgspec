@@ -7,6 +7,11 @@
   if a list becomes too short to read the next item or a dict changes size.
   `Encoder.encode_lines` no longer encodes items appended to the list during
   encoding ({issue}`1352`)
+- Fix a crash when a `Struct` with an unset field (for example after
+  `del obj.x`) is encoded with `order="sorted"`. An `AttributeError` is now
+  raised, as without `order` ({pr}`1354`)
+- Fix invalid JSON when a `Struct` whose `tag_field` contains characters that
+  must be escaped is encoded with `order="sorted"` ({pr}`1354`)
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no

@@ -3093,6 +3093,8 @@ typedef struct {
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
     PyObject *struct_encode_fields;
+    /* For `order="sorted"`, see `StructMeta_get_sorted_order` */
+    Py_ssize_t *struct_sorted_order;
     struct StructInfo *struct_info;
     Py_ssize_t nkwonly;
     Py_ssize_t n_trailing_defaults;
@@ -7348,6 +7350,10 @@ StructMeta_clear(StructMetaObject *self)
         PyMem_Free(self->struct_offsets);
         self->struct_offsets = NULL;
     }
+    if (self->struct_sorted_order != NULL) {
+        PyMem_Free(self->struct_sorted_order);
+        self->struct_sorted_order = NULL;
+    }
     return PyType_Type.tp_clear((PyObject *)self);
 }
 
@@ -7774,6 +7780,59 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
                      PyTuple_GET_ITEM(cls->struct_fields, index));
     }
     return val;
+}
+
+typedef struct {
+    PyObject *name;
+    Py_ssize_t index;
+} SortedField;
+
+static int
+SortedField_cmp(const void *a, const void *b) {
+    return PyUnicode_Compare(
+        ((const SortedField *)a)->name, ((const SortedField *)b)->name
+    );
+}
+
+/* Returns the order of encoded fields for `order="sorted"`: indices into
+ * `struct_encode_fields` sorted by name, with -1 for the tag field. Computed
+ * on first use. Comparing code points gives the same order as comparing
+ * UTF-8 bytes. */
+static Py_ssize_t *
+StructMeta_get_sorted_order(StructMetaObject *self) {
+    Py_ssize_t *order;
+    Py_BEGIN_CRITICAL_SECTION(self);
+    order = self->struct_sorted_order;
+    if (order == NULL) {
+        PyObject *fields = self->struct_encode_fields;
+        Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+        bool tagged = self->struct_tag_value != NULL;
+        Py_ssize_t n = nfields + tagged;
+        SortedField *items = PyMem_New(SortedField, n > 0 ? n : 1);
+        order = PyMem_New(Py_ssize_t, n > 0 ? n : 1);
+        if (items == NULL || order == NULL) {
+            PyMem_Free(order);
+            order = NULL;
+            PyErr_NoMemory();
+        }
+        else {
+            for (Py_ssize_t i = 0; i < n; i++) {
+                Py_ssize_t index = i - tagged;
+                items[i].name = (
+                    index < 0 ? self->struct_tag_field : PyTuple_GET_ITEM(fields, index)
+                );
+                items[i].index = index;
+            }
+            qsort(items, n, sizeof(SortedField), SortedField_cmp);
+            for (Py_ssize_t i = 0; i < n; i++) {
+                order[i] = items[i].index;
+            }
+            self->struct_sorted_order = order;
+        }
+        PyMem_Free(items);
+    }
+    Py_END_CRITICAL_SECTION();
+    return order;
 }
 
 static MS_INLINE int
@@ -8316,50 +8375,6 @@ Struct_replace(
 error:
     Py_DECREF(out);
     return NULL;
-}
-
-static AssocList *
-AssocList_FromStruct(PyObject *obj) {
-    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
-
-    bool ok = false;
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-    PyObject *tag_field = struct_type->struct_tag_field;
-    PyObject *tag_value = struct_type->struct_tag_value;
-    PyObject *fields = struct_type->struct_encode_fields;
-    PyObject *defaults = struct_type->struct_defaults;
-    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
-    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
-    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
-
-    AssocList *out = AssocList_New(nfields + (tag_value != NULL));
-    if (out == NULL) goto cleanup;
-
-    if (tag_value != NULL) {
-        if (AssocList_Append(out, tag_field, tag_value) < 0) goto cleanup;
-    }
-    for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *key = PyTuple_GET_ITEM(fields, i);
-        PyObject *val = Struct_get_index(obj, i);
-        if (MS_UNLIKELY(val == NULL)) goto cleanup;
-        if (MS_UNLIKELY(val == UNSET)) continue;
-        if (
-            !omit_defaults ||
-            i < npos ||
-            !is_default(val, PyTuple_GET_ITEM(defaults, i - npos))
-        ) {
-            if (AssocList_Append(out, key, val) < 0) goto cleanup;
-        }
-    }
-    ok = true;
-
-cleanup:
-    Py_LeaveRecursiveCall();
-    if (!ok) {
-        AssocList_Free(out);
-        return NULL;
-    }
-    return out;
 }
 
 PyDoc_STRVAR(struct_replace__doc__,
@@ -13399,8 +13414,13 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
     Py_BEGIN_CRITICAL_SECTION(obj);
     Py_ssize_t count = 0;
     while (PyDict_Next(obj, &pos, &key, &val)) {
+        /* Encoding a str or exact int key runs no Python code */
         if (MS_LIKELY(PyUnicode_Check(key))) {
             if (mpack_encode_str(self, key) < 0) goto cleanup;
+            if (mpack_encode_inline(self, val) < 0) goto cleanup;
+        }
+        else if (PyLong_CheckExact(key)) {
+            if (mpack_encode_long(self, key) < 0) goto cleanup;
             if (mpack_encode_inline(self, val) < 0) goto cleanup;
         }
         else {
@@ -13636,12 +13656,80 @@ cleanup:
     return status;
 }
 
+/* Holds `struct_type`, since encoding a field may run Python code that
+ * assigns another class to `obj`. The type owns the order and the names. */
+static int
+mpack_encode_struct_object_sorted(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    Py_ssize_t *order = StructMeta_get_sorted_order(struct_type);
+    if (order == NULL) return -1;
+
+    int status = -1;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t len = nfields + (struct_type->struct_tag_value != NULL);
+    Py_ssize_t nunchecked = nfields;
+    if (struct_type->omit_defaults == OPT_TRUE) {
+        nunchecked -= PyTuple_GET_SIZE(defaults);
+    }
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    Py_INCREF(struct_type);
+
+    Py_ssize_t header_offset = self->output_len;
+    if (mpack_encode_map_header(self, len, "structs") < 0) goto cleanup;
+
+    Py_ssize_t actual_len = len;
+    for (Py_ssize_t k = 0; k < len; k++) {
+        Py_ssize_t i = order[k];
+        if (i < 0) {
+            if (mpack_encode_str(self, struct_type->struct_tag_field) < 0) goto cleanup;
+            if (mpack_encode(self, struct_type->struct_tag_value) < 0) goto cleanup;
+            continue;
+        }
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (
+            MS_UNLIKELY(val == UNSET) || (
+                i >= nunchecked &&
+                is_default(val, PyTuple_GET_ITEM(defaults, i - nunchecked))
+            )
+        ) {
+            actual_len--;
+            continue;
+        }
+        if (mpack_encode_str(self, PyTuple_GET_ITEM(fields, i)) < 0) goto cleanup;
+        if (mpack_encode(self, val) < 0) goto cleanup;
+    }
+    if (MS_UNLIKELY(actual_len != len)) {
+        /* Rewrite the header for the number of fields written. It must be
+         * minimal, as for an equal dict, so the body may move back. */
+        Py_ssize_t end = self->output_len;
+        Py_ssize_t old_size = len < 16 ? 1 : (len < (1 << 16) ? 3 : 5);
+        self->output_len = header_offset;
+        if (mpack_encode_map_header(self, actual_len, "structs") < 0) goto cleanup;
+        Py_ssize_t new_size = self->output_len - header_offset;
+        if (new_size != old_size) {
+            char *body = self->output_buffer_raw + header_offset;
+            memmove(body + new_size, body + old_size, end - header_offset - old_size);
+        }
+        self->output_len = end - (old_size - new_size);
+    }
+    status = 0;
+cleanup:
+    Py_DECREF(struct_type);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 mpack_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
-        return mpack_encode_and_free_assoclist(self, AssocList_FromStruct(obj));
+        return mpack_encode_struct_object_sorted(self, struct_type, obj);
     }
 
     int status = -1;
@@ -14027,6 +14115,13 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     }
     else if (type == &PyBool_Type) {
         return mpack_encode_bool(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        /* Without tzinfo or with UTC, encoding runs no Python code */
+        PyObject *tz = MS_DATE_GET_TZINFO(obj);
+        if (tz == Py_None || tz == PyDateTime_TimeZone_UTC) {
+            return mpack_encode_datetime(self, obj);
+        }
     }
     /* See "Mutation during encoding" */
     Py_INCREF(obj);
@@ -15103,12 +15198,73 @@ json_encode_struct_tag(EncoderState *self, PyObject *obj)
     }
 }
 
+/* See `mpack_encode_struct_object_sorted` */
+static int
+json_encode_struct_object_sorted(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    Py_ssize_t *order = StructMeta_get_sorted_order(struct_type);
+    if (order == NULL) return -1;
+
+    int status = -1;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t len = nfields + (struct_type->struct_tag_value != NULL);
+    Py_ssize_t nunchecked = nfields;
+    if (struct_type->omit_defaults == OPT_TRUE) {
+        nunchecked -= PyTuple_GET_SIZE(defaults);
+    }
+
+    if (ms_write(self, "{", 1) < 0) return -1;
+    Py_ssize_t start_len = self->output_len;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    Py_INCREF(struct_type);
+
+    for (Py_ssize_t k = 0; k < len; k++) {
+        Py_ssize_t i = order[k];
+        if (i < 0) {
+            if (json_encode_str(self, struct_type->struct_tag_field) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_struct_tag(self, struct_type->struct_tag_value) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+            continue;
+        }
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) continue;
+        if (
+            i >= nunchecked &&
+            is_default(val, PyTuple_GET_ITEM(defaults, i - nunchecked))
+        ) {
+            continue;
+        }
+        if (json_encode_str_noescape(self, PyTuple_GET_ITEM(fields, i)) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    if (MS_UNLIKELY(start_len == self->output_len)) {
+        /* Empty struct, append "}" */
+        if (ms_write(self, "}", 1) < 0) goto cleanup;
+    }
+    else {
+        /* Overwrite trailing comma with } */
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+    }
+    status = 0;
+cleanup:
+    Py_DECREF(struct_type);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 json_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
     if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
-        return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
+        return json_encode_struct_object_sorted(self, struct_type, obj);
     }
     PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
     Py_ssize_t i, nfields, nunchecked;
@@ -15292,6 +15448,13 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     }
     else if (obj == Py_False) {
         return ms_write(self, "false", 5);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        /* Without tzinfo or with UTC, encoding runs no Python code */
+        PyObject *tz = MS_DATE_GET_TZINFO(obj);
+        if (tz == Py_None || tz == PyDateTime_TimeZone_UTC) {
+            return json_encode_datetime(self, obj);
+        }
     }
     /* See "Mutation during encoding" */
     Py_INCREF(obj);

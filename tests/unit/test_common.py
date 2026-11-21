@@ -5587,16 +5587,56 @@ class TestMutationDuringEncode:
 
         assert encode(parent, enc_hook=enc_hook) == encode([sol])
 
-    @pytest.mark.parametrize("kind", ["struct", "attrs"])
     @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
-    def test_sorted_field_reassigned(self, proto, kind):
-        if kind == "struct":
-            cls = msgspec.defstruct("Ex", ["a", "b"])
-        else:
-            if attrs is None:
-                pytest.skip(reason="attrs not installed")
-            cls = attrs.make_class("Ex", ["a", "b"], slots=True)
+    def test_sorted_struct_field_reassigned(self, proto):
+        obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), self.List([2]))
 
+        def enc_hook(item):
+            obj.b = None
+            gc.collect()
+            return 1
+
+        # Fields are read when they are encoded, as without `order`
+        res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
+        assert res == proto.encode({"a": 1, "b": None})
+
+    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
+    def test_sorted_struct_class_reassigned(self, proto):
+        class Base(msgspec.Struct, tag=True):
+            a: object
+
+        def make_sub():
+            class Sub(Base, tag="sub"):
+                pass
+
+            return Sub
+
+        # `obj` holds the only reference to `Sub`
+        obj = make_sub()(self.Item())
+
+        def enc_hook(item):
+            obj.__class__ = Base
+            gc.collect()
+            return 1
+
+        res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
+        assert res == proto.encode({"a": 1, "type": "sub"})
+
+    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
+    def test_sorted_struct_field_unset(self, proto):
+        obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), 2)
+
+        def enc_hook(item):
+            del obj.b
+            return 1
+
+        with pytest.raises(AttributeError, match="Struct field 'b' is unset"):
+            proto.encode(obj, enc_hook=enc_hook, order="sorted")
+
+    @pytest.mark.skipif(attrs is None, reason="attrs not installed")
+    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
+    def test_sorted_field_reassigned(self, proto):
+        cls = attrs.make_class("Ex", ["a", "b"], slots=True)
         obj = cls(self.Item(), self.List([2]))
         ref = weakref.ref(obj.b)
 
@@ -5717,6 +5757,18 @@ class TestMutationDuringEncode:
             return 1
 
         assert encode(obj, enc_hook=enc_hook) == encode({"x": [1, 1]})
+
+    def test_datetime_tzinfo_removes_value(self, encode):
+        items = []
+
+        class TZ(datetime.tzinfo):
+            def utcoffset(self, dt):
+                items.clear()
+                return timedelta(hours=1)
+
+        items.append(datetime.datetime(2024, 1, 1, tzinfo=TZ()))
+        tz = datetime.timezone(timedelta(hours=1))
+        assert encode(items) == encode([datetime.datetime(2024, 1, 1, tzinfo=tz)])
 
     @pytest.mark.skipif(attrs is None, reason="attrs not installed")
     def test_object_dict_changed_size(self, encode):
@@ -5912,6 +5964,13 @@ class TestOrder:
         sol = proto.encode({"x": -1, "z": 10})
         assert res == sol
 
+    def test_order_struct_tag_field_escaped(self):
+        class Ex(Struct, tag_field='a"b', tag="t"):
+            x: int
+
+        res = msgspec.json.encode(Ex(1), order="sorted")
+        assert res == msgspec.json.encode({'a"b': "t", "x": 1})
+
     def test_order_struct_tag(self, proto):
         class Ex(Struct, tag_field="y", tag=2):
             z: int
@@ -5920,6 +5979,25 @@ class TestOrder:
         res = proto.encode(Ex(0, 1), order="sorted")
         sol = proto.encode({"x": 1, "y": 2, "z": 0})
         assert res == sol
+
+    @pytest.mark.parametrize("n", [12, 40])
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_order_struct_many_fields(self, rand, tag, n, proto):
+        names = [f"x_{i}" for i in range(n)] + ["a", "ab", "é", "z"]
+        rand.shuffle(names)
+        kwargs = {"tag_field": "m", "tag": "t"} if tag else {}
+        fields = [(name, int, 0) for name in names]
+        cls = msgspec.defstruct("Test", fields, omit_defaults=True, **kwargs)
+        tag_items = {"m": "t"} if tag else {}
+
+        values = range(1, len(names) + 1)
+        res = proto.encode(cls(*values), order="sorted")
+        sol = proto.encode({**dict(zip(names, values)), **tag_items}, order="sorted")
+        assert res == sol
+
+        # The map header is as short as for an equal dict
+        res = proto.encode(cls(ab=1), order="sorted")
+        assert res == proto.encode({"ab": 1, **tag_items}, order="sorted")
 
     def test_order_struct_unset_field_errors(self, proto):
         class Ex(Struct):

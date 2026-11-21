@@ -983,6 +983,9 @@ class TestTypedDecoder:
         msg2 = msgspec.msgpack.encode({"test": 1})
         assert msg1 == msg2
 
+    def test_dict_bool_key(self):
+        assert msgspec.msgpack.encode({True: 1}) == b"\x81\xc3\x01"
+
     def test_dict_typed(self):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(dict[str, int])
