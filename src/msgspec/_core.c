@@ -2875,6 +2875,7 @@ AssocList_Sort(AssocList* list) {
 // Despite the fact that `frozendict` was added in 3.15,
 // this type is always defined for order consistency:
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+#define MS_TYPE_DECODE_METHOD         (1ull << 40)
 
 /* Aliases for commonly used types */
 #if PY315_PLUS
@@ -4189,7 +4190,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
     /* If a custom type is used, this node may only contain that type and `None */
     if (
         state->custom_obj != NULL &&
-        state->types & ~(MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_NONE)
+        state->types & ~(MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_NONE | MS_TYPE_DECODE_METHOD)
     ) {
         PyErr_Format(
             PyExc_TypeError,
@@ -5083,6 +5084,13 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
+static bool
+has_builtin_decode_hook(TypeNodeCollectState *state, PyObject *t){
+    return (
+        PyObject_HasAttr(t, state->mod->str___msgspec_decode__)
+    );
+}
+
 static MS_INLINE int
 normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
     // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
@@ -5335,6 +5343,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             out = typenode_collect_dataclass(state, t);
         }
     }
+
     else {
         if (origin != NULL) {
             if (!PyType_Check(origin)) goto invalid;
@@ -5342,9 +5351,14 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         else {
             if (!PyType_Check(t)) goto invalid;
         }
+        uint64_t custom_flags = (origin != NULL) ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM;
+        if (has_builtin_decode_hook(state, t)){
+            custom_flags |= MS_TYPE_DECODE_METHOD;
+        }
+
         out = typenode_collect_custom(
             state,
-            (origin != NULL) ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM,
+            custom_flags,
             t
         );
     }
@@ -10328,7 +10342,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
     bool generic = type->types & MS_TYPE_CUSTOM_GENERIC;
-    bool has_hook;
+    bool has_decode_method = type->types & MS_TYPE_DECODE_METHOD;
     if (obj == NULL) return NULL;
 
     if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
@@ -10336,9 +10350,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     MsgspecState *st = msgspec_get_global_state();
     custom_obj = TypeNode_get_custom(type);
 
-    has_hook = dec_hook != NULL;
-
-    if (has_hook) {
+    if (dec_hook != NULL) {
         out = PyObject_CallFunctionObjArgs(dec_hook, custom_obj, obj, NULL);
         Py_DECREF(obj);
         if (out == NULL) {
@@ -10360,7 +10372,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
         custom_cls = custom_obj;
     }
     
-    if (!has_hook){
+    if (has_decode_method){
         PyObject* temp = ms_decode_try_dunder(custom_cls, st, obj, path);
         if (temp != NULL){
             out = temp;
