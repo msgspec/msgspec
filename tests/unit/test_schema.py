@@ -1471,6 +1471,10 @@ def test_dict_integer_keys_do_not_use_string_property_names():
             Annotated[int, Meta(description="key", examples=[1, -2])],
             {"description": "key", "examples": ["1", "-2"]},
         ),
+        (
+            Annotated[int, Meta(extra_json_schema={"type": "integer", "title": "k"})],
+            {"title": "k"},
+        ),
     ],
 )
 def test_dict_int_key_schema(key_type, extra):
@@ -1479,6 +1483,19 @@ def test_dict_int_key_schema(key_type, extra):
         "additionalProperties": {"type": "string"},
         "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$", **extra},
     }
+
+
+def test_dict_int_key_schema_int_enum_examples():
+    class Color(enum.IntEnum):
+        RED = 1
+        BLUE = -2
+
+    key_type = Annotated[int, Meta(examples=[Color.RED, Color.BLUE])]
+    schema = msgspec.json.schema(dict[key_type, str])
+    examples = schema["propertyNames"]["examples"]
+    assert examples == ["1", "-2"]
+    encoded = msgspec.json.encode({Color.RED: "a", Color.BLUE: "b"})
+    assert list(json.loads(encoded)) == examples
 
 
 @pytest.mark.parametrize(
