@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Constrain integer dictionary keys in generated JSON Schema with a
+  `propertyNames` pattern matching the keys `msgspec.json.decode` accepts
+  ({issue}`1340`).
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no
