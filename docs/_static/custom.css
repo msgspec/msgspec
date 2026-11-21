@@ -3,8 +3,15 @@ body[data-theme]:not([data-theme="dark"]) .highlight .gp, .highlight .gh {
     font-weight: normal;
 }
 
-body[data-theme]:not([data-theme="dark"]) .highlight .go {
+body[data-theme="light"] .highlight .go {
     color: #203060;
+}
+
+/* Furo uses the OS color scheme when its theme is set to Auto. */
+@media (prefers-color-scheme: light) {
+    body[data-theme="auto"] .highlight .go {
+        color: #203060;
+    }
 }
 
 body[data-theme="dark"] .highlight .gh, .highlight .gp {
