@@ -352,9 +352,9 @@ class _SchemaGenerator:
                 # pattern, so they are not included here.
                 property_names = {"pattern": "^-?(0|[1-9][0-9]*)$"}
                 key_schema = self.to_schema(t.key_type)
-                for field in ("title", "description"):
-                    if field in key_schema:
-                        property_names[field] = key_schema[field]
+                for name in ("title", "description"):
+                    if name in key_schema:
+                        property_names[name] = key_schema[name]
                 schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)
