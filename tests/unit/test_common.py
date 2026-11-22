@@ -1506,6 +1506,24 @@ class TestStructUnion:
         assert len(cache) == 1
         assert frozenset((Test1, Test2)) in cache
 
+    def test_failed_recursive_schema_does_not_cache_struct_union(self):
+        from msgspec._core import _struct_lookup_cache as cache
+
+        source = """
+        from msgspec import Struct
+
+        class Leaf(Struct, tag=True):
+            pass
+
+        class Node(Struct, tag=True):
+            child: "Node | Leaf"
+            bad: list | tuple
+        """
+        with temp_module(source) as mod:
+            with pytest.raises(TypeError, match="more than one array-like"):
+                msgspec.json.Decoder(mod.Node)
+            assert frozenset((mod.Node, mod.Leaf)) not in cache
+
     def test_struct_union_cache_evicted(self, proto):
         from msgspec._core import _struct_lookup_cache as cache
 

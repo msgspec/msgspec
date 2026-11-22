@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix a race when multiple threads first use the same type for decoding or
+  conversion.
 - Fix invalid JSON schemas containing empty `prefixItems` arrays for zero-field
   array-like structs and named tuples.
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
