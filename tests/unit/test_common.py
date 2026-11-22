@@ -5587,6 +5587,29 @@ class TestMutationDuringEncode:
 
         assert encode(parent, enc_hook=enc_hook) == encode([sol])
 
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_set_removed_from_parent(self, encode, order):
+        alive = []
+
+        class Set(set):
+            def __iter__(self):
+                items = list(set.__iter__(self))
+                parent.clear()
+
+                def gen():
+                    alive.append(ref() is not None)
+                    yield from items
+
+                return gen()
+
+        value = Set([1, 2])
+        ref = weakref.ref(value)
+        parent = [value]
+        del value
+
+        assert encode(parent, order=order) == encode([[1, 2]])
+        assert alive == [True]
+
     @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_struct_field_reassigned(self, proto):
         obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), self.List([2]))
@@ -5763,9 +5786,13 @@ class TestMutationDuringEncode:
         items = []
 
         class TZ(datetime.tzinfo):
+            def __getattribute__(self, name):
+                if name == "utcoffset":
+                    items.clear()
+                return object.__getattribute__(self, name)
+
             def utcoffset(self, dt):
-                items.clear()
-                return timedelta(hours=1)
+                return timedelta(hours=dt.month)
 
         items.append(datetime.datetime(2024, 1, 1, tzinfo=TZ()))
         tz = datetime.timezone(timedelta(hours=1))

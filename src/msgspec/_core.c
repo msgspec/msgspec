@@ -11261,9 +11261,13 @@ ms_encode_time_parts(
         int32_t offset_days = 0, offset_secs = 0;
 
         if (tzinfo != PyDateTime_TimeZone_UTC) {
+            /* See "Mutation during encoding". A datetime keeps its `tzinfo`
+             * alive, and time objects are held by the callers. */
+            Py_INCREF(datetime_or_none);
             PyObject *offset = PyObject_CallMethodOneArg(
                 tzinfo, mod->str_utcoffset, datetime_or_none
             );
+            Py_DECREF(datetime_or_none);
             if (offset == NULL) {
                 return -1;
             }
@@ -13272,18 +13276,21 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
     len = PySet_GET_SIZE(obj);
     if (len == 0) return mpack_encode_empty_array(self);
 
+    /* See "Mutation during encoding" */
+    Py_INCREF(obj);
     if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
         PyObject *temp = PySequence_List(obj);
-        if (temp == NULL) return -1;
-        if (PyList_Sort(temp) == 0) {
-            status = mpack_encode_list(self, temp);
+        if (temp != NULL) {
+            if (PyList_Sort(temp) == 0) {
+                status = mpack_encode_list(self, temp);
+            }
+            Py_DECREF(temp);
         }
-        Py_DECREF(temp);
-        return status;
+        goto decref;
     }
 
-    if (mpack_encode_array_header(self, len, "set") < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (mpack_encode_array_header(self, len, "set") < 0) goto decref;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto decref;
 
     PyObject *iter = PyObject_GetIter(obj);
     if (iter == NULL) goto cleanup;
@@ -13306,6 +13313,8 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
 cleanup:
     Py_LeaveRecursiveCall();
     Py_XDECREF(iter);
+decref:
+    Py_DECREF(obj);
     return status;
 }
 
@@ -13419,13 +13428,17 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
     Py_BEGIN_CRITICAL_SECTION(obj);
     Py_ssize_t count = 0;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        /* Encoding a str or exact int key runs no Python code */
+        /* Encoding a str, exact int or exact float key runs no Python code */
         if (MS_LIKELY(PyUnicode_Check(key))) {
             if (mpack_encode_str(self, key) < 0) goto cleanup;
             if (mpack_encode_inline(self, val) < 0) goto cleanup;
         }
         else if (PyLong_CheckExact(key)) {
             if (mpack_encode_long(self, key) < 0) goto cleanup;
+            if (mpack_encode_inline(self, val) < 0) goto cleanup;
+        }
+        else if (PyFloat_CheckExact(key)) {
+            if (mpack_encode_float(self, key) < 0) goto cleanup;
             if (mpack_encode_inline(self, val) < 0) goto cleanup;
         }
         else {
@@ -14006,10 +14019,13 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
         datetime_to_epoch(obj, &seconds, &nanoseconds);
     }
     else {
+        /* See "Mutation during encoding" */
+        Py_INCREF(obj);
         PyObject *temp = PyObject_CallFunctionObjArgs(
             self->mod->astimezone,
             obj, PyDateTime_TimeZone_UTC, NULL
         );
+        Py_DECREF(obj);
         if (temp == NULL) return -1;
         datetime_to_epoch(temp, &seconds, &nanoseconds);
         Py_DECREF(temp);
@@ -14049,26 +14065,14 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 static MS_INLINE int
 mpack_encode_uncommon_held(EncoderState *self, PyTypeObject *type, PyObject *obj)
 {
-    if (type == &PyBytes_Type) {
-        return mpack_encode_bytes(self, obj);
-    }
-    else if (type == &PyByteArray_Type) {
+    if (type == &PyByteArray_Type) {
         return mpack_encode_bytearray(self, obj);
     }
     else if (type == &PyMemoryView_Type) {
         return mpack_encode_memoryview(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
-        return mpack_encode_datetime(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DateType) {
-        return mpack_encode_date(self, obj);
-    }
     else if (type == PyDateTimeAPI->TimeType) {
         return mpack_encode_time(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DeltaType) {
-        return mpack_encode_timedelta(self, obj);
     }
     else if (type == &Ext_Type) {
         return mpack_encode_ext(self, obj);
@@ -14084,9 +14088,6 @@ mpack_encode_uncommon_held(EncoderState *self, PyTypeObject *type, PyObject *obj
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         return mpack_encode_uuid(self, obj);
-    }
-    else if (PyAnySet_Check(obj)) {
-        return mpack_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
         PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
@@ -14124,20 +14125,32 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (type == &PyBool_Type) {
         return mpack_encode_bool(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
-        /* Without tzinfo or with UTC, encoding runs no Python code */
-        PyObject *tz = MS_DATE_GET_TZINFO(obj);
-        if (tz == Py_None || tz == PyDateTime_TimeZone_UTC) {
-            return mpack_encode_datetime(self, obj);
-        }
-    }
-    /* Containers hold a reference to `obj` themselves, so that these calls
-     * can be tail calls */
+    /* Containers, sets and datetimes hold the references they need
+     * themselves, and encoding the other types below runs no Python code, so
+     * that these calls can be tail calls */
     else if (ms_is_struct_type(type)) {
         return mpack_encode_struct(self, obj);
     }
+    else if (type == &PyBytes_Type) {
+        return mpack_encode_bytes(self, obj);
+    }
     else if (PyTuple_Check(obj)) {
         return mpack_encode_tuple(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        return mpack_encode_datetime(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateType) {
+        return mpack_encode_date(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        return mpack_encode_timedelta(self, obj);
+    }
+    else if (
+        PyAnySet_Check(obj) &&
+        !PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)
+    ) {
+        return mpack_encode_set(self, obj);
     }
     /* See "Mutation during encoding" */
     Py_INCREF(obj);
@@ -14819,18 +14832,21 @@ json_encode_set(EncoderState *self, PyObject *obj)
     len = PySet_GET_SIZE(obj);
     if (len == 0) return ms_write(self, "[]", 2);
 
+    /* See "Mutation during encoding" */
+    Py_INCREF(obj);
     if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
         PyObject *temp = PySequence_List(obj);
-        if (temp == NULL) return -1;
-        if (PyList_Sort(temp) == 0) {
-            status = json_encode_list(self, temp);
+        if (temp != NULL) {
+            if (PyList_Sort(temp) == 0) {
+                status = json_encode_list(self, temp);
+            }
+            Py_DECREF(temp);
         }
-        Py_DECREF(temp);
-        return status;
+        goto decref;
     }
 
-    if (ms_write(self, "[", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (ms_write(self, "[", 1) < 0) goto decref;
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto decref;
 
     PyObject *iter = PyObject_GetIter(obj);
     if (iter == NULL) goto cleanup;
@@ -14848,6 +14864,8 @@ json_encode_set(EncoderState *self, PyObject *obj)
 cleanup:
     Py_LeaveRecursiveCall();
     Py_XDECREF(iter);
+decref:
+    Py_DECREF(obj);
     return status;
 }
 
@@ -15399,20 +15417,8 @@ json_encode_struct(EncoderState *self, PyObject *obj)
 
 static MS_INLINE int
 json_encode_uncommon_held(EncoderState *self, PyTypeObject *type, PyObject *obj) {
-    if (type == PyDateTimeAPI->DateTimeType) {
-        return json_encode_datetime(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DateType) {
-        return json_encode_date(self, obj);
-    }
-    else if (type == PyDateTimeAPI->TimeType) {
+    if (type == PyDateTimeAPI->TimeType) {
         return json_encode_time(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DeltaType) {
-        return json_encode_timedelta(self, obj);
-    }
-    else if (type == &PyBytes_Type) {
-        return json_encode_bytes(self, obj);
     }
     else if (type == &PyByteArray_Type) {
         return json_encode_bytearray(self, obj);
@@ -15431,9 +15437,6 @@ json_encode_uncommon_held(EncoderState *self, PyTypeObject *type, PyObject *obj)
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         return json_encode_decimal(self, obj);
-    }
-    else if (PyAnySet_Check(obj)) {
-        return json_encode_set(self, obj);
     }
     else if (!PyType_Check(obj) && type->tp_dict != NULL) {
         PyObject *fields = ms_get_dataclass_fields(self->mod, type, obj);
@@ -15473,20 +15476,32 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (obj == Py_False) {
         return ms_write(self, "false", 5);
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
-        /* Without tzinfo or with UTC, encoding runs no Python code */
-        PyObject *tz = MS_DATE_GET_TZINFO(obj);
-        if (tz == Py_None || tz == PyDateTime_TimeZone_UTC) {
-            return json_encode_datetime(self, obj);
-        }
-    }
-    /* Containers hold a reference to `obj` themselves, so that these calls
-     * can be tail calls */
+    /* Containers, sets and datetimes hold the references they need
+     * themselves, and encoding the other types below runs no Python code, so
+     * that these calls can be tail calls */
     else if (ms_is_struct_type(type)) {
         return json_encode_struct(self, obj);
     }
     else if (PyTuple_Check(obj)) {
         return json_encode_tuple(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        return json_encode_datetime(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateType) {
+        return json_encode_date(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        return json_encode_timedelta(self, obj);
+    }
+    else if (type == &PyBytes_Type) {
+        return json_encode_bytes(self, obj);
+    }
+    else if (
+        PyAnySet_Check(obj) &&
+        !PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)
+    ) {
+        return json_encode_set(self, obj);
     }
     /* See "Mutation during encoding" */
     Py_INCREF(obj);
@@ -21273,21 +21288,12 @@ cleanup:
 }
 
 static MS_INLINE PyObject *
-to_builtins_held(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+to_builtins_held(
+    ToBuiltinsState *self, PyObject *obj, bool is_key, uint32_t builtin_types
+) {
     PyTypeObject *type = Py_TYPE(obj);
-    /* With `str_keys`, a key has to become a str, so a type listed in
-     * `builtin_types` is still converted when used as a dict key. */
-    uint32_t builtin_types = (
-        (is_key && self->str_keys) ? 0 : self->builtin_types
-    );
 
-    if (type == &PyBytes_Type) {
-        if (builtin_types & MS_BUILTIN_BYTES) goto builtin;
-        return to_builtins_binary(
-            self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
-        );
-    }
-    else if (type == &PyByteArray_Type) {
+    if (type == &PyByteArray_Type) {
         if (builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
         return to_builtins_binary(
             self, PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj)
@@ -21302,21 +21308,9 @@ to_builtins_held(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         PyBuffer_Release(&buffer);
         return out;
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
-        if (builtin_types & MS_BUILTIN_DATETIME) goto builtin;
-        return to_builtins_datetime(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DateType) {
-        if (builtin_types & MS_BUILTIN_DATE) goto builtin;
-        return to_builtins_date(self, obj);
-    }
     else if (type == PyDateTimeAPI->TimeType) {
         if (builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
-    }
-    else if (type == PyDateTimeAPI->DeltaType) {
-        if (builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
-        return to_builtins_timedelta(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         if (builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
@@ -21380,6 +21374,12 @@ builtin:
 static PyObject *
 to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     PyTypeObject *type = Py_TYPE(obj);
+    /* With `str_keys`, a key has to become a str, so a type listed in
+     * `builtin_types` is still converted when used as a dict key. */
+    uint32_t builtin_types = (
+        (is_key && self->str_keys) ? 0 : self->builtin_types
+    );
+
     if (
         obj == Py_None ||
         type == &PyBool_Type ||
@@ -21387,11 +21387,29 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         type == &PyFloat_Type ||
         type == &PyUnicode_Type
     ) {
-        Py_INCREF(obj);
-        return obj;
+        goto builtin;
     }
-    /* Containers hold a reference to `obj` themselves, so that these calls
-     * can be tail calls */
+    /* Containers and datetimes hold the references they need themselves, and
+     * converting the other types below runs no Python code, so that these
+     * calls can be tail calls */
+    else if (type == &PyBytes_Type) {
+        if (builtin_types & MS_BUILTIN_BYTES) goto builtin;
+        return to_builtins_binary(
+            self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
+        );
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        if (builtin_types & MS_BUILTIN_DATETIME) goto builtin;
+        return to_builtins_datetime(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateType) {
+        if (builtin_types & MS_BUILTIN_DATE) goto builtin;
+        return to_builtins_date(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        if (builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
+        return to_builtins_timedelta(self, obj);
+    }
     else if (PyList_Check(obj)) {
         return to_builtins_list(self, obj);
     }
@@ -21411,9 +21429,13 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     }
     /* See "Mutation during encoding" */
     Py_INCREF(obj);
-    PyObject *out = to_builtins_held(self, obj, is_key);
+    PyObject *out = to_builtins_held(self, obj, is_key, builtin_types);
     Py_DECREF(obj);
     return out;
+
+builtin:
+    Py_INCREF(obj);
+    return obj;
 }
 
 static int
