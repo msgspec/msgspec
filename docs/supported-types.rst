@@ -604,6 +604,13 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
     >>> encoder.encode(x)
     b'1.2345'
 
+.. note::
+
+    It is impossible to represent ``NaN``, ``sNaN``, ``Inf``,
+    and other non-finite decimal values as numbers.
+    `ValueError` will be raised in this case.
+    Prefer string format if these values are needed.
+
 For JSON and MessagePack you may also pass a callable to ``decimal_format`` to
 customize how decimals are encoded. The callable will be called with the
 `decimal.Decimal` instance as the only argument, and must return a JSON-serializable

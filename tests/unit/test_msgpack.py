@@ -25,7 +25,12 @@ import pytest
 
 import msgspec
 
-from .utils import emscripten_stack_limited
+from .utils import emscripten_stack_limited, py315_or_later_only
+
+if sys.version_info >= (3, 15):
+    # This is needed for `ruff` to recognize `frozendict` name
+    # and to not raise `F821`:
+    from builtins import frozendict
 
 UTC = datetime.timezone.utc
 
@@ -440,11 +445,17 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, 2)
         assert buf == b"01" + encoded
 
-        # Offset out of bounds extends
+        # Offset out of bounds extends, filling the gap with zeros
         buf = bytearray(b"01234")
         enc.encode_into(msg, buf, 10)
-        assert buf[:5] == b"01234"
-        assert buf[10:] == encoded
+        assert buf == b"01234" + bytes(5) + encoded
+
+        # Offset in bounds doesn't shrink the buffer capacity
+        buf = bytearray(1000)
+        capacity = buf.__sizeof__()
+        enc.encode_into(msg, buf, 4)
+        assert buf == bytes(4) + encoded
+        assert buf.__sizeof__() == capacity
 
         # Offset -1 means append at end
         buf = bytearray(b"01234")
@@ -465,6 +476,20 @@ class TestEncoderMisc:
         # Encoder still works
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
+
+    @pytest.mark.parametrize("msg", [object(), [1, 2, object()]])
+    def test_encode_into_offset_error_hides_stale_bytes(self, msg):
+        enc = msgspec.msgpack.Encoder()
+        prefix = enc.encode(0)
+        buf = bytearray(b"Z" * 256)
+        enc.encode_into(0, buf)
+        assert buf == prefix
+
+        # An error after extending the buffer doesn't expose its old contents
+        with pytest.raises(TypeError):
+            enc.encode_into(msg, buf, 20)
+        assert buf.startswith(prefix + bytes(20 - len(prefix)))
+        assert b"Z" not in buf
 
     @pytest.mark.parametrize(
         "dt, dt_str",
@@ -1468,12 +1493,18 @@ class TestTimestampExt:
             (b"\xd7\xff\x00\x00\x07\xcc\x00\x00\x00\x00", 0, 0),
             (b"\xd7\xff\xeek 0\x00\x00\x00\x00", 1, 0),
             (b"\xd7\xff\xeek ,\x00\x00\x00\x00", 0, 999999),
+            (b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A~", 59, 0),
         ],
     )
     def test_timestamp_rounds_nanos(self, msg, secs, micros):
         res = msgspec.msgpack.decode(msg)
         assert res.second == secs
         assert res.microsecond == micros
+
+    def test_timestamp_rounds_nanos_out_of_range(self):
+        msg = b"\xc7\x0c\xff;\x9a\xc8\x0c\x00\x00\x00:\xff\xf4A\x7f"
+        with pytest.raises(msgspec.ValidationError, match="out of range"):
+            msgspec.msgpack.decode(msg)
 
 
 class CommonTypeTestBase:
@@ -1540,6 +1571,24 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         out = msgspec.msgpack.decode(data, type=set)
         assert orig == out
 
+    @pytest.mark.parametrize(
+        "data, got",
+        [
+            # [{"a": 1}] as a map item
+            (b"\x91\x81\xa1a\x01", "dict"),
+            # [Ext(1, b"\x02")] as a fixext1 item
+            (b"\x91\xd4\x01\x02", "msgspec.msgpack.Ext"),
+        ],
+    )
+    def test_decode_unhashable_item(self, data, got):
+        """Maps and extensions aren't hashable, decoding one into a set should
+        raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            msgspec.msgpack.decode(data, type=set)
+
     def test_decode_hashable_struct_in_key(self):
         class Test(msgspec.Struct):
             data: list[int]
@@ -1551,6 +1600,43 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         data = msgspec.msgpack.encode(orig)
         out = msgspec.msgpack.Decoder(dict[tuple[int, Test], list[int]]).decode(data)
         assert orig == out
+
+    @py315_or_later_only
+    def test_roundtrip_frozendict_dict_key(self):
+        orig = {frozendict({"a": 1}): 1}
+        data = msgspec.msgpack.encode(orig)
+        out = msgspec.msgpack.decode(data, type=dict[frozendict[str, int], int])
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is frozendict
+        assert type(out[key]) is int
+
+    @py315_or_later_only
+    def test_encode_frozendict_subclass_dict_key(self):
+        class MyFrozenDict(frozendict):
+            pass
+
+        orig = {MyFrozenDict({"a": 1}): 1}
+        data = msgspec.msgpack.encode(orig)
+        assert data == msgspec.msgpack.encode({frozendict({"a": 1}): 1})
+        out = msgspec.msgpack.decode(data, type=dict[frozendict[str, int], int])
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is frozendict
+        assert type(out[key]) is int
+
+        def dec_hook(typ, obj):
+            assert typ is MyFrozenDict
+            assert type(obj) is dict
+            return typ(obj)
+
+        out = msgspec.msgpack.decode(
+            data, type=dict[MyFrozenDict, int], dec_hook=dec_hook
+        )
+        assert out == orig
+        key = next(iter(out))
+        assert type(key) is MyFrozenDict
+        assert type(out[key]) is int
 
 
 class TestUntypedDecoder(CommonTypeTestBase):

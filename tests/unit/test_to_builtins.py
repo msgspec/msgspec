@@ -2,6 +2,7 @@ import base64
 import datetime
 import decimal
 import enum
+import gc
 import os
 import sys
 import uuid
@@ -14,7 +15,12 @@ import pytest
 import msgspec
 from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
-from .utils import emscripten_stack_limited, py315_or_later_only
+from .utils import (
+    CustomRow,
+    DescriptorRow,
+    emscripten_stack_limited,
+    py315_or_later_only,
+)
 
 if sys.version_info >= (3, 15):
     # This is needed for `ruff` to recognize `frozendict` name
@@ -57,6 +63,75 @@ class Bad:
 
 
 class TestToBuiltins:
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_partial_values_released(self, order):
+        class Payload(list):
+            pass
+
+        class Leaf:
+            pass
+
+        leaf = Leaf()
+        first = Payload([leaf])
+        first_ref = weakref.ref(first)
+        leaf_ref = weakref.ref(leaf)
+        error = RuntimeError("field failure")
+        row = DescriptorRow(first, error)
+        with pytest.raises(RuntimeError) as caught:
+            to_builtins(row, order=order, builtin_types=(Leaf,))
+        assert caught.value is error
+        # Tracebacks retain the call's frame and its arguments until cleared.
+        error.__traceback__ = None
+        del caught, error, row, first, leaf
+        gc.collect()
+        assert first_ref() is None
+        assert leaf_ref() is None
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize(
+        "error_type", [ValueError, RuntimeError, MemoryError, KeyboardInterrupt]
+    )
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_field_exception_identity(self, row_type, error_type, order):
+        error = error_type("field access failed")
+        row = row_type([1, 2], error)
+        with pytest.raises(error_type) as caught:
+            to_builtins(row, order=order)
+        assert caught.value is error
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_attribute_error_key_error_and_unset_still_omitted(
+        self, row_type, order
+    ):
+        for value in [AttributeError("missing"), KeyError("missing"), UNSET]:
+            assert to_builtins(row_type(1, value), order=order) == {
+                "first": 1,
+                "last": 3,
+            }
+
+    @pytest.mark.parametrize("slots", [False, True])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_deleted_fields_still_omitted(self, slots, order):
+        row_type = make_dataclass(
+            "DeletedRow", [("first", int), ("value", int)], slots=slots
+        )
+        row = row_type(1, 2)
+        del row.value
+        assert to_builtins(row, order=order) == {"first": 1}
+
+    @pytest.mark.parametrize("row_type", [DescriptorRow, CustomRow])
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_dataclass_key_error_subclass_compatibility(self, row_type, order):
+
+        class MissingKey(KeyError):
+            pass
+
+        assert to_builtins(row_type(1, MissingKey("missing")), order=order) == {
+            "first": 1,
+            "last": 3,
+        }
+
     def test_to_builtins_bad_calls(self):
         with pytest.raises(TypeError):
             to_builtins()
@@ -305,6 +380,22 @@ class TestToBuiltins:
         assert to_builtins({"banana": 1}, str_keys=True) == {"banana": 1}
         assert to_builtins({FruitInt.BANANA: 1}, str_keys=True) == {"2": 1}
         assert to_builtins({2: 1}, str_keys=True) == {"2": 1}
+
+    def test_dict_str_keys_builtin_types(self):
+        """With `str_keys`, keys of a type in `builtin_types` still become strings"""
+        builtin_types = (datetime.datetime, datetime.date, datetime.time)
+        msg = {
+            datetime.datetime(2022, 1, 2, 3, 4, 5): 1,
+            datetime.date(2022, 1, 2): 2,
+            datetime.time(12, 34): 3,
+        }
+        res = to_builtins(msg, builtin_types=builtin_types, str_keys=True)
+        assert res == {"2022-01-02T03:04:05": 1, "2022-01-02": 2, "12:34:00": 3}
+
+        # Values are still passed through unchanged
+        dt = datetime.datetime(2022, 1, 2, 3, 4, 5)
+        res = to_builtins({"x": dt}, builtin_types=builtin_types, str_keys=True)
+        assert res["x"] is dt
 
     def test_dict_sequence_keys(self):
         msg = {frozenset([1, 2]): 1}
@@ -587,6 +678,24 @@ class TestToBuiltins:
             delattr(x, key)
             del sol[key]
             assert to_builtins(x) == sol
+
+    def test_dataclass_dict_key_eq_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("x")  # matches the field name
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        @dataclass
+        class Ex:
+            x: int
+
+        obj = Ex(1)
+        obj.__dict__ = {Key(): 2}
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            to_builtins(obj)
 
     @pytest.mark.parametrize("slots_base", slots_params)
     @pytest.mark.parametrize("slots", slots_params)
@@ -903,3 +1012,17 @@ class TestOrder:
         self.assert_eq(to_builtins(Ex(), order="sorted"), {})
         self.assert_eq(to_builtins(Ex(a=1, c=3), order="sorted"), {2: 1, "c": 3})
         self.assert_eq(to_builtins(Ex(a=1, b=2), order="sorted"), {1: 2, 2: 1})
+
+    @pytest.mark.parametrize("fail_on_call", [2, 3, 4])
+    def test_sorted_dict_key_hash_error(self, fail_on_call):
+        class Key:
+            calls = 0
+
+            def __hash__(self):
+                Key.calls += 1
+                if Key.calls == fail_on_call:
+                    raise ValueError("hash failed")
+                return 123
+
+        with pytest.raises(ValueError, match="hash failed"):
+            to_builtins({Key(): 1}, builtin_types=(Key,), order="sorted")

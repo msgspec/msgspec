@@ -171,7 +171,19 @@ def test_decode_str_or_bytes_like():
         msgspec.yaml.decode(1)
 
 
-@pytest.mark.parametrize("msg", [b"{{", b"!!binary 123"])
+@pytest.mark.parametrize(
+    "msg",
+    [
+        b"{{",
+        b"!!binary 123",
+        b"date: 2025-02-29",
+        b"timestamp: 2024-01-01T24:00:00Z",
+        b"number: !!int invalid",
+        b"flag: !!bool maybe",
+        b"number: !!int ''",
+        b"timestamp: !!timestamp abc",
+    ],
+)
 def test_decode_parse_error(msg):
     with pytest.raises(msgspec.DecodeError):
         msgspec.yaml.decode(msg)
