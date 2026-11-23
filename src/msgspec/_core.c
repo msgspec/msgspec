@@ -4196,12 +4196,11 @@ static int
 publish_struct_lookup(PyObject *cache, PyObject *types, PyObject *lookup) {
     int found = PyDict_Contains(cache, types);
     if (found != 0) return found < 0 ? -1 : 0;
-    if (PyDict_GET_SIZE(cache) == 64) {
+    while (PyDict_GET_SIZE(cache) >= 64) {
         PyObject *oldest;
         Py_ssize_t pos = 0;
-        if (PyDict_Next(cache, &pos, &oldest, NULL)) {
-            if (PyDict_DelItem(cache, oldest) < 0) return -1;
-        }
+        if (!PyDict_Next(cache, &pos, &oldest, NULL)) break;
+        if (PyDict_DelItem(cache, oldest) < 0) return -1;
     }
     return PyDict_SetItem(cache, types, lookup);
 }

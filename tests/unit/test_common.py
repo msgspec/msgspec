@@ -1545,7 +1545,7 @@ class TestStructUnion:
             return frozenset(typ)
 
         first = call_with_new_types()
-        assert first in cache
+        first_lookup = cache[first]
 
         # Fill up the cache
         for _ in range(MAX_CACHE_SIZE - 1):
@@ -1562,6 +1562,12 @@ class TestStructUnion:
         assert len(cache) == MAX_CACHE_SIZE
         assert first not in cache
         assert frozenset(new) in cache
+
+        # An already oversized cache must return to its limit in FIFO order.
+        cache[first] = first_lookup
+        before = list(cache)
+        latest = call_with_new_types()
+        assert list(cache) == before[2:] + [latest]
 
 
 class TestGenericStruct:
