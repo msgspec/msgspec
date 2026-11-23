@@ -85,6 +85,53 @@ def test_custom_schema_hook():
         msgspec.json.schema(slice, schema_hook=schema_hook)
 
 
+@pytest.mark.parametrize("kind", ["struct", "dataclass", "namedtuple"])
+def test_custom_schema_hook_shared_defaults(kind):
+    class CustomUUID(uuid.UUID):
+        pass
+
+    first = CustomUUID(int=1)
+    second = CustomUUID(int=2)
+    if kind == "struct":
+
+        class Example(msgspec.Struct):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    elif kind == "dataclass":
+
+        @dataclass
+        class Example:
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    else:
+
+        class Example(NamedTuple):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    shared = {"type": "string", "format": "uuid"}
+
+    def schema_hook(cls):
+        assert cls is CustomUUID
+        return shared
+
+    result = msgspec.json.schema(Example, schema_hook=schema_hook)
+    component = result["$defs"]["Example"]
+    fields = (
+        component["prefixItems"]
+        if kind == "namedtuple"
+        else list(component["properties"].values())
+    )
+    assert fields == [
+        {"type": "string", "format": "uuid", "default": str(first)},
+        {"type": "string", "format": "uuid", "default": str(second)},
+    ]
+    assert shared == {"type": "string", "format": "uuid"}
+    assert msgspec.json.schema(CustomUUID, schema_hook=schema_hook) == shared
+
+
 def test_none():
     assert msgspec.json.schema(None) == {"type": "null"}
 
@@ -760,6 +807,31 @@ def test_schema_does_not_call_custom_default_factory():
     assert calls == []
 
 
+@pytest.mark.parametrize("tag", [False, True])
+@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+def test_struct_array_like_no_fields(tag, forbid_unknown_fields):
+    class Example(
+        msgspec.Struct,
+        array_like=True,
+        tag=tag,
+        forbid_unknown_fields=forbid_unknown_fields,
+    ):
+        pass
+
+    expected = {"title": "Example", "type": "array", "minItems": int(tag)}
+    if tag:
+        expected["prefixItems"] = [{"enum": ["Example"]}]
+    if forbid_unknown_fields:
+        expected["maxItems"] = int(tag)
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    payload = b'["Example"]' if tag else b"[]"
+    assert msgspec.json.decode(payload, type=Example) == Example()
+
+
 def test_struct_no_fields():
     class Example(msgspec.Struct):
         pass
@@ -921,6 +993,24 @@ def test_collections_namedtuple():
             }
         },
     }
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_namedtuple_no_fields(typed):
+    if typed:
+
+        class Example(NamedTuple):
+            pass
+
+    else:
+        Example = namedtuple("Example", [])
+
+    expected = {"title": "Example", "type": "array", "minItems": 0, "maxItems": 0}
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    assert msgspec.json.decode(b"[]", type=Example) == Example()
 
 
 def test_generic_namedtuple():

@@ -449,7 +449,8 @@ class _SchemaGenerator:
                         break
                     n_trailing_defaults += 1
                 schema["type"] = "array"
-                schema["prefixItems"] = fields
+                if fields:
+                    schema["prefixItems"] = fields
                 schema["minItems"] = len(fields) - n_trailing_defaults
                 if t.forbid_unknown_fields:
                     schema["maxItems"] = len(fields)
@@ -480,7 +481,8 @@ class _SchemaGenerator:
                 fields.append(field_schema)
             if isinstance(t, mi.NamedTupleType):
                 schema["type"] = "array"
-                schema["prefixItems"] = fields
+                if fields:
+                    schema["prefixItems"] = fields
                 schema["minItems"] = len(required)
                 schema["maxItems"] = len(fields)
             else:
@@ -492,7 +494,7 @@ class _SchemaGenerator:
         elif isinstance(t, mi.CustomType):
             if self.schema_hook:
                 try:
-                    schema = mi._merge_json(self.schema_hook(t.cls), schema)
+                    schema = mi._merge_json(self.schema_hook(t.cls).copy(), schema)
                 except NotImplementedError:
                     pass
             if not schema:
