@@ -157,6 +157,21 @@ def _get_class_mro_and_typevar_mappings(obj):
     return cls.__mro__, mapping
 
 
+def _copy_class_namespace(cls):
+    namespace = vars(cls)
+    if isinstance(namespace, types.MappingProxyType):
+        # A normal class namespace delegates copy() to its dict under the dict lock.
+        try:
+            snapshot = namespace.copy()
+        except AttributeError:
+            pass
+        else:
+            if type(snapshot) is dict:
+                return snapshot
+    # A metaclass may expose a custom mapping for __dict__.
+    return dict(namespace)
+
+
 def get_class_annotations(obj):
     """Get the annotations for a class.
 
@@ -189,7 +204,7 @@ def get_class_annotations(obj):
             continue
 
         mapping = typevar_mappings.get(cls)
-        cls_locals = dict(vars(cls))
+        cls_locals = _copy_class_namespace(cls)
 
         # resolve type parameters (e.g. class Foo[T]: pass)
         type_params = getattr(cls, "__type_params__", ())
