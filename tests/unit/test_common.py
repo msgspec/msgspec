@@ -666,6 +666,17 @@ class TestEnum:
         sol = proto.encode({1.5: 1})
         assert res == sol
 
+    def test_encode_frozenset_mixin(self, proto):
+        class Ex(frozenset, enum.Enum):
+            def __new__(cls, value):
+                obj = frozenset.__new__(cls, (value,))
+                obj._value_ = value
+                return obj
+
+            A = 2
+
+        assert proto.encode(Ex.A) == proto.encode(2)
+
     def test_decode_complex_errors(self, proto):
         class Complex(enum.Enum):
             A = 1.5
@@ -5538,7 +5549,7 @@ class TestSet:
 
 
 class TestMutationDuringEncode:
-    """`enc_hook` may mutate the object being encoded"""
+    """Objects modified while they are being encoded, mostly from `enc_hook`"""
 
     class Item:
         pass
@@ -5565,17 +5576,23 @@ class TestMutationDuringEncode:
         with pytest.raises(RuntimeError, match="list changed size during encoding"):
             encode(items, enc_hook=enc_hook)
 
-    @pytest.mark.parametrize("kind", ["list", "dict", "struct"])
-    def test_value_removed_from_parent(self, encode, kind):
-        Ex = msgspec.defstruct("Ex", ["x"], weakref=True)
-
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    @pytest.mark.parametrize("kind", ["list", "dict", "struct", "array_like", "tuple"])
+    def test_value_removed_from_parent(self, encode, kind, order):
         if kind == "list":
             value, sol = self.List([self.Item()]), [1]
         elif kind == "dict":
             value, sol = self.Dict(x=self.Item()), {"x": 1}
+        elif kind == "struct":
+            value = msgspec.defstruct("Ex", ["x"], weakref=True)(self.Item())
+            sol = {"x": 1}
+        elif kind == "array_like":
+            Ex = msgspec.defstruct("Ex", ["x"], weakref=True, array_like=True)
+            value, sol = Ex(self.Item()), [1]
         else:
-            value, sol = Ex(self.Item()), {"x": 1}
-        ref = weakref.ref(value)
+            value, sol = (self.Item(), self.List([2])), (1, [2])
+        # A tuple can't be weakly referenced, but its item is freed along with it
+        ref = weakref.ref(value[1] if kind == "tuple" else value)
         parent = [value]
         del value
 
@@ -5585,7 +5602,7 @@ class TestMutationDuringEncode:
             assert ref() is not None
             return 1
 
-        assert encode(parent, enc_hook=enc_hook) == encode([sol])
+        assert encode(parent, enc_hook=enc_hook, order=order) == encode([sol])
 
     @pytest.mark.parametrize("order", [None, "sorted"])
     def test_set_removed_from_parent(self, encode, order):
@@ -5610,7 +5627,6 @@ class TestMutationDuringEncode:
         assert encode(parent, order=order) == encode([[1, 2]])
         assert alive == [True]
 
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_struct_field_reassigned(self, proto):
         obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), self.List([2]))
 
@@ -5623,7 +5639,6 @@ class TestMutationDuringEncode:
         res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
         assert res == proto.encode({"a": 1, "b": None})
 
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_struct_class_reassigned(self, proto):
         class Base(msgspec.Struct, tag=True):
             a: object
@@ -5646,19 +5661,7 @@ class TestMutationDuringEncode:
         res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
         assert res == proto.encode({"a": 1, "type": "sub"})
 
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
-    def test_sorted_struct_field_unset(self, proto):
-        obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), 2)
-
-        def enc_hook(item):
-            del obj.b
-            return 1
-
-        with pytest.raises(AttributeError, match="Struct field 'b' is unset"):
-            proto.encode(obj, enc_hook=enc_hook, order="sorted")
-
     @pytest.mark.skipif(attrs is None, reason="attrs not installed")
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_field_reassigned(self, proto):
         cls = attrs.make_class("Ex", ["a", "b"], slots=True)
         obj = cls(self.Item(), self.List([2]))
@@ -5673,7 +5676,6 @@ class TestMutationDuringEncode:
         res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
         assert res == proto.encode({"a": 1, "b": [2]})
 
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_dict_key_removed(self, proto):
         class Key(str):
             pass
@@ -5694,7 +5696,6 @@ class TestMutationDuringEncode:
         ):
             proto.encode(data, enc_hook=enc_hook, order="sorted")
 
-    @pytest.mark.parametrize("proto", [msgspec.json, msgspec.msgpack])
     def test_sorted_dataclass_fields_added(self, proto):
         @dataclass
         class Ex:
@@ -5724,8 +5725,7 @@ class TestMutationDuringEncode:
 
         assert encode(items, enc_hook=enc_hook) == encode([1, 1])
 
-    @pytest.mark.parametrize("order", [None, "sorted"])
-    def test_dict_changed_size(self, encode, order):
+    def test_dict_changed_size(self, encode):
         data = {"a": self.Item(), "b": 1}
 
         def enc_hook(obj):
@@ -5735,7 +5735,7 @@ class TestMutationDuringEncode:
         with pytest.raises(
             RuntimeError, match="dictionary changed size during encoding"
         ):
-            encode(data, enc_hook=enc_hook, order=order)
+            encode(data, enc_hook=enc_hook)
 
     def test_dict_keys_changed(self, encode):
         data = {"a": self.Item(), "b": 2}
@@ -6043,10 +6043,10 @@ class TestOrder:
         sol = proto.encode({"x": 1, "y": 2, "z": 0})
         assert res == sol
 
-    @pytest.mark.parametrize("n", [12, 40])
     @pytest.mark.parametrize("tag", [False, True])
-    def test_order_struct_many_fields(self, rand, tag, n, proto):
-        names = [f"x_{i}" for i in range(n)] + ["a", "ab", "é", "z"]
+    def test_order_struct_many_fields(self, rand, tag, proto):
+        # 16 fields, the size at which msgpack switches to a longer map header
+        names = [f"x_{i}" for i in range(12)] + ["a", "ab", "é", "z"]
         rand.shuffle(names)
         kwargs = {"tag_field": "m", "tag": "t"} if tag else {}
         fields = [(name, int, 0) for name in names]

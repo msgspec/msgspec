@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Fix crashes when a list, dict, `Struct` or other object is modified while it
-  is being encoded, for example from `enc_hook`. A `RuntimeError` is now raised
-  if a list becomes too short to read the next item or a dict changes size.
+- Fix crashes when the contents of a list, dict, `Struct` or other object
+  change while it is being encoded, for example from `enc_hook`. A
+  `RuntimeError` is now raised if a list becomes too short to read the next
+  item or a dict changes size, and, without `order="sorted"`, if attributes
+  are added to or removed from an `attrs` object with `slots=False`.
   `Encoder.encode_lines` no longer encodes items appended to the list during
   encoding ({issue}`1352`)
 - Fix a crash when a `Struct` with an unset field (for example after
