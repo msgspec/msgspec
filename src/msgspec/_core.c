@@ -541,6 +541,7 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
+    PyObject *collections_abc_mapping;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -23109,6 +23110,25 @@ convert_object_to_struct(
         }
     }
 
+    /* int_keys: when `obj` is a `collections.abc.Mapping`, a field's integer
+     * key is tried first, then its canonical decimal string ("1", as emitted
+     * by `json.encode` / `to_builtins(str_keys=True)`), then its name
+     * (mirroring `convert_dict_to_struct`). Anything else is read by field
+     * name alone: attribute lookups have no integer form, and for objects
+     * that merely define `__getitem__` (`sqlite3.Row`, `array.array`, ...) an
+     * integer is a position rather than a key. */
+    PyObject *int_keys = NULL;
+    if (
+        MS_UNLIKELY(struct_type->struct_encode_int_keys != NULL)
+        && getter == getattr_then_getitem
+    ) {
+        int is_abc_mapping = PyObject_IsInstance(
+            obj, self->mod->collections_abc_mapping
+        );
+        if (is_abc_mapping < 0) return NULL;
+        if (is_abc_mapping) int_keys = struct_type->struct_encode_int_keys;
+    }
+
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *out = Struct_alloc((PyTypeObject *)(struct_type));
@@ -23123,16 +23143,6 @@ convert_object_to_struct(
         fields = struct_type->struct_fields;
     }
 
-    /* int_keys: when `obj` supports item access (the dispatcher passes
-     * `getattr_then_getitem` for mappings, with or without `from_attributes`),
-     * a field's integer key is tried first, then its canonical decimal string
-     * ("1", as emitted by `json.encode` / `to_builtins(str_keys=True)`), then
-     * its name (mirroring `convert_dict_to_struct`). Attribute lookups have no
-     * integer form, so attribute-only objects are accessed by name alone. */
-    PyObject *int_keys = (
-        getter == getattr_then_getitem ? struct_type->struct_encode_int_keys : NULL
-    );
-
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field, *attr, *val;
 
@@ -23140,10 +23150,7 @@ convert_object_to_struct(
             field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
             if (self->from_attributes) {
                 /* Attributes were asked for, so an attribute named after the
-                 * field wins over the integer key. This keeps objects that
-                 * offer both attribute and positional item access (e.g.
-                 * database rows) from having `obj[1]` read as a column
-                 * index. */
+                 * field wins over the integer key. */
                 attr = PyObject_GetAttr(obj, field);
                 if (attr != NULL) goto got_attr;
                 PyErr_Clear();
@@ -23666,6 +23673,9 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "-----\n"
 "``Struct`` fields configured with ``int_keys`` are matched by their integer\n"
 "key, by its canonical decimal string (e.g. ``\"1\"``), or by their field name.\n"
+"The integer key and its decimal string are only looked up in\n"
+"`collections.abc.Mapping` instances; any other object is read by field name\n"
+"alone.\n"
 "\n"
 "Examples\n"
 "--------\n"
@@ -23872,6 +23882,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_typealiastype);
 #endif
     Py_CLEAR(st->astimezone);
+    Py_CLEAR(st->collections_abc_mapping);
     Py_CLEAR(st->re_compile);
     return 0;
 }
@@ -23946,6 +23957,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
+    Py_VISIT(st->collections_abc_mapping);
     Py_VISIT(st->UUIDType);
     Py_VISIT(st->uuid_safeuuid_unknown);
     Py_VISIT(st->DecimalType);
@@ -24132,6 +24144,9 @@ PyInit__core(void)
 #if PY312_PLUS
     SET_REF(typing_typealiastype, "TypeAliasType");
 #endif
+
+    IMPORT_TEMP_MODULE("collections.abc");
+    SET_REF(collections_abc_mapping, "Mapping");
 
     IMPORT_TEMP_MODULE("msgspec._utils");
     SET_REF(concrete_types, "_CONCRETE_TYPES");

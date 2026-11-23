@@ -1,3 +1,4 @@
+import array
 import datetime
 import decimal
 import enum
@@ -7,7 +8,7 @@ import sys
 import uuid
 from base64 import b64encode
 from collections import UserDict
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -2323,6 +2324,9 @@ class TestStruct:
         class Ex(Struct, int_keys={"x": 1}):
             x: int = 0
 
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
         class Row:
             """Offers both attribute and positional item access"""
 
@@ -2332,11 +2336,85 @@ class TestStruct:
             def __getitem__(self, index):
                 return [10, 20][index]
 
-        # With `from_attributes`, an attribute named after the field wins, the
-        # integer key isn't read as a position
+        # With `from_attributes`, an attribute named after the field wins
         assert convert(Row(x=7), Ex, from_attributes=True) == Ex(7)
-        # Without such an attribute, item access is still used
-        assert convert(Row(), Ex, from_attributes=True) == Ex(20)
+        assert convert(Row(x=7), Req, from_attributes=True) == Req(7)
+        # Without such an attribute the field is absent: `Row` isn't a
+        # `collections.abc.Mapping`, so the integer key isn't read as a position
+        assert convert(Row(), Ex, from_attributes=True) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            convert(Row(), Req, from_attributes=True)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_positional_getitem_uses_names(self, from_attributes):
+        """Integer keys are only looked up in `collections.abc.Mapping`
+        instances. For anything else with a `__getitem__` an integer is a
+        position, so the fields are read by name alone."""
+
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        def conv(obj, type=Ex):
+            return convert(obj, type, from_attributes=from_attributes)
+
+        sqlite3 = pytest.importorskip("sqlite3")
+
+        con = sqlite3.connect(":memory:")
+        con.row_factory = sqlite3.Row
+        try:
+            row = con.execute("select 22 as x, 11 as y").fetchone()
+            other = con.execute("select 5 as a, 6 as b").fetchone()
+        finally:
+            con.close()
+
+        # Column `x` is used, not `row[1]` (column `y`)
+        assert conv(row) == Ex(22)
+        assert conv(row, Req) == Req(22)
+        # Without an `x` column the field is absent, `row[1]` isn't used
+        assert conv(other) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            conv(other, Req)
+
+        arr = array.array("i", [10, 20])
+        assert conv(arr) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            conv(arr, Req)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_unregistered_mapping_uses_names(self, from_attributes):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Unregistered:
+            """Mapping-like, but not a `collections.abc.Mapping`"""
+
+            def __init__(self, data):
+                self._data = data
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+            def __len__(self):
+                return len(self._data)
+
+            def keys(self):
+                return self._data.keys()
+
+        def conv(msg):
+            return convert(Unregistered(msg), Ex, from_attributes=from_attributes)
+
+        assert conv({"x": 5}) == Ex(5)
+        assert conv({1: 5}) == Ex(0)
+        assert conv({"1": 5}) == Ex(0)
+        assert conv({1: 4, "1": 5, "x": 6}) == Ex(6)
+
+        # Registering the class with the ABC opts in to integer keys
+        Mapping.register(Unregistered)
+        assert conv({1: 5}) == Ex(5)
+        assert conv({"1": 5}) == Ex(5)
 
     @mapcls_from_attributes_and_array_like
     def test_struct_gc_maybe_untracked_on_decode(
