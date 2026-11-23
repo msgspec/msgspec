@@ -5765,6 +5765,41 @@ class TestMutationDuringEncode:
         ):
             encode(data, enc_hook=enc_hook)
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Large ints are converted to str by Python code since 3.12",
+    )
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_large_int_key_removes_value(self, str_keys, monkeypatch):
+        import _pylong
+
+        orig_max_digits = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(0)
+        try:
+            key = 10**20000
+            str_key = str(key)
+            value = self.List([1])
+            ref = weakref.ref(value)
+            data = {key: value}
+            del value
+            int_to_decimal_string = _pylong.int_to_decimal_string
+            calls = []
+
+            def hook(n):
+                calls.append(n)
+                data[key] = None
+                assert ref() is not None
+                return int_to_decimal_string(n)
+
+            monkeypatch.setattr(_pylong, "int_to_decimal_string", hook)
+            if str_keys:
+                assert msgspec.to_builtins(data, str_keys=True) == {str_key: [1]}
+            else:
+                assert msgspec.json.encode(data) == b'{"%s":[1]}' % str_key.encode()
+            assert calls
+        finally:
+            sys.set_int_max_str_digits(orig_max_digits)
+
     @pytest.mark.parametrize("kind", ["struct", "attrs"])
     def test_field_reassigned(self, encode, kind):
         if kind == "struct":

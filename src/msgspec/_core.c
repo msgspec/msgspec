@@ -311,6 +311,15 @@ fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
     return false;
 }
 
+/* Converting an exact int to str runs no Python code if it fits in an `int64`
+ * or a `uint64`. CPython may convert larger ints with Python code. */
+static inline bool
+fast_long_fits(PyObject *obj) {
+    bool neg;
+    uint64_t scale;
+    return !fast_long_extract_parts(obj, &neg, &scale);
+}
+
 /* Access macro to the members which are floating "behind" the object */
 #define MS_PyHeapType_GET_MEMBERS(etype) \
     ((PyMemberDef *)(((char *)(etype)) + Py_TYPE(etype)->tp_basicsize))
@@ -15031,8 +15040,20 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     Py_BEGIN_CRITICAL_SECTION(obj);
     Py_ssize_t count = 0;
     while (PyDict_Next(obj, &pos, &key, &val)) {
+        /* Encoding a str key, an exact float key or an exact int key that fits
+         * in 64 bits runs no Python code */
         if (MS_LIKELY(PyUnicode_Check(key))) {
             if (json_encode_str(self, key) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_inline(self, val) < 0) goto cleanup;
+        }
+        else if (PyLong_CheckExact(key) && fast_long_fits(key)) {
+            if (json_encode_long_as_str(self, key) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_inline(self, val) < 0) goto cleanup;
+        }
+        else if (PyFloat_CheckExact(key)) {
+            if (json_encode_float_as_str(self, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
             if (json_encode_inline(self, val) < 0) goto cleanup;
         }
@@ -20985,7 +21006,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     /* See "Mutation during encoding" */
     Py_INCREF(obj);
 
-    PyObject *new_key = NULL, *new_val = NULL, *key, *val = NULL;
+    PyObject *new_key = NULL, *new_val = NULL, *key, *val, *held = NULL;
     bool ok = false;
     PyObject *out = PyDict_New();
     Py_BEGIN_CRITICAL_SECTION(obj);
@@ -20993,27 +21014,38 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
 
     Py_ssize_t pos = 0, count = 0, len = PyDict_GET_SIZE(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        /* Converting the key may run Python code that removes `val` */
-        Py_INCREF(val);
-        new_key = to_builtins(self, key, true);
-        if (new_key == NULL) goto cleanup;
-        if (self->str_keys) {
-            if (PyLong_CheckExact(new_key) || PyFloat_CheckExact(new_key)) {
-                PyObject *temp = PyObject_Str(new_key);
-                if (temp == NULL) goto cleanup;
-                Py_DECREF(new_key);
-                new_key = temp;
+        if (PyUnicode_CheckExact(key)) {
+            new_key = Py_NewRef(key);
+        }
+        else {
+            /* Converting a key other than an exact float or an exact int that
+             * fits in 64 bits may run Python code that removes `val` */
+            if (!(
+                PyFloat_CheckExact(key) ||
+                (PyLong_CheckExact(key) && fast_long_fits(key))
+            )) {
+                held = Py_NewRef(val);
             }
-            else if (!PyUnicode_CheckExact(new_key)) {
-                PyErr_SetString(
-                    PyExc_TypeError,
-                    "Only dicts with str-like or number-like keys are supported"
-                );
-                goto cleanup;
+            new_key = to_builtins(self, key, true);
+            if (new_key == NULL) goto cleanup;
+            if (self->str_keys) {
+                if (PyLong_CheckExact(new_key) || PyFloat_CheckExact(new_key)) {
+                    PyObject *temp = PyObject_Str(new_key);
+                    if (temp == NULL) goto cleanup;
+                    Py_DECREF(new_key);
+                    new_key = temp;
+                }
+                else if (!PyUnicode_CheckExact(new_key)) {
+                    PyErr_SetString(
+                        PyExc_TypeError,
+                        "Only dicts with str-like or number-like keys are supported"
+                    );
+                    goto cleanup;
+                }
             }
         }
         new_val = to_builtins(self, val, false);
-        Py_CLEAR(val);
+        Py_CLEAR(held);
         if (new_val == NULL) goto cleanup;
         if (PyDict_SetItem(out, new_key, new_val) < 0) goto cleanup;
         Py_CLEAR(new_key);
@@ -21040,7 +21072,7 @@ cleanup:;
         Py_CLEAR(out);
         Py_XDECREF(new_key);
         Py_XDECREF(new_val);
-        Py_XDECREF(val);
+        Py_XDECREF(held);
     }
     Py_DECREF(obj);
     return out;
