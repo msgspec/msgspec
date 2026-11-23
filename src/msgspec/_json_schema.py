@@ -183,6 +183,12 @@ def _get_doc(t: mi.Type) -> str:
     return doc
 
 
+def _int_key_name(value: Any) -> Any:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(int(value))
+    return value
+
+
 def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     """A mapping from nameable subcomponents to a generated name.
 
@@ -350,13 +356,12 @@ class _SchemaGenerator:
                     )
                     key_meta = key_meta.type
                 property_names.pop("type", None)
-                if "examples" in property_names:
-                    property_names["examples"] = [
-                        str(int(e))
-                        if isinstance(e, int) and not isinstance(e, bool)
-                        else e
-                        for e in property_names["examples"]
-                    ]
+                if "const" in property_names:
+                    property_names["const"] = _int_key_name(property_names["const"])
+                for name in ("enum", "examples"):
+                    values = property_names.get(name)
+                    if isinstance(values, list):
+                        property_names[name] = [_int_key_name(v) for v in values]
                 schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)

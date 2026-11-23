@@ -1518,6 +1518,18 @@ def test_dict_integer_keys_do_not_use_string_property_names():
             Annotated[int, Meta(extra_json_schema={"type": "integer", "title": "k"})],
             {"title": "k"},
         ),
+        (
+            Annotated[int, Meta(extra_json_schema={"enum": [1, -2, "x"]})],
+            {"enum": ["1", "-2", "x"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"const": 3})],
+            {"const": "3"},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"examples": 5})],
+            {"examples": 5},
+        ),
     ],
 )
 def test_dict_int_key_schema(key_type, extra):
