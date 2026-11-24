@@ -1504,7 +1504,7 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (int, Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
 
