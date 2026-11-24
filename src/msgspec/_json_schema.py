@@ -360,7 +360,7 @@ class _SchemaGenerator:
                     property_names["const"] = _int_key_name(property_names["const"])
                 for name in ("enum", "examples"):
                     values = property_names.get(name)
-                    if isinstance(values, list):
+                    if isinstance(values, (list, tuple)):
                         property_names[name] = [_int_key_name(v) for v in values]
                 schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):

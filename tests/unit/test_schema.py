@@ -1523,6 +1523,14 @@ def test_dict_integer_keys_do_not_use_string_property_names():
             {"enum": ["1", "-2", "x"]},
         ),
         (
+            Annotated[int, Meta(extra_json_schema={"enum": (1, 2)})],
+            {"enum": ["1", "2"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"examples": (4, -5)})],
+            {"examples": ["4", "-5"]},
+        ),
+        (
             Annotated[int, Meta(extra_json_schema={"const": 3})],
             {"const": "3"},
         ),
