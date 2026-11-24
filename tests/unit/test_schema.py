@@ -1486,6 +1486,54 @@ def test_dict_string_literal_key_schema(annotated):
         msgspec.json.decode(b'{"carrot": 1}', type=typ)
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+@pytest.mark.parametrize(
+    "key_type, property_names",
+    [
+        (
+            Literal["apple"] | Literal["banana"],
+            {"anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}]},
+        ),
+        (
+            Annotated[Literal["apple"], Meta(title="fruit")] | Literal["banana"],
+            {
+                "anyOf": [
+                    {"title": "fruit", "enum": ["apple"]},
+                    {"enum": ["banana"]},
+                ]
+            },
+        ),
+        (
+            Annotated[Literal["apple"] | Literal["banana"], Meta(title="fruit")]
+            | Literal["cherry"],
+            {
+                "anyOf": [
+                    {
+                        "title": "fruit",
+                        "anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}],
+                    },
+                    {"enum": ["cherry"]},
+                ]
+            },
+        ),
+    ],
+)
+def test_dict_string_union_key_schema(key_type, property_names, annotated):
+    if annotated:
+        key_type = Annotated[key_type, Meta(description="allowed keys")]
+        property_names = {"description": "allowed keys", **property_names}
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == property_names
+    assert msgspec.json.decode(b'{"apple": 1, "banana": 2}', type=typ) == {
+        "apple": 1,
+        "banana": 2,
+    }
+    with pytest.raises(msgspec.ValidationError):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
 @pytest.mark.parametrize("base", [enum.Enum, str])
 @pytest.mark.parametrize("annotated", [False, True])
 def test_dict_string_enum_key_schema(base, annotated):
@@ -1522,9 +1570,17 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (Literal[1, 2], Number):
+    for key_type in (Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
+
+
+@pytest.mark.parametrize("key_type", [Any, float, bytes])
+def test_dict_non_string_non_int_keys_have_no_property_names(key_type):
+    assert msgspec.json.schema(dict[key_type, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+    }
 
 
 @pytest.mark.parametrize(
