@@ -78,7 +78,7 @@ bench = [
   "python-rapidjson==1.25",
   "pysimdjson==7.0.2",
   "requests",
-  "ujson==6.0.0",
+  "ujson==6.1.0",
 ]
 dev = [
   "rust-just",
