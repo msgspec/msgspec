@@ -1599,7 +1599,8 @@ class TestFrozenDict:
 
 class TestSchemaCache:
     @pytest.mark.skipif(sys.platform == "emscripten", reason="Threads unavailable")
-    def test_concurrent_first_use_of_recursive_types(self):
+    @pytest.mark.parametrize("base", [TypedDict, Struct])
+    def test_concurrent_first_use_of_recursive_types(self, base):
         resolving = Event()
         resume = Event()
 
@@ -1614,8 +1615,8 @@ class TestSchemaCache:
                     assert resume.wait(timeout=10)
                 return int
 
-        class Tree(TypedDict, total=False):
-            branch: "Branch"
+        class Tree(base):
+            branch: "Branch | None"
 
         class Link(NamedTuple):
             tree: Tree
@@ -1625,9 +1626,9 @@ class TestSchemaCache:
             link: Link
             leaf: Leaf
 
-        Tree.__annotations__["branch"] = Branch
-        value = {"branch": {"link": [{}], "leaf": {"value": 1}}}
-        expected = {"branch": Branch(Link({}), Leaf(1))}
+        Tree.__annotations__["branch"] = Branch | None
+        value = {"branch": {"link": [{"branch": None}], "leaf": {"value": 1}}}
+        expected = Tree(branch=Branch(Link(Tree(branch=None)), Leaf(1)))
 
         with ThreadPoolExecutor(1) as pool:
             first = pool.submit(convert, value, Tree)
@@ -1636,7 +1637,10 @@ class TestSchemaCache:
                 # Link is built, but refers back to the unfinished Tree.
                 for cls in (Tree, Branch, Link):
                     assert "__msgspec_cache__" not in vars(cls)
-                assert convert(value, Tree) == expected
+                decoder = msgspec.json.Decoder(Tree)
+                # A second build must reach Leaf even when Tree uses a Struct slot.
+                assert "__msgspec_cache__" in vars(Leaf)
+                assert decoder.decode(msgspec.json.encode(value)) == expected
             finally:
                 resume.set()
             assert first.result(timeout=10) == expected
