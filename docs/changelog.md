@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
+  decoded from JSON or MessagePack ({issue}`714`).
 - Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
   metaclass is a subclass of `enum.EnumMeta`, which also broke
   `msgspec.json.schema` for them.
