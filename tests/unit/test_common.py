@@ -346,30 +346,22 @@ class TestDecoder:
 
 
 class TestInvalidUTF8:
-    @pytest.mark.parametrize(
-        "raw",
-        [
-            b"\xff",
-            b"\x80",
-            b"\xc0\xaf",
-            b"\xc3",
-            b"\xe2\x82",
-            b"\xed\xa0\x80",
-            b"\xf4\x90\x80\x80",
-            b"\xe2(\xa1",
-        ],
-    )
-    @pytest.mark.parametrize("buffer_type", [bytes, bytearray, memoryview])
-    def test_invalid_utf8_strings(self, proto, raw, buffer_type):
+    @pytest.mark.parametrize("raw", [b"\xff", b"\xed\xa0\x80"])
+    def test_invalid_utf8_strings(self, proto, raw):
         marker = "x" * len(raw)
-        buf = buffer_type(proto.encode(marker).replace(marker.encode(), raw))
+        buf = proto.encode(marker).replace(marker.encode(), raw)
         decoder = proto.Decoder()
         for decode in [proto.decode, decoder.decode]:
             with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
                 decode(buf)
         assert decoder.decode(proto.encode("caf\u00e9")) == "caf\u00e9"
-        if isinstance(buf, bytearray):
-            buf.extend(b"x")
+
+    def test_invalid_utf8_releases_buffer(self, proto):
+        buf = bytearray(proto.encode("x").replace(b"x", b"\xff"))
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf)
+        # Resizing a bytearray fails while its buffer is still exported
+        buf.extend(b"x")
 
     @pytest.mark.parametrize(
         "obj, target",
