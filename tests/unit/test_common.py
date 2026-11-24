@@ -1563,6 +1563,24 @@ class TestStructUnion:
         assert len(cache) == 1
         assert frozenset((Test1, Test2)) in cache
 
+    def test_failed_recursive_schema_does_not_cache_struct_union(self):
+        from msgspec._core import _struct_lookup_cache as cache
+
+        source = """
+        from msgspec import Struct
+
+        class Leaf(Struct, tag=True):
+            pass
+
+        class Node(Struct, tag=True):
+            child: "Node | Leaf"
+            bad: list | tuple
+        """
+        with temp_module(source) as mod:
+            with pytest.raises(TypeError, match="more than one array-like"):
+                msgspec.json.Decoder(mod.Node)
+            assert frozenset((mod.Node, mod.Leaf)) not in cache
+
     def test_struct_union_cache_evicted(self, proto):
         from msgspec._core import _struct_lookup_cache as cache
 
@@ -1584,7 +1602,7 @@ class TestStructUnion:
             return frozenset(typ)
 
         first = call_with_new_types()
-        assert first in cache
+        first_lookup = cache[first]
 
         # Fill up the cache
         for _ in range(MAX_CACHE_SIZE - 1):
@@ -1601,6 +1619,12 @@ class TestStructUnion:
         assert len(cache) == MAX_CACHE_SIZE
         assert first not in cache
         assert frozenset(new) in cache
+
+        # An already oversized cache must return to its limit in FIFO order.
+        cache[first] = first_lookup
+        before = list(cache)
+        latest = call_with_new_types()
+        assert list(cache) == before[2:] + [latest]
 
 
 class TestGenericStruct:
