@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Fix `msgspec.inspect.type_info` and `msgspec.json.schema` rejecting enums
-  whose metaclass is a subclass of `enum.EnumMeta`.
+- Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
+  metaclass is a subclass of `enum.EnumMeta`, which also broke
+  `msgspec.json.schema` for them.
+- Fix invalid JSON schemas containing empty `prefixItems` arrays for zero-field
+  array-like structs and named tuples.
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
   `offset` inside the buffer. An `offset` past the end of the buffer now fills
   the gap with zeros instead of leaving it uninitialized, and a failed encode no
