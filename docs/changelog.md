@@ -2,9 +2,8 @@
 
 ## Unreleased
 
-- Render non-finite float values in generated JSON Schema field defaults as
-  `null`, matching their JSON-encoded form, including nested defaults.
-
+- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
+  decoded from JSON or MessagePack ({issue}`714`).
 - Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
   metaclass is a subclass of `enum.EnumMeta`, which also broke
   `msgspec.json.schema` for them.
@@ -67,6 +66,9 @@
 - Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
   raised `TypeError` although the decoder produces such keys for
   `dict[frozendict[K, V], T]` ({issue}`1280`)
+
+- Render non-finite float values in generated JSON Schema field defaults as
+  `null`, matching their JSON-encoded form, including nested defaults.
 
 ## Version 0.22.0 (2026-09-29)
 
