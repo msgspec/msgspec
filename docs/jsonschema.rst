@@ -81,11 +81,11 @@ Example
             "tags": {
               "type": "array",
               "items": {"type": "string"},
-              "default": [],
+              "default": []
             },
             "dimensions": {
               "anyOf": [{"type": "null"}, {"$ref": "#/$defs/Dimensions"}],
-              "default": null,
+              "default": null
             }
           },
           "required": ["id", "name", "price"]
