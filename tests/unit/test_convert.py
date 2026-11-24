@@ -1007,6 +1007,33 @@ class TestSequences:
         with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
             assert convert(1, out_type)
 
+    @pytest.mark.parametrize(
+        "obj, out_annot, got",
+        [
+            ([{"a": 1}], set, "dict"),
+            ([{"a": 1}], frozenset, "dict"),
+            ([[1, 2]], set[list[int]], "list"),
+        ],
+    )
+    def test_unhashable_item(self, obj, out_annot, got):
+        """Unhashable items can't be added to a set, this should raise a
+        `ValidationError` rather than a bare `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            assert convert(obj, out_annot)
+
+    def test_unhashable_item_nested_path(self):
+        class Ex(msgspec.Struct):
+            values: set
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            convert({"values": [{"a": 1}]}, Ex)
+
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     @pytest.mark.skipif(
         PY312,
@@ -1215,6 +1242,26 @@ class TestDict:
             ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
         ):
             convert(dictcls({"x": 1}), dict[int, str])
+
+    def test_unhashable_key(self, dictcls):
+        """A key that converts to an unhashable value can't be added to the
+        output dict, this should raise a `ValidationError` rather than a bare
+        `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$`",
+        ):
+            convert(dictcls({(1, 2): 0}), dict[list[int], int])
+
+    def test_unhashable_key_nested_path(self):
+        class Ex(Struct):
+            values: dict[list[int], int]
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$\.values`",
+        ):
+            convert({"values": {(1, 2): 0}}, Ex)
 
     def test_dict_wrong_type(self):
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
@@ -2527,6 +2574,23 @@ class TestStructUnion:
         with pytest.raises(ValidationError, match="got `Ex3`"):
             convert(Ex3(1), typ)
 
+    def test_struct_union_tag_lookup_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("type")
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        class Ex1(Struct, tag=True):
+            x: int
+
+        class Ex2(Struct, tag=True):
+            x: int
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            convert({Key(): "Ex1", "x": 1}, Ex1 | Ex2)
+
 
 class TestGenericStruct:
     @mapcls_from_attributes_and_array_like
@@ -2926,6 +2990,99 @@ class TestLax:
 
 
 class TestCustom:
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_custom_dict_keys(self, dictcls, strict, str_keys):
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            calls.append(x)
+            return complex(x)
+
+        msg = dictcls({"1+2j": True, "3+4j": False})
+        res = convert(
+            msg,
+            dict[complex, bool],
+            strict=strict,
+            str_keys=str_keys,
+            dec_hook=dec_hook,
+        )
+        assert res == {complex(1, 2): True, complex(3, 4): False}
+        assert calls == ["1+2j", "3+4j"]
+        assert dict(msg) == {"1+2j": True, "3+4j": False}
+
+    def test_generic_custom_dict_keys(self, dictcls):
+        class Custom(Generic[T]):
+            def __init__(self, value):
+                self.value = value
+
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ == Custom[str]
+            calls.append(x)
+            return Custom(x)
+
+        res = convert(dictcls({"x": 1}), dict[Custom[str], int], dec_hook=dec_hook)
+        (key,) = res
+        assert type(key) is Custom
+        assert key.value == "x"
+        assert res[key] == 1
+        assert calls == ["x"]
+
+    def test_custom_dict_str_subclass_keys(self, dictcls):
+        class Str(str):
+            pass
+
+        key = Str("1+2j")
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            assert x is key
+            calls.append(x)
+            return complex(x)
+
+        assert convert(dictcls({key: 1}), dict[complex, int], dec_hook=dec_hook) == {
+            complex(1, 2): 1
+        }
+        assert calls == [key]
+
+    def test_custom_dict_existing_keys(self, dictcls):
+        key = complex(1, 2)
+        res = convert(dictcls({key: 1}), dict[complex, int])
+        assert res == {key: 1}
+        assert next(iter(res)) is key
+
+    @pytest.mark.parametrize("with_hook", [False, True])
+    def test_custom_dict_keys_wrong_type(self, dictcls, with_hook):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        hook = (lambda typ, x: x) if with_hook else None
+        with pytest.raises(ValidationError) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=hook)
+        assert str(rec.value) == "Expected `complex`, got `str` - at `key` in `$.value`"
+
+    @pytest.mark.parametrize("err_cls", [TypeError, ValueError, RuntimeError])
+    def test_custom_dict_keys_hook_errors(self, dictcls, err_cls):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            raise err_cls("Oops!")
+
+        expected = ValidationError if err_cls in (TypeError, ValueError) else err_cls
+        with pytest.raises(expected) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=dec_hook)
+        if expected is ValidationError:
+            assert str(rec.value) == "Oops! - at `key` in `$.value`"
+            assert type(rec.value.__cause__) is err_cls
+        else:
+            assert str(rec.value) == "Oops!"
+
     def test_custom(self):
         def dec_hook(typ, x):
             assert typ is complex

@@ -197,20 +197,48 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     def fullname(cls):
         return normalize(f"{cls.__module__}.{cls.__qualname__}")
 
-    conflicts = set()
-    names: dict[str, Any] = {}
+    short_names = {cls: normalize(_get_class_name(cls)) for cls in component_types}
+    counts: dict[str, int] = {}
+    for name in short_names.values():
+        counts[name] = counts.get(name, 0) + 1
+    preferred = {
+        cls: fullname(cls) if counts[name] > 1 else name
+        for cls, name in short_names.items()
+    }
+    # Distinct classes created by a factory can share a full import path.
+    # Reserve preferred names before adding suffixes, so generated names cannot
+    # displace another component.
+    reserved = set(preferred.values())
+    used = set()
+    names = {}
+    for cls, name in preferred.items():
+        candidate = name
+        suffix = 2
+        if candidate in used:
+            while True:
+                candidate = f"{name}_{suffix}"
+                suffix += 1
+                if candidate not in used and candidate not in reserved:
+                    break
+        names[cls] = candidate
+        used.add(candidate)
+    return names
 
-    for cls in component_types:
-        name = normalize(_get_class_name(cls))
-        if name in names:
-            old = names.pop(name)
-            conflicts.add(name)
-            names[fullname(old)] = old
-        if name in conflicts:
-            names[fullname(cls)] = cls
-        else:
-            names[name] = cls
-    return {v: k for k, v in names.items()}
+
+def _is_string_key_type(t: mi.Type) -> bool:
+    while isinstance(t, mi.Metadata):
+        t = t.type
+    if isinstance(t, mi.StrType):
+        return True
+    if isinstance(t, mi.LiteralType):
+        return all(isinstance(value, str) for value in t.values)
+    if isinstance(t, mi.EnumType):
+        return all(
+            isinstance(member.value, str) for member in t.cls.__members__.values()
+        )
+    if isinstance(t, mi.UnionType):
+        return all(_is_string_key_type(subtype) for subtype in t.types)
+    return False
 
 
 class _SchemaGenerator:
@@ -311,19 +339,7 @@ class _SchemaGenerator:
         elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             schema["type"] = "object"
             # If keys have schema metadata or constraints, include them as propertyNames
-            key_type = t.key_type
-            while isinstance(key_type, mi.Metadata):
-                key_type = key_type.type
-            if (
-                isinstance(key_type, mi.StrType)
-                or isinstance(key_type, mi.LiteralType)
-                and all(isinstance(value, str) for value in key_type.values)
-                or isinstance(key_type, mi.EnumType)
-                and all(
-                    isinstance(member.value, str)
-                    for member in key_type.cls.__members__.values()
-                )
-            ):
+            if _is_string_key_type(t.key_type):
                 property_names = self.to_schema(t.key_type)
                 # Object property names are always strings, so omit the redundant type
                 property_names.pop("type", None)
@@ -430,7 +446,8 @@ class _SchemaGenerator:
                         break
                     n_trailing_defaults += 1
                 schema["type"] = "array"
-                schema["prefixItems"] = fields
+                if fields:
+                    schema["prefixItems"] = fields
                 schema["minItems"] = len(fields) - n_trailing_defaults
                 if t.forbid_unknown_fields:
                     schema["maxItems"] = len(fields)
@@ -461,7 +478,8 @@ class _SchemaGenerator:
                 fields.append(field_schema)
             if isinstance(t, mi.NamedTupleType):
                 schema["type"] = "array"
-                schema["prefixItems"] = fields
+                if fields:
+                    schema["prefixItems"] = fields
                 schema["minItems"] = len(required)
                 schema["maxItems"] = len(fields)
             else:
@@ -473,7 +491,7 @@ class _SchemaGenerator:
         elif isinstance(t, mi.CustomType):
             if self.schema_hook:
                 try:
-                    schema = mi._merge_json(self.schema_hook(t.cls), schema)
+                    schema = mi._merge_json(self.schema_hook(t.cls).copy(), schema)
                 except NotImplementedError:
                     pass
             if not schema:

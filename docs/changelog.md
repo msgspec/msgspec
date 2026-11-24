@@ -4,8 +4,27 @@
 
 - Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
   decoded from JSON or MessagePack ({issue}`714`).
+- Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
+  metaclass is a subclass of `enum.EnumMeta`, which also broke
+  `msgspec.json.schema` for them.
+- Fix invalid JSON schemas containing empty `prefixItems` arrays for zero-field
+  array-like structs and named tuples.
+- Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
+  `offset` inside the buffer. An `offset` past the end of the buffer now fills
+  the gap with zeros instead of leaving it uninitialized, and a failed encode no
+  longer leaves the buffer's old contents past the written output.
+- Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
+  raising `TypeError`, preserving constraints and schema metadata.
+- Fix decoding ISO 8601 durations with very large day counts, which could
+  overflow and return an incorrect `timedelta` or raise `OverflowError` instead
+  of `ValidationError`.
+- Fix JSON Schema generation for distinct types sharing the same module and
+  qualified name, such as dynamically generated structs.
 - Include string Literal and Enum dictionary key constraints in generated JSON
   Schema `propertyNames`.
+- Fix encoding of `datetime` and `time` values whose UTC offset is within a
+  minute of +/-24 hours. These were written as `Z`, moving the instant by a
+  full day; they now round to the closest valid offset (`+23:59`/`-23:59`).
 - Fix JSON Schema references for dynamically defined types with empty names,
   including recursive types that previously raised `RecursionError`.
 - Fix generic `TypedDict` subclasses dropping the base type argument, so
@@ -38,6 +57,10 @@
   and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
 - Fix a possible crash when `Meta(pattern='...')`
   was used in loops ({pr}`1256`)
+- Fix a possible crash with `defstruct` with empty `module=`
+  and complex typing forms ({pr}`1271`)
+- Fix a possible crash when iterating over `@dataclass` instances
+  with complex `__dict__` objects ({pr}`1271`)
 - Fix a possible crash when too big ints are passed
   into `Meta`'s constructor ({pr}`1260`)
 - Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which

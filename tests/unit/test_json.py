@@ -290,11 +290,17 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, 2)
         assert buf == b"01" + encoded
 
-        # Offset out of bounds extends
+        # Offset out of bounds extends, filling the gap with zeros
         buf = bytearray(b"01234")
         enc.encode_into(msg, buf, 10)
-        assert buf[:5] == b"01234"
-        assert buf[10:] == encoded
+        assert buf == b"01234" + bytes(5) + encoded
+
+        # Offset in bounds doesn't shrink the buffer capacity
+        buf = bytearray(1000)
+        capacity = buf.__sizeof__()
+        enc.encode_into(msg, buf, 4)
+        assert buf == bytes(4) + encoded
+        assert buf.__sizeof__() == capacity
 
         # Offset -1 means append at end
         buf = bytearray(b"01234")
@@ -315,6 +321,20 @@ class TestEncoderMisc:
         # Encoder still works
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
+
+    @pytest.mark.parametrize("msg", [object(), [1, 2, object()]])
+    def test_encode_into_offset_error_hides_stale_bytes(self, msg):
+        enc = msgspec.json.Encoder()
+        prefix = enc.encode(0)
+        buf = bytearray(b"Z" * 256)
+        enc.encode_into(0, buf)
+        assert buf == prefix
+
+        # An error after extending the buffer doesn't expose its old contents
+        with pytest.raises(TypeError):
+            enc.encode_into(msg, buf, 20)
+        assert buf.startswith(prefix + bytes(20 - len(prefix)))
+        assert b"Z" not in buf
 
     @pytest.mark.parametrize("n", range(3))
     @pytest.mark.parametrize("iterable", [False, True])
@@ -819,10 +839,6 @@ class TestDatetime:
         "offset",
         [
             datetime.timedelta(0),
-            datetime.timedelta(days=1, microseconds=-1),
-            datetime.timedelta(days=-1, microseconds=1),
-            datetime.timedelta(days=1, seconds=-29),
-            datetime.timedelta(days=-1, seconds=29),
             datetime.timedelta(days=0, seconds=30),
             datetime.timedelta(days=0, seconds=-30),
         ],
@@ -848,6 +864,22 @@ class TestDatetime:
                 datetime.timedelta(minutes=19, seconds=32, microseconds=130000),
                 b'"1234-12-31T14:56:27.123456+00:20"',
             ),
+            (
+                datetime.timedelta(days=1, seconds=-29),
+                b'"1234-12-31T14:56:27.123456+23:59"',
+            ),
+            (
+                datetime.timedelta(days=-1, seconds=29),
+                b'"1234-12-31T14:56:27.123456-23:59"',
+            ),
+            (
+                datetime.timedelta(days=1, microseconds=-1),
+                b'"1234-12-31T14:56:27.123456+23:59"',
+            ),
+            (
+                datetime.timedelta(days=-1, microseconds=1),
+                b'"1234-12-31T14:56:27.123456-23:59"',
+            ),
         ],
     )
     def test_encode_datetime_offset_rounds_to_nearest_minute(self, offset, expected):
@@ -855,6 +887,21 @@ class TestDatetime:
         x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
         s = msgspec.json.encode(x)
         assert s == expected
+
+    @pytest.mark.parametrize(
+        "offset",
+        [
+            datetime.timedelta(days=1, seconds=-15),
+            datetime.timedelta(days=-1, seconds=15),
+            datetime.timedelta(days=1, microseconds=-1),
+            datetime.timedelta(days=-1, microseconds=1),
+        ],
+    )
+    def test_encode_datetime_offset_near_24_hours(self, offset):
+        x = datetime.datetime(2020, 1, 1, 12, tzinfo=datetime.timezone(offset))
+        res = msgspec.json.decode(msgspec.json.encode(x), type=datetime.datetime)
+        # The closest valid offset is +/-23:59, so the error stays under a minute
+        assert abs(res - x) < datetime.timedelta(minutes=1)
 
     def test_encode_datetime_zoneinfo(self):
         import zoneinfo
@@ -1037,6 +1084,10 @@ class TestDatetime:
             b'"0001-02-03T04:05:06.000007Z0"',
             b'"0001-02-03T04:05:06a"',
             b'"0001-02-03T04:05:06.000007a"',
+            # NUL byte
+            b'"0001-02-03T04:05:06\\u0000"',
+            b'"0001-02-03T04:05:06\\u0000Z"',
+            b'"0001-02-03T04:05:06.000007\\u0000+05:00"',
             # Truncated
             b'"0001-02-03T04:05:"',
             # Missing +/-
@@ -1276,6 +1327,37 @@ class TestLiteral:
 
 
 class TestFloat:
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("exponent", range(-343, -306))
+    @pytest.mark.parametrize(
+        "mantissa",
+        ["0", "1", "2", "5", "99", "1234567890123456789", "9999999999999999999"],
+    )
+    def test_decode_small_float_shared_paths(self, sign, exponent, mantissa):
+        text = f"{sign}{mantissa}e{exponent}"
+        expected = float(text).hex()
+        assert msgspec.json.decode(text).hex() == expected
+        assert msgspec.json.decode(text, type=float).hex() == expected
+        key = next(
+            iter(msgspec.json.decode(f'{{"{text}": null}}', type=dict[float, None]))
+        )
+        assert key.hex() == expected
+        assert msgspec.convert(text, type=float, strict=False).hex() == expected
+        assert msgspec.json.decode(text, type=Decimal) == Decimal(text)
+        assert msgspec.json.Decoder(float_hook=str).decode(text) == text
+
+    @pytest.mark.parametrize("sign", ["", "-"])
+    @pytest.mark.parametrize("lower", [0, 1, 2, 2**51 - 1, 2**52 - 1, 2**52])
+    def test_decode_subnormal_rounding_boundaries(self, sign, lower):
+        # Exact decimal halfway between adjacent multiples of 2**-1074, plus
+        # neighbours one decimal digit below/above it. No Decimal context rounding.
+        halfway = (2 * lower + 1) * 5**1075
+        for offset in [-1, 0, 1]:
+            text = f"{sign}{halfway + offset}e-1075"
+            expected = float(text).hex()
+            assert msgspec.json.decode(text).hex() == expected
+            assert msgspec.convert(text, type=float, strict=False).hex() == expected
+
     @pytest.mark.parametrize(
         "x",
         [
@@ -1877,6 +1959,16 @@ class TestSequences:
         assert dec.decode(b"[]") == frozenset()
         assert dec.decode(b"[1]") == frozenset({1})
         assert dec.decode(b"[1,2]") == frozenset({1, 2})
+
+    @pytest.mark.parametrize("type", [set, frozenset, set[list[int]]])
+    def test_decode_unhashable_item(self, type):
+        """JSON arrays decode as lists, which can't be added to a set. This
+        should raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected a hashable value, got `list` - at `\$\[0\]`",
+        ):
+            msgspec.json.decode(b"[[1, 2]]", type=type)
 
     def test_decode_typed_vartuple(self):
         dec = msgspec.json.Decoder(tuple[int, ...])
@@ -3202,6 +3294,15 @@ class TestRaw:
 
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+    def test_struct_broken_annotations(self):
+        class BrokenAnnotations(msgspec.Struct):
+            x: int
+
+        BrokenAnnotations.__annotations__ = {}
+
+        with pytest.raises(TypeError, match="__annotations__"):
+            msgspec.json.decode(b'{"x": 1}', type=BrokenAnnotations)
 
 
 class TestFormat:

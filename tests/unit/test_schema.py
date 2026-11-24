@@ -38,6 +38,9 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+
+PY311 = sys.version_info[:2] >= (3, 11)
+
 T = TypeVar("T")
 
 
@@ -82,6 +85,53 @@ def test_custom_schema_hook():
 
     with pytest.raises(TypeError, match="Generating JSON schema for custom types"):
         msgspec.json.schema(slice, schema_hook=schema_hook)
+
+
+@pytest.mark.parametrize("kind", ["struct", "dataclass", "namedtuple"])
+def test_custom_schema_hook_shared_defaults(kind):
+    class CustomUUID(uuid.UUID):
+        pass
+
+    first = CustomUUID(int=1)
+    second = CustomUUID(int=2)
+    if kind == "struct":
+
+        class Example(msgspec.Struct):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    elif kind == "dataclass":
+
+        @dataclass
+        class Example:
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    else:
+
+        class Example(NamedTuple):
+            a: CustomUUID = first
+            b: CustomUUID = second
+
+    shared = {"type": "string", "format": "uuid"}
+
+    def schema_hook(cls):
+        assert cls is CustomUUID
+        return shared
+
+    result = msgspec.json.schema(Example, schema_hook=schema_hook)
+    component = result["$defs"]["Example"]
+    fields = (
+        component["prefixItems"]
+        if kind == "namedtuple"
+        else list(component["properties"].values())
+    )
+    assert fields == [
+        {"type": "string", "format": "uuid", "default": str(first)},
+        {"type": "string", "format": "uuid", "default": str(second)},
+    ]
+    assert shared == {"type": "string", "format": "uuid"}
+    assert msgspec.json.schema(CustomUUID, schema_hook=schema_hook) == shared
 
 
 def test_none():
@@ -279,6 +329,25 @@ def test_abstract_mapping():
 
 def test_int_enum():
     class Example(enum.IntEnum):
+        C = 1
+        B = 3
+        A = 2
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
         C = 1
         B = 3
         A = 2
@@ -538,6 +607,31 @@ def test_struct_array_like_all_fields_optional(tag, min_items, payload):
     assert schema["minItems"] == min_items
 
 
+@pytest.mark.parametrize("tag", [False, True])
+@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+def test_struct_array_like_no_fields(tag, forbid_unknown_fields):
+    class Example(
+        msgspec.Struct,
+        array_like=True,
+        tag=tag,
+        forbid_unknown_fields=forbid_unknown_fields,
+    ):
+        pass
+
+    expected = {"title": "Example", "type": "array", "minItems": int(tag)}
+    if tag:
+        expected["prefixItems"] = [{"enum": ["Example"]}]
+    if forbid_unknown_fields:
+        expected["maxItems"] = int(tag)
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    payload = b'["Example"]' if tag else b"[]"
+    assert msgspec.json.decode(payload, type=Example) == Example()
+
+
 def test_struct_no_fields():
     class Example(msgspec.Struct):
         pass
@@ -699,6 +793,24 @@ def test_collections_namedtuple():
             }
         },
     }
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_namedtuple_no_fields(typed):
+    if typed:
+
+        class Example(NamedTuple):
+            pass
+
+    else:
+        Example = namedtuple("Example", [])
+
+    expected = {"title": "Example", "type": "array", "minItems": 0, "maxItems": 0}
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    assert msgspec.json.decode(b"[]", type=Example) == Example()
 
 
 def test_generic_namedtuple():
@@ -1373,6 +1485,54 @@ def test_dict_string_literal_key_schema(annotated):
         msgspec.json.decode(b'{"carrot": 1}', type=typ)
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+@pytest.mark.parametrize(
+    "key_type, property_names",
+    [
+        (
+            Literal["apple"] | Literal["banana"],
+            {"anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}]},
+        ),
+        (
+            Annotated[Literal["apple"], Meta(title="fruit")] | Literal["banana"],
+            {
+                "anyOf": [
+                    {"title": "fruit", "enum": ["apple"]},
+                    {"enum": ["banana"]},
+                ]
+            },
+        ),
+        (
+            Annotated[Literal["apple"] | Literal["banana"], Meta(title="fruit")]
+            | Literal["cherry"],
+            {
+                "anyOf": [
+                    {
+                        "title": "fruit",
+                        "anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}],
+                    },
+                    {"enum": ["cherry"]},
+                ]
+            },
+        ),
+    ],
+)
+def test_dict_string_union_key_schema(key_type, property_names, annotated):
+    if annotated:
+        key_type = Annotated[key_type, Meta(description="allowed keys")]
+        property_names = {"description": "allowed keys", **property_names}
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == property_names
+    assert msgspec.json.decode(b'{"apple": 1, "banana": 2}', type=typ) == {
+        "apple": 1,
+        "banana": 2,
+    }
+    with pytest.raises(msgspec.ValidationError):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
 @pytest.mark.parametrize("base", [enum.Enum, str])
 @pytest.mark.parametrize("annotated", [False, True])
 def test_dict_string_enum_key_schema(base, annotated):
@@ -1409,7 +1569,7 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (int, Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
 
@@ -1552,6 +1712,78 @@ def test_component_names_collide():
             "type": "object",
         },
     }
+
+
+@pytest.mark.parametrize("ref_template", ["#/$defs/{name}", "#/components/{name}"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_component_names_collide_in_same_module(ref_template, reverse):
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    third = msgspec.defstruct("Response", [("value", bool)])
+    cases = [(first, 1, "integer"), (second, "ok", "string"), (third, True, "boolean")]
+    if reverse:
+        cases.reverse()
+    types = [case[0] for case in cases]
+    schemas, components = msgspec.json.schema_components(
+        types, ref_template=ref_template
+    )
+    assert len(components) == 3
+    assert len({schema["$ref"] for schema in schemas}) == 3
+    for (cls, value, expected_type), schema in zip(cases, schemas):
+        encoded = msgspec.json.encode(cls(value))
+        assert msgspec.json.decode(encoded, type=cls) == cls(value)
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected_type}
+    assert msgspec.json.schema_components(types, ref_template=ref_template) == (
+        schemas,
+        components,
+    )
+
+
+def test_component_names_collide_with_reserved_suffix():
+    first = msgspec.defstruct("Response", [("value", int)])
+    second = msgspec.defstruct("Response", [("value", str)])
+    # A normal class in the same module already needs the generated suffix.
+    third = msgspec.defstruct("Response_2", [("value", bool)])
+    fourth = msgspec.defstruct("Response_2", [("value", float)])
+    types = [first, second, third, fourth]
+    schemas, components = msgspec.json.schema_components(types)
+    assert len(components) == 4
+    assert len({schema["$ref"] for schema in schemas}) == 4
+    for schema, expected in zip(schemas, ["integer", "string", "boolean", "number"]):
+        name = schema["$ref"].rsplit("/", 1)[1]
+        assert components[name]["properties"]["value"] == {"type": expected}
+    assert schemas[2]["$ref"] == f"#/$defs/{third.__module__}.Response_2"
+
+
+def test_component_names_collide_recursive_union():
+    source = """
+    import msgspec
+    ResponseA = msgspec.defstruct(
+        "Response", [("value", int), ("child", "ResponseA | None", None)], tag="a"
+    )
+    ResponseB = msgspec.defstruct(
+        "Response", [("value", str), ("child", "ResponseB | None", None)], tag="b"
+    )
+    """
+    with temp_module(source) as mod:
+        typ = mod.ResponseA | mod.ResponseB
+        schema = msgspec.json.schema(typ)
+        refs = [item["$ref"] for item in schema["anyOf"]]
+        assert len(set(refs)) == 2
+        assert len(schema["$defs"]) == 2
+        for cls, tag, value, ref in zip(
+            [mod.ResponseA, mod.ResponseB], ["a", "b"], [1, "ok"], refs
+        ):
+            obj = cls(value, cls(value))
+            assert msgspec.json.decode(msgspec.json.encode(obj), type=typ) == obj
+            component = schema["$defs"][ref.rsplit("/", 1)[1]]
+            assert component["properties"]["type"] == {"enum": [tag]}
+            assert component["properties"]["child"]["anyOf"] == [
+                {"$ref": ref},
+                {"type": "null"},
+            ]
+            assert schema["discriminator"]["mapping"][tag] == ref
 
 
 def test_schema_components_collects_subtypes():
