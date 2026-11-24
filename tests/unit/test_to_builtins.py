@@ -364,6 +364,14 @@ class TestToBuiltins:
         assert msg == {"test": 1}
         assert type(list(msg.keys())[0]) is str
 
+    def test_dict_str_key_refcount(self):
+        # Unlike a literal, a str built at runtime is not immortal
+        key = "".join(["k", "ey"])
+        data = {key: 1}
+        count = sys.getrefcount(key)
+        assert to_builtins(data) == {"key": 1}
+        assert sys.getrefcount(key) == count
+
     def test_dict_unsupported_key(self):
         msg = {Bad(): 1}
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):

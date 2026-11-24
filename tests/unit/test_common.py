@@ -666,6 +666,17 @@ class TestEnum:
         sol = proto.encode({1.5: 1})
         assert res == sol
 
+    def test_encode_frozenset_mixin(self, proto):
+        class Ex(frozenset, enum.Enum):
+            def __new__(cls, value):
+                obj = frozenset.__new__(cls, (value,))
+                obj._value_ = value
+                return obj
+
+            A = 2
+
+        assert proto.encode(Ex.A) == proto.encode(2)
+
     def test_decode_complex_errors(self, proto):
         class Complex(enum.Enum):
             A = 1.5
@@ -5481,6 +5492,39 @@ class TestSet:
 
         assert all(ref() is None for ref in refs)
 
+    def test_encode_set_changed_size(self, proto):
+        class Ex:
+            pass
+
+        items = {Ex(), Ex()}
+
+        def enc_hook(obj):
+            items.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="Set changed size during iteration"):
+            proto.encode(items, enc_hook=enc_hook)
+
+    def test_msgpack_encode_set_changed_same_size(self):
+        class Ex:
+            def __init__(self, x):
+                self.x = x
+
+            def __hash__(self):
+                return self.x
+
+        # Fixed hashes make the iteration order deterministic. The refilled
+        # items follow the current position, so 3 items are iterated.
+        items = {Ex(0), Ex(1)}
+
+        def enc_hook(obj):
+            items.clear()
+            items.update({5, 6})
+            return 1
+
+        with pytest.raises(RuntimeError, match="set changed during encoding"):
+            msgspec.msgpack.encode(items, enc_hook=enc_hook)
+
     @pytest.mark.parametrize("type", [set, frozenset])
     def test_decode_unhashable_item(self, proto, type):
         """Unhashable items can't be added to a set. This should raise a
@@ -5502,6 +5546,305 @@ class TestSet:
             match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
         ):
             proto.decode(msg, type=Ex)
+
+
+class TestMutationDuringEncode:
+    """Objects modified while they are being encoded, mostly from `enc_hook`"""
+
+    class Item:
+        pass
+
+    class List(list):
+        pass
+
+    class Dict(dict):
+        pass
+
+    @pytest.fixture(params=["json", "msgpack", "to_builtins"])
+    def encode(self, request):
+        if request.param == "to_builtins":
+            return msgspec.to_builtins
+        return getattr(msgspec, request.param).encode
+
+    def test_list_shrinks(self, encode):
+        items = [self.Item(), self.Item()]
+
+        def enc_hook(obj):
+            items.clear()
+            return 1
+
+        with pytest.raises(RuntimeError, match="list changed size during encoding"):
+            encode(items, enc_hook=enc_hook)
+
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    @pytest.mark.parametrize("kind", ["list", "dict", "struct", "array_like", "tuple"])
+    def test_value_removed_from_parent(self, encode, kind, order):
+        if kind == "list":
+            value, sol = self.List([self.Item()]), [1]
+        elif kind == "dict":
+            value, sol = self.Dict(x=self.Item()), {"x": 1}
+        elif kind == "struct":
+            value = msgspec.defstruct("Ex", ["x"], weakref=True)(self.Item())
+            sol = {"x": 1}
+        elif kind == "array_like":
+            Ex = msgspec.defstruct("Ex", ["x"], weakref=True, array_like=True)
+            value, sol = Ex(self.Item()), [1]
+        else:
+            value, sol = (self.Item(), self.List([2])), (1, [2])
+        # A tuple can't be weakly referenced, but its item is freed along with it
+        ref = weakref.ref(value[1] if kind == "tuple" else value)
+        parent = [value]
+        del value
+
+        def enc_hook(obj):
+            parent.clear()
+            gc.collect()
+            assert ref() is not None
+            return 1
+
+        assert encode(parent, enc_hook=enc_hook, order=order) == encode([sol])
+
+    @pytest.mark.parametrize("order", [None, "sorted"])
+    def test_set_removed_from_parent(self, encode, order):
+        alive = []
+
+        class Set(set):
+            def __iter__(self):
+                items = list(set.__iter__(self))
+                parent.clear()
+
+                def gen():
+                    alive.append(ref() is not None)
+                    yield from items
+
+                return gen()
+
+        value = Set([1, 2])
+        ref = weakref.ref(value)
+        parent = [value]
+        del value
+
+        assert encode(parent, order=order) == encode([[1, 2]])
+        assert alive == [True]
+
+    def test_sorted_struct_field_reassigned(self, proto):
+        obj = msgspec.defstruct("Ex", ["a", "b"])(self.Item(), self.List([2]))
+
+        def enc_hook(item):
+            obj.b = None
+            gc.collect()
+            return 1
+
+        # Fields are read when they are encoded, as without `order`
+        res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
+        assert res == proto.encode({"a": 1, "b": None})
+
+    def test_sorted_struct_class_reassigned(self, proto):
+        class Base(msgspec.Struct, tag=True):
+            a: object
+
+        def make_sub():
+            # Unlike a literal, a tag built at runtime is freed along with `Sub`
+            class Sub(Base, tag="".join(["s", "u", "b"])):
+                pass
+
+            return Sub
+
+        # `obj` holds the only reference to `Sub`
+        obj = make_sub()(self.Item())
+
+        def enc_hook(item):
+            obj.__class__ = Base
+            gc.collect()
+            return 1
+
+        res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
+        assert res == proto.encode({"a": 1, "type": "sub"})
+
+    @pytest.mark.skipif(attrs is None, reason="attrs not installed")
+    def test_sorted_field_reassigned(self, proto):
+        cls = attrs.make_class("Ex", ["a", "b"], slots=True)
+        obj = cls(self.Item(), self.List([2]))
+        ref = weakref.ref(obj.b)
+
+        def enc_hook(item):
+            obj.b = None
+            gc.collect()
+            assert ref() is not None
+            return 1
+
+        res = proto.encode(obj, enc_hook=enc_hook, order="sorted")
+        assert res == proto.encode({"a": 1, "b": [2]})
+
+    def test_sorted_dict_key_removed(self, proto):
+        class Key(str):
+            pass
+
+        key = Key("b")
+        ref = weakref.ref(key)
+        data = {"a": self.Item(), key: 1}
+        del key
+
+        def enc_hook(obj):
+            data.clear()
+            gc.collect()
+            assert ref() is not None
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            proto.encode(data, enc_hook=enc_hook, order="sorted")
+
+    def test_sorted_dataclass_fields_added(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: int
+
+        def get_b(self):
+            Ex.__dataclass_fields__.update(c=None, d=None)
+            return 2
+
+        # `c` and `d` are only in `__dict__`, reading `b` adds them to the fields
+        Ex.b = property(get_b)
+        obj = Ex.__new__(Ex)
+        obj.__dict__.update(a=1, c=3, d=3)
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            proto.encode(obj, order="sorted")
+
+    def test_list_appended_items_not_encoded(self, encode):
+        items = [self.Item(), self.Item()]
+
+        def enc_hook(obj):
+            items.append(0)
+            return 1
+
+        assert encode(items, enc_hook=enc_hook) == encode([1, 1])
+
+    def test_dict_changed_size(self, encode):
+        data = {"a": self.Item(), "b": 1}
+
+        def enc_hook(obj):
+            data.clear()
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            encode(data, enc_hook=enc_hook)
+
+    def test_dict_keys_changed(self, encode):
+        data = {"a": self.Item(), "b": 2}
+
+        def enc_hook(obj):
+            del data["a"]
+            data["c"] = 3
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary keys changed during encoding"
+        ):
+            encode(data, enc_hook=enc_hook)
+
+    def test_dict_key_hook_removes_value(self, encode):
+        class Key:
+            pass
+
+        data = {Key(): [self.Item(), self.Item()]}
+
+        def enc_hook(obj):
+            data.clear()
+            return "key" if isinstance(obj, Key) else 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            encode(data, enc_hook=enc_hook)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Large ints are converted to str by Python code since 3.12",
+    )
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_large_int_key_removes_value(self, str_keys, monkeypatch):
+        import _pylong
+
+        orig_max_digits = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(0)
+        try:
+            key = 10**20000
+            str_key = str(key)
+            value = self.List([1])
+            ref = weakref.ref(value)
+            data = {key: value}
+            del value
+            int_to_decimal_string = _pylong.int_to_decimal_string
+            calls = []
+
+            def hook(n):
+                calls.append(n)
+                data[key] = None
+                assert ref() is not None
+                return int_to_decimal_string(n)
+
+            monkeypatch.setattr(_pylong, "int_to_decimal_string", hook)
+            if str_keys:
+                assert msgspec.to_builtins(data, str_keys=True) == {str_key: [1]}
+            else:
+                assert msgspec.json.encode(data) == b'{"%s":[1]}' % str_key.encode()
+            assert calls
+        finally:
+            sys.set_int_max_str_digits(orig_max_digits)
+
+    @pytest.mark.parametrize("kind", ["struct", "attrs"])
+    def test_field_reassigned(self, encode, kind):
+        if kind == "struct":
+            cls = msgspec.defstruct("Ex", ["x"])
+        else:
+            if attrs is None:
+                pytest.skip(reason="attrs not installed")
+            cls = attrs.make_class("Ex", ["x"], slots=False)
+
+        obj = cls([self.Item(), self.Item()])
+
+        def enc_hook(item):
+            obj.x = None
+            return 1
+
+        assert encode(obj, enc_hook=enc_hook) == encode({"x": [1, 1]})
+
+    def test_datetime_tzinfo_removes_value(self, encode):
+        items = []
+
+        class TZ(datetime.tzinfo):
+            def __getattribute__(self, name):
+                if name == "utcoffset":
+                    items.clear()
+                return object.__getattribute__(self, name)
+
+            def utcoffset(self, dt):
+                return timedelta(hours=dt.month)
+
+        items.append(datetime.datetime(2024, 1, 1, tzinfo=TZ()))
+        tz = datetime.timezone(timedelta(hours=1))
+        assert encode(items) == encode([datetime.datetime(2024, 1, 1, tzinfo=tz)])
+
+    @pytest.mark.skipif(attrs is None, reason="attrs not installed")
+    def test_object_dict_changed_size(self, encode):
+        obj = attrs.make_class("Ex", ["x"], slots=False)(self.Item())
+
+        def enc_hook(item):
+            obj.y = 1
+            return 1
+
+        with pytest.raises(
+            RuntimeError, match="dictionary changed size during encoding"
+        ):
+            encode(obj, enc_hook=enc_hook)
 
 
 class TestOrder:
@@ -5684,6 +6027,13 @@ class TestOrder:
         sol = proto.encode({"x": -1, "z": 10})
         assert res == sol
 
+    def test_order_struct_tag_field_escaped(self):
+        class Ex(Struct, tag_field='a"b', tag="t"):
+            x: int
+
+        res = msgspec.json.encode(Ex(1), order="sorted")
+        assert res == msgspec.json.encode({'a"b': "t", "x": 1})
+
     def test_order_struct_tag(self, proto):
         class Ex(Struct, tag_field="y", tag=2):
             z: int
@@ -5692,6 +6042,35 @@ class TestOrder:
         res = proto.encode(Ex(0, 1), order="sorted")
         sol = proto.encode({"x": 1, "y": 2, "z": 0})
         assert res == sol
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_order_struct_many_fields(self, rand, tag, proto):
+        # 16 fields, the size at which msgpack switches to a longer map header
+        names = [f"x_{i}" for i in range(12)] + ["a", "ab", "é", "z"]
+        rand.shuffle(names)
+        kwargs = {"tag_field": "m", "tag": "t"} if tag else {}
+        fields = [(name, int, 0) for name in names]
+        cls = msgspec.defstruct("Test", fields, omit_defaults=True, **kwargs)
+        tag_items = {"m": "t"} if tag else {}
+
+        values = range(1, len(names) + 1)
+        res = proto.encode(cls(*values), order="sorted")
+        sol = proto.encode({**dict(zip(names, values)), **tag_items}, order="sorted")
+        assert res == sol
+
+        # The map header is as short as for an equal dict
+        res = proto.encode(cls(ab=1), order="sorted")
+        assert res == proto.encode({"ab": 1, **tag_items}, order="sorted")
+
+    def test_order_struct_unset_field_errors(self, proto):
+        class Ex(Struct):
+            x: int
+            y: int = 0
+
+        ex = Ex(1)
+        del ex.x
+        with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
+            proto.encode(ex, order="sorted")
 
     @pytest.mark.parametrize("n", [0, 2, 3, 7, 15, 16, 17, 32, 100, 500, 1000, 10000])
     def test_order_sort_implementation(self, rand, n):

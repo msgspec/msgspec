@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fix crashes when the contents of a list, dict, `Struct` or other object
+  change while it is being encoded, for example from `enc_hook`. A
+  `RuntimeError` is now raised if a list becomes too short to read the next
+  item or a dict changes size, and, without `order="sorted"`, if attributes
+  are added to or removed from an `attrs` object with `slots=False`.
+  `Encoder.encode_lines` no longer encodes items appended to the list during
+  encoding ({issue}`1352`)
+- Fix a crash when a `Struct` with an unset field (for example after
+  `del obj.x`) is encoded with `order="sorted"`. An `AttributeError` is now
+  raised, as without `order` ({pr}`1354`)
+- Fix invalid JSON when a `Struct` whose `tag_field` contains characters that
+  must be escaped is encoded with `order="sorted"` ({pr}`1354`)
 - Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
   metaclass is a subclass of `enum.EnumMeta`, which also broke
   `msgspec.json.schema` for them.
