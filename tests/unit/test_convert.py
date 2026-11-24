@@ -1641,6 +1641,22 @@ class TestSchemaCache:
                 resume.set()
             assert first.result(timeout=10) == expected
 
+    def test_schema_kind_changes_during_build(self):
+        @dataclass
+        class Row(dict):
+            value: "field_type()"
+
+            @staticmethod
+            def field_type():
+                Row.__total__ = True
+                return int
+
+        # Reject the second Row before checking the invalid trailing annotation.
+        with pytest.raises(
+            RuntimeError, match="__msgspec_cache__ has been overwritten"
+        ):
+            msgspec.json.Decoder(tuple[Row, Row, 0])
+
     @pytest.mark.parametrize("base", [TypedDict, Struct])
     def test_cache_publication_error_is_retried(self, base):
         class ReadOnlyCache(type):

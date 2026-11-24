@@ -4142,21 +4142,19 @@ error:
     return NULL;
 }
 
+/* Takes ownership of cached, returning it on a type match. */
+static PyObject *
+check_msgspec_cache(PyObject *obj, PyTypeObject *type, PyObject *cached) {
+    if (Py_TYPE(cached) == type) return cached;
+    Py_DECREF(cached);
+    return PyErr_Format(PyExc_RuntimeError, "%R.__msgspec_cache__ has been overwritten", obj);
+}
+
 static bool
 get_msgspec_cache(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject **out) {
     PyObject *cached = PyObject_GenericGetAttr(obj, mod->str___msgspec_cache__);
     if (cached != NULL) {
-        if (Py_TYPE(cached) != type) {
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                obj
-            );
-        }
-        else {
-            *out = cached;
-        }
+        *out = check_msgspec_cache(obj, type, cached);
         return true;
     }
     PyErr_Clear();
@@ -4165,14 +4163,14 @@ get_msgspec_cache(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject
 
 /* Match annotations by identity, including classes with unhashable metaclasses. */
 static bool
-TypeBuild_get(TypeBuild *build, PyObject *obj, PyObject **out) {
+TypeBuild_get(TypeBuild *build, PyObject *obj, PyTypeObject *type, PyObject **out) {
     if (build->entries == NULL) return false;
     PyObject *key = PyLong_FromVoidPtr(obj);
     if (key == NULL) return true;
     PyObject *entry = PyDict_GetItemWithError(build->entries, key);
     Py_DECREF(key);
     if (entry == NULL) return PyErr_Occurred() != NULL;
-    *out = Py_NewRef(PyTuple_GET_ITEM(entry, 1));
+    *out = check_msgspec_cache(obj, type, Py_NewRef(PyTuple_GET_ITEM(entry, 1)));
     return true;
 }
 
@@ -7255,7 +7253,7 @@ StructInfo_Convert(PyObject *obj, TypeBuild *build) {
     PyObject *annotations = NULL;
     StructInfo *info = NULL;
     PyObject *cached = NULL;
-    if (TypeBuild_get(build, obj, &cached)) return cached;
+    if (TypeBuild_get(build, obj, &StructInfo_Type, &cached)) return cached;
 
     if (MS_LIKELY(ms_is_struct_cls(obj))) {
         class = (StructMetaObject *)obj;
@@ -8903,7 +8901,7 @@ TypedDictInfo_Convert(PyObject *obj, TypeBuild *build) {
     bool succeeded = false;
 
     PyObject *cached = NULL;
-    if (TypeBuild_get(build, obj, &cached)) return cached;
+    if (TypeBuild_get(build, obj, &TypedDictInfo_Type, &cached)) return cached;
     if (get_msgspec_cache(mod, obj, &TypedDictInfo_Type, &cached)) return cached;
 
     /* Not cached, extract fields from TypedDict object */
@@ -9064,7 +9062,7 @@ DataclassInfo_Convert(PyObject *obj, TypeBuild *build) {
     bool succeeded = false;
 
     PyObject *cached = NULL;
-    if (TypeBuild_get(build, obj, &cached)) return cached;
+    if (TypeBuild_get(build, obj, &DataclassInfo_Type, &cached)) return cached;
     if (get_msgspec_cache(mod, obj, &DataclassInfo_Type, &cached)) return cached;
 
     /* Not cached, extract fields from Dataclass object */
@@ -9269,7 +9267,7 @@ NamedTupleInfo_Convert(PyObject *obj, TypeBuild *build) {
     bool succeeded = false;
 
     PyObject *cached = NULL;
-    if (TypeBuild_get(build, obj, &cached)) return cached;
+    if (TypeBuild_get(build, obj, &NamedTupleInfo_Type, &cached)) return cached;
     if (get_msgspec_cache(mod, obj, &NamedTupleInfo_Type, &cached)) return cached;
 
     /* Not cached, extract fields from NamedTuple object */
