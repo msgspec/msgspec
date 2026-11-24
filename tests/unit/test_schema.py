@@ -39,6 +39,9 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+
+PY311 = sys.version_info[:2] >= (3, 11)
+
 T = TypeVar("T")
 
 
@@ -327,6 +330,25 @@ def test_abstract_mapping():
 
 def test_int_enum():
     class Example(enum.IntEnum):
+        C = 1
+        B = 3
+        A = 2
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
         C = 1
         B = 3
         A = 2
