@@ -183,6 +183,12 @@ def _get_doc(t: mi.Type) -> str:
     return doc
 
 
+def _int_key_name(value: Any) -> Any:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(int(value))
+    return value
+
+
 def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     """A mapping from nameable subcomponents to a generated name.
 
@@ -223,6 +229,12 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
         names[cls] = candidate
         used.add(candidate)
     return names
+
+
+def _unwrap_metadata(t: mi.Type) -> mi.Type:
+    while isinstance(t, mi.Metadata):
+        t = t.type
+    return t
 
 
 def _is_string_key_type(t: mi.Type) -> bool:
@@ -345,6 +357,22 @@ class _SchemaGenerator:
                 property_names.pop("type", None)
                 if property_names:
                     schema["propertyNames"] = property_names
+            elif isinstance(_unwrap_metadata(t.key_type), mi.IntType):
+                property_names = {"pattern": "^-?(0|[1-9][0-9]*)$"}
+                key_meta = t.key_type
+                while isinstance(key_meta, mi.Metadata):
+                    property_names = mi._merge_json(
+                        property_names, key_meta.extra_json_schema
+                    )
+                    key_meta = key_meta.type
+                property_names.pop("type", None)
+                if "const" in property_names:
+                    property_names["const"] = _int_key_name(property_names["const"])
+                for name in ("enum", "examples"):
+                    values = property_names.get(name)
+                    if isinstance(values, (list, tuple)):
+                        property_names[name] = [_int_key_name(v) for v in values]
+                schema["propertyNames"] = property_names
             if not isinstance(t.value_type, mi.AnyType):
                 schema["additionalProperties"] = self.to_schema(t.value_type)
             if t.max_length is not None:

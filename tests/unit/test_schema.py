@@ -2,6 +2,7 @@ import datetime
 import decimal
 import enum
 import json
+import re
 import sys
 import typing
 import uuid
@@ -1569,9 +1570,89 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number, Literal["a"] | int):
+    for key_type in (Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
+
+
+@pytest.mark.parametrize("key_type", [Any, float, bytes])
+def test_dict_non_string_non_int_keys_have_no_property_names(key_type):
+    assert msgspec.json.schema(dict[key_type, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+    }
+
+
+@pytest.mark.parametrize(
+    "key_type, extra",
+    [
+        (int, {}),
+        (Annotated[int, Meta(ge=0, title="id")], {"title": "id"}),
+        (
+            Annotated[int, Meta(description="key", examples=[1, -2])],
+            {"description": "key", "examples": ["1", "-2"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"type": "integer", "title": "k"})],
+            {"title": "k"},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"enum": [1, -2, "x"]})],
+            {"enum": ["1", "-2", "x"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"enum": (1, 2)})],
+            {"enum": ["1", "2"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"examples": (4, -5)})],
+            {"examples": ["4", "-5"]},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"const": 3})],
+            {"const": "3"},
+        ),
+        (
+            Annotated[int, Meta(extra_json_schema={"examples": 5})],
+            {"examples": 5},
+        ),
+    ],
+)
+def test_dict_int_key_schema(key_type, extra):
+    assert msgspec.json.schema(dict[key_type, str]) == {
+        "type": "object",
+        "additionalProperties": {"type": "string"},
+        "propertyNames": {"pattern": "^-?(0|[1-9][0-9]*)$", **extra},
+    }
+
+
+def test_dict_int_key_schema_int_enum_examples():
+    class Color(enum.IntEnum):
+        RED = 1
+        BLUE = -2
+
+    key_type = Annotated[int, Meta(examples=[Color.RED, Color.BLUE])]
+    schema = msgspec.json.schema(dict[key_type, str])
+    examples = schema["propertyNames"]["examples"]
+    assert examples == ["1", "-2"]
+    encoded = msgspec.json.encode({Color.RED: "a", Color.BLUE: "b"})
+    assert list(json.loads(encoded)) == examples
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["0", "-0", "7", "-12", "10000000000000000000000", "", "-", "+1", "01", "-01"]
+    + ["1.0", "1e3", " 1", "1 ", "abc"],
+)
+def test_dict_int_key_pattern_matches_decoder(key):
+    pattern = msgspec.json.schema(dict[int, str])["propertyNames"]["pattern"]
+    try:
+        msgspec.json.decode(json.dumps({key: "x"}).encode(), type=dict[int, str])
+    except msgspec.ValidationError:
+        decodes = False
+    else:
+        decodes = True
+    assert (re.search(pattern, key) is not None) == decodes
 
 
 @py315_or_later_only

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Constrain integer dictionary keys in generated JSON Schema with a
+  `propertyNames` pattern matching the keys `msgspec.json.decode` accepts
+  ({issue}`1340`).
 - Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
   metaclass is a subclass of `enum.EnumMeta`, which also broke
   `msgspec.json.schema` for them.
