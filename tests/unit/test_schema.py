@@ -38,6 +38,9 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+
+PY311 = sys.version_info[:2] >= (3, 11)
+
 T = TypeVar("T")
 
 
@@ -336,6 +339,25 @@ def test_int_enum():
     }
 
 
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
+        C = 1
+        B = 3
+        A = 2
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2, 3]}},
+    }
+
+
 def test_enum():
     class Example(enum.Enum):
         """A docstring"""
@@ -585,6 +607,31 @@ def test_struct_array_like_all_fields_optional(tag, min_items, payload):
     assert schema["minItems"] == min_items
 
 
+@pytest.mark.parametrize("tag", [False, True])
+@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+def test_struct_array_like_no_fields(tag, forbid_unknown_fields):
+    class Example(
+        msgspec.Struct,
+        array_like=True,
+        tag=tag,
+        forbid_unknown_fields=forbid_unknown_fields,
+    ):
+        pass
+
+    expected = {"title": "Example", "type": "array", "minItems": int(tag)}
+    if tag:
+        expected["prefixItems"] = [{"enum": ["Example"]}]
+    if forbid_unknown_fields:
+        expected["maxItems"] = int(tag)
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    payload = b'["Example"]' if tag else b"[]"
+    assert msgspec.json.decode(payload, type=Example) == Example()
+
+
 def test_struct_no_fields():
     class Example(msgspec.Struct):
         pass
@@ -746,6 +793,24 @@ def test_collections_namedtuple():
             }
         },
     }
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_namedtuple_no_fields(typed):
+    if typed:
+
+        class Example(NamedTuple):
+            pass
+
+    else:
+        Example = namedtuple("Example", [])
+
+    expected = {"title": "Example", "type": "array", "minItems": 0, "maxItems": 0}
+    assert msgspec.json.schema(Example)["$defs"]["Example"] == expected
+    schemas, components = msgspec.json.schema_components([Example])
+    assert schemas == ({"$ref": "#/$defs/Example"},)
+    assert components == {"Example": expected}
+    assert msgspec.json.decode(b"[]", type=Example) == Example()
 
 
 def test_generic_namedtuple():
@@ -1420,6 +1485,54 @@ def test_dict_string_literal_key_schema(annotated):
         msgspec.json.decode(b'{"carrot": 1}', type=typ)
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+@pytest.mark.parametrize(
+    "key_type, property_names",
+    [
+        (
+            Literal["apple"] | Literal["banana"],
+            {"anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}]},
+        ),
+        (
+            Annotated[Literal["apple"], Meta(title="fruit")] | Literal["banana"],
+            {
+                "anyOf": [
+                    {"title": "fruit", "enum": ["apple"]},
+                    {"enum": ["banana"]},
+                ]
+            },
+        ),
+        (
+            Annotated[Literal["apple"] | Literal["banana"], Meta(title="fruit")]
+            | Literal["cherry"],
+            {
+                "anyOf": [
+                    {
+                        "title": "fruit",
+                        "anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}],
+                    },
+                    {"enum": ["cherry"]},
+                ]
+            },
+        ),
+    ],
+)
+def test_dict_string_union_key_schema(key_type, property_names, annotated):
+    if annotated:
+        key_type = Annotated[key_type, Meta(description="allowed keys")]
+        property_names = {"description": "allowed keys", **property_names}
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == property_names
+    assert msgspec.json.decode(b'{"apple": 1, "banana": 2}', type=typ) == {
+        "apple": 1,
+        "banana": 2,
+    }
+    with pytest.raises(msgspec.ValidationError):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
 @pytest.mark.parametrize("base", [enum.Enum, str])
 @pytest.mark.parametrize("annotated", [False, True])
 def test_dict_string_enum_key_schema(base, annotated):
@@ -1456,7 +1569,7 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (int, Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
 
