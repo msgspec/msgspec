@@ -1,6 +1,7 @@
 import os
 import platform
 import sys
+import sysconfig
 
 from setuptools import setup
 from setuptools.extension import Extension
@@ -44,7 +45,11 @@ elif sys.platform != "win32":
         extra_link_args.extend(["-flto=thin"])
 
 # from https://py-free-threading.github.io/faq/#im-trying-to-build-a-library-on-windows-but-msvc-says-c-atomic-support-is-not-enabled
-if sys.platform == "win32":
+# MSVC needs explicit flags to enable C11 atomics support; MinGW GCC
+# provides them by default and rejects the MSVC-style "/std:..." flags.
+# Only pass them when the configured compiler is MSVC.
+cc = sysconfig.get_config_var("CC") or ""
+if sys.platform == "win32" and "gcc" not in cc and "clang" not in cc:
     extra_compile_args.extend(
         [
             "/std:c11",
