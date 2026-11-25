@@ -445,11 +445,17 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, 2)
         assert buf == b"01" + encoded
 
-        # Offset out of bounds extends
+        # Offset out of bounds extends, filling the gap with zeros
         buf = bytearray(b"01234")
         enc.encode_into(msg, buf, 10)
-        assert buf[:5] == b"01234"
-        assert buf[10:] == encoded
+        assert buf == b"01234" + bytes(5) + encoded
+
+        # Offset in bounds doesn't shrink the buffer capacity
+        buf = bytearray(1000)
+        capacity = buf.__sizeof__()
+        enc.encode_into(msg, buf, 4)
+        assert buf == bytes(4) + encoded
+        assert buf.__sizeof__() == capacity
 
         # Offset -1 means append at end
         buf = bytearray(b"01234")
@@ -470,6 +476,20 @@ class TestEncoderMisc:
         # Encoder still works
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
+
+    @pytest.mark.parametrize("msg", [object(), [1, 2, object()]])
+    def test_encode_into_offset_error_hides_stale_bytes(self, msg):
+        enc = msgspec.msgpack.Encoder()
+        prefix = enc.encode(0)
+        buf = bytearray(b"Z" * 256)
+        enc.encode_into(0, buf)
+        assert buf == prefix
+
+        # An error after extending the buffer doesn't expose its old contents
+        with pytest.raises(TypeError):
+            enc.encode_into(msg, buf, 20)
+        assert buf.startswith(prefix + bytes(20 - len(prefix)))
+        assert b"Z" not in buf
 
     @pytest.mark.parametrize(
         "dt, dt_str",
@@ -1550,6 +1570,24 @@ class TestDecodeArrayTypeUsesTupleIfHashableRequired:
         data = msgspec.msgpack.encode(orig)
         out = msgspec.msgpack.decode(data, type=set)
         assert orig == out
+
+    @pytest.mark.parametrize(
+        "data, got",
+        [
+            # [{"a": 1}] as a map item
+            (b"\x91\x81\xa1a\x01", "dict"),
+            # [Ext(1, b"\x02")] as a fixext1 item
+            (b"\x91\xd4\x01\x02", "msgspec.msgpack.Ext"),
+        ],
+    )
+    def test_decode_unhashable_item(self, data, got):
+        """Maps and extensions aren't hashable, decoding one into a set should
+        raise a `ValidationError`, not a bare `TypeError`."""
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            msgspec.msgpack.decode(data, type=set)
 
     def test_decode_hashable_struct_in_key(self):
         class Test(msgspec.Struct):

@@ -39,6 +39,7 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
@@ -398,6 +399,21 @@ def test_enum():
     assert mi.type_info(Example) == mi.EnumType(Example)
 
 
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
+        B = 3
+        A = 2
+
+    assert mi.type_info(Example) == mi.EnumType(Example)
+
+
 @pytest.mark.parametrize(
     "kw",
     [
@@ -633,6 +649,50 @@ def test_generic_typeddict():
         ),
     )
     assert mi.type_info(Example[int]) == sol
+
+
+def test_namedtuple_like_types():
+    # `is_namedtuple_class` in `_core.c` only treats a tuple subclass as a
+    # namedtuple when `_fields` is a tuple and `_field_defaults` is a dict;
+    # anything else is a custom type. `inspect` used to accept any tuple
+    # subclass with a `_fields` attribute, so it reported a `NamedTupleType`
+    # for types the decoder doesn't treat as namedtuples, and crashed with an
+    # `AttributeError` when `_field_defaults` was missing or not a dict.
+    class FieldsNotTuple(tuple):
+        _fields = ["a"]
+        _field_defaults = {}
+
+    class NotSequenceFields(tuple):
+        _fields = 1
+
+    class MissingDefaults(tuple):
+        _fields = ("a",)
+
+    class DefaultsNotDict(tuple):
+        _fields = ("a",)
+        _field_defaults = []
+
+    class NotTupleSubclass:
+        _fields = ("a",)
+        _field_defaults = {}
+
+    for cls in (
+        FieldsNotTuple,
+        NotSequenceFields,
+        MissingDefaults,
+        DefaultsNotDict,
+        NotTupleSubclass,
+    ):
+        assert mi.type_info(cls) == mi.CustomType(cls)
+
+    # Structurally valid namedtuple-likes are still reported as namedtuples
+    class NamedTupleLike(tuple):
+        _fields = ("a",)
+        _field_defaults = {}
+        __annotations__ = {"a": int}
+
+    sol = mi.NamedTupleType(NamedTupleLike, fields=(mi.Field("a", "a", mi.IntType()),))
+    assert mi.type_info(NamedTupleLike) == sol
 
 
 def test_dataclass():

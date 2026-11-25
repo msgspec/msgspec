@@ -157,6 +157,21 @@ def _get_class_mro_and_typevar_mappings(obj):
     return cls.__mro__, mapping
 
 
+def _copy_class_namespace(cls):
+    namespace = vars(cls)
+    if isinstance(namespace, types.MappingProxyType):
+        # A normal class namespace delegates copy() to its dict under the dict lock.
+        try:
+            snapshot = namespace.copy()
+        except AttributeError:
+            pass
+        else:
+            if type(snapshot) is dict:
+                return snapshot
+    # A metaclass may expose a custom mapping for __dict__.
+    return dict(namespace)
+
+
 def get_class_annotations(obj):
     """Get the annotations for a class.
 
@@ -189,7 +204,7 @@ def get_class_annotations(obj):
             continue
 
         mapping = typevar_mappings.get(cls)
-        cls_locals = dict(vars(cls))
+        cls_locals = _copy_class_namespace(cls)
 
         # resolve type parameters (e.g. class Foo[T]: pass)
         type_params = getattr(cls, "__type_params__", ())
@@ -324,15 +339,24 @@ def get_typeddict_info(obj):
     # `Required`/`NotRequired` wrappers.
     hints = {}
     for k, v in raw_hints.items():
+        annotation = v
+        if isinstance(v, _AnnotatedAlias):
+            v = v.__origin__
         origin = getattr(v, "__origin__", False)
         if origin is Required:
             required.add(k)
-            hints[k] = v.__args__[0]
+            v = v.__args__[0]
         elif origin is NotRequired:
             required.discard(k)
-            hints[k] = v.__args__[0]
+            v = v.__args__[0]
         else:
-            hints[k] = v
+            hints[k] = annotation
+            continue
+        # PEP 655 allows Annotated outside Required/NotRequired. Preserve its
+        # metadata, including any Annotated nested inside the qualifier.
+        if isinstance(annotation, _AnnotatedAlias):
+            v = typing.Annotated[(v, *annotation.__metadata__)]
+        hints[k] = v
 
     # This can happen if there is a bug in the TypedDict implementation;
     # such a bug was present in Python 3.14.

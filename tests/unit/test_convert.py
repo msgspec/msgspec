@@ -6,8 +6,11 @@ import math
 import sys
 import uuid
 from base64 import b64encode
+from collections import UserDict
 from collections.abc import MutableMapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from threading import Event
 from typing import (
     Annotated,
     Any,
@@ -1006,6 +1009,33 @@ class TestSequences:
         with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
             assert convert(1, out_type)
 
+    @pytest.mark.parametrize(
+        "obj, out_annot, got",
+        [
+            ([{"a": 1}], set, "dict"),
+            ([{"a": 1}], frozenset, "dict"),
+            ([[1, 2]], set[list[int]], "list"),
+        ],
+    )
+    def test_unhashable_item(self, obj, out_annot, got):
+        """Unhashable items can't be added to a set, this should raise a
+        `ValidationError` rather than a bare `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=rf"Expected a hashable value, got `{got}` - at `\$\[0\]`",
+        ):
+            assert convert(obj, out_annot)
+
+    def test_unhashable_item_nested_path(self):
+        class Ex(msgspec.Struct):
+            values: set
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `dict` - at `\$\.values\[0\]`",
+        ):
+            convert({"values": [{"a": 1}]}, Ex)
+
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     @pytest.mark.skipif(
         PY312,
@@ -1215,9 +1245,107 @@ class TestDict:
         ):
             convert(dictcls({"x": 1}), dict[int, str])
 
+    def test_unhashable_key(self, dictcls):
+        """A key that converts to an unhashable value can't be added to the
+        output dict, this should raise a `ValidationError` rather than a bare
+        `TypeError`."""
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$`",
+        ):
+            convert(dictcls({(1, 2): 0}), dict[list[int], int])
+
+    def test_unhashable_key_nested_path(self):
+        class Ex(Struct):
+            values: dict[list[int], int]
+
+        with pytest.raises(
+            ValidationError,
+            match=r"Expected a hashable value, got `list` - at `key` in `\$\.values`",
+        ):
+            convert({"values": {(1, 2): 0}}, Ex)
+
     def test_dict_wrong_type(self):
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
             assert convert(1, dict)
+
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_dict_getitem_without_keys(self, strict):
+        class Table:
+            def __getitem__(self, key):
+                pytest.fail("Should not access non-mapping items")
+
+        class Ex(Struct):
+            table: dict[str, Any]
+
+        with pytest.raises(ValidationError) as rec:
+            convert({"table": Table()}, Ex, strict=strict)
+        assert str(rec.value) == "Expected `object`, got `Table` - at `$.table`"
+
+    @pytest.mark.parametrize(
+        "keys_type",
+        [
+            list,
+            tuple,
+            iter,
+            lambda keys: dict.fromkeys(keys).keys(),
+            lambda keys: UserDict.fromkeys(keys).keys(),
+        ],
+    )
+    def test_dict_duck_mapping(self, keys_type):
+        class DuckMapping:
+            def keys(self):
+                return keys_type(["x", "y", "x"])
+
+            def __getitem__(self, key):
+                return {"x": 1, "y": 2}[key]
+
+        res = convert(DuckMapping(), dict[str, float])
+        assert res == {"x": 1.0, "y": 2.0}
+
+    def test_dict_mapping_keys_lookup_error(self):
+        class BadMapping:
+            @property
+            def keys(self):
+                raise RuntimeError("boom")
+
+            def __getitem__(self, key):
+                pytest.fail("Should not access items when keys lookup fails")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_keys_call_error_propagates(self):
+        class BadMapping:
+            def keys(self):
+                raise RuntimeError("boom")
+
+            def __getitem__(self, key):
+                pytest.fail("Should not access items when keys call fails")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_getitem_error_propagates(self):
+        class BadMapping:
+            def keys(self):
+                return ["x"]
+
+            def __getitem__(self, key):
+                raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            convert(BadMapping(), dict)
+
+    def test_dict_mapping_keys_not_callable(self):
+        class BadMapping:
+            keys = None
+
+            def __getitem__(self, key):
+                return 1
+
+        with pytest.raises(TypeError, match="not callable"):
+            convert(BadMapping(), dict)
 
     def test_str_formatted_keys(self):
         msg = {uuid.uuid4(): 1, uuid.uuid4(): 2}
@@ -1325,6 +1453,29 @@ class TestDict:
 
 @py315_or_later_only
 class TestFrozenDict:
+    def test_getitem_without_keys(self):
+        class DuckMapping:
+            def __getitem__(self, key):
+                return 1
+
+        with pytest.raises(
+            ValidationError, match="Expected `object`, got `DuckMapping`"
+        ):
+            convert(DuckMapping(), frozendict[str, float])
+
+    def test_duck_mapping(self):
+        class DuckMapping:
+            def keys(self):
+                return ["x"]
+
+            def __getitem__(self, key):
+                return 1
+
+        result = convert(DuckMapping(), frozendict[str, float])
+        assert type(result) is frozendict
+        assert result == frozendict({"x": 1.0})
+        assert type(result["x"]) is float
+
     def check_frozen(self, val, expected):
         assert isinstance(expected, frozendict)
         assert type(val) is type(expected)
@@ -1446,6 +1597,90 @@ class TestFrozenDict:
                 convert(frozendictcls({"x": x}), Ex)
 
 
+class TestSchemaCache:
+    @pytest.mark.skipif(sys.platform == "emscripten", reason="Threads unavailable")
+    @pytest.mark.parametrize("base", [TypedDict, Struct])
+    def test_concurrent_first_use_of_recursive_types(self, base):
+        resolving = Event()
+        resume = Event()
+
+        @dataclass
+        class Leaf:
+            value: "value_type()"
+
+            @staticmethod
+            def value_type():
+                if not resolving.is_set():
+                    resolving.set()
+                    assert resume.wait(timeout=10)
+                return int
+
+        class Tree(base):
+            branch: "Branch | None"
+
+        class Link(NamedTuple):
+            tree: Tree
+
+        @dataclass
+        class Branch:
+            link: Link
+            leaf: Leaf
+
+        Tree.__annotations__["branch"] = Branch | None
+        value = {"branch": {"link": [{"branch": None}], "leaf": {"value": 1}}}
+        expected = Tree(branch=Branch(Link(Tree(branch=None)), Leaf(1)))
+
+        with ThreadPoolExecutor(1) as pool:
+            first = pool.submit(convert, value, Tree)
+            try:
+                assert resolving.wait(timeout=10)
+                # Link is built, but refers back to the unfinished Tree.
+                for cls in (Tree, Branch, Link):
+                    assert "__msgspec_cache__" not in vars(cls)
+                decoder = msgspec.json.Decoder(Tree)
+                # A second build must reach Leaf even when Tree uses a Struct slot.
+                assert "__msgspec_cache__" in vars(Leaf)
+                assert decoder.decode(msgspec.json.encode(value)) == expected
+            finally:
+                resume.set()
+            assert first.result(timeout=10) == expected
+
+    def test_schema_kind_changes_during_build(self):
+        @dataclass
+        class Row(dict):
+            value: "field_type()"
+
+            @staticmethod
+            def field_type():
+                Row.__total__ = True
+                return int
+
+        # Reject the second Row before checking the invalid trailing annotation.
+        with pytest.raises(
+            RuntimeError, match="__msgspec_cache__ has been overwritten"
+        ):
+            msgspec.json.Decoder(tuple[Row, Row, 0])
+
+    @pytest.mark.parametrize("base", [TypedDict, Struct])
+    def test_cache_publication_error_is_retried(self, base):
+        class ReadOnlyCache(type):
+            def __setattr__(cls, name, value):
+                if name == "__msgspec_cache__":
+                    raise TypeError("cache is read-only")
+                super().__setattr__(name, value)
+
+        @dataclass
+        class Child(metaclass=ReadOnlyCache):
+            value: int
+
+        class Parent(base):
+            child: Child
+
+        for _ in range(2):
+            with pytest.raises(TypeError, match="cache is read-only"):
+                convert({"child": {"value": 1}}, Parent)
+
+
 class TestTypedDict:
     def test_typeddict_total_true(self, dictcls):
         class Ex(TypedDict):
@@ -1548,12 +1783,11 @@ class TestTypedDict:
 
         A.__annotations__["child"] = B
 
-        # A fails to build, but B keeps a reference to A's partial info
-        with pytest.raises(TypeError, match="not supported"):
-            convert({}, A)
-
-        with pytest.raises(TypeError, match="TypedDict type is incomplete"):
-            convert(GetItemObj(parent=GetItemObj()), B)
+        for typ, obj in [(A, {}), (B, GetItemObj(parent=GetItemObj()))]:
+            with pytest.raises(TypeError, match="more than one array-like"):
+                convert(obj, typ)
+            assert "__msgspec_cache__" not in vars(A)
+            assert "__msgspec_cache__" not in vars(B)
 
 
 class TestDataclass:
@@ -2425,6 +2659,23 @@ class TestStructUnion:
         with pytest.raises(ValidationError, match="got `Ex3`"):
             convert(Ex3(1), typ)
 
+    def test_struct_union_tag_lookup_error(self):
+        class Key:
+            def __hash__(self):
+                return hash("type")
+
+            def __eq__(self, other):
+                raise RuntimeError("eq failed")
+
+        class Ex1(Struct, tag=True):
+            x: int
+
+        class Ex2(Struct, tag=True):
+            x: int
+
+        with pytest.raises(RuntimeError, match="eq failed"):
+            convert({Key(): "Ex1", "x": 1}, Ex1 | Ex2)
+
 
 class TestGenericStruct:
     @mapcls_from_attributes_and_array_like
@@ -2824,6 +3075,99 @@ class TestLax:
 
 
 class TestCustom:
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("str_keys", [False, True])
+    def test_custom_dict_keys(self, dictcls, strict, str_keys):
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            calls.append(x)
+            return complex(x)
+
+        msg = dictcls({"1+2j": True, "3+4j": False})
+        res = convert(
+            msg,
+            dict[complex, bool],
+            strict=strict,
+            str_keys=str_keys,
+            dec_hook=dec_hook,
+        )
+        assert res == {complex(1, 2): True, complex(3, 4): False}
+        assert calls == ["1+2j", "3+4j"]
+        assert dict(msg) == {"1+2j": True, "3+4j": False}
+
+    def test_generic_custom_dict_keys(self, dictcls):
+        class Custom(Generic[T]):
+            def __init__(self, value):
+                self.value = value
+
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ == Custom[str]
+            calls.append(x)
+            return Custom(x)
+
+        res = convert(dictcls({"x": 1}), dict[Custom[str], int], dec_hook=dec_hook)
+        (key,) = res
+        assert type(key) is Custom
+        assert key.value == "x"
+        assert res[key] == 1
+        assert calls == ["x"]
+
+    def test_custom_dict_str_subclass_keys(self, dictcls):
+        class Str(str):
+            pass
+
+        key = Str("1+2j")
+        calls = []
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            assert x is key
+            calls.append(x)
+            return complex(x)
+
+        assert convert(dictcls({key: 1}), dict[complex, int], dec_hook=dec_hook) == {
+            complex(1, 2): 1
+        }
+        assert calls == [key]
+
+    def test_custom_dict_existing_keys(self, dictcls):
+        key = complex(1, 2)
+        res = convert(dictcls({key: 1}), dict[complex, int])
+        assert res == {key: 1}
+        assert next(iter(res)) is key
+
+    @pytest.mark.parametrize("with_hook", [False, True])
+    def test_custom_dict_keys_wrong_type(self, dictcls, with_hook):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        hook = (lambda typ, x: x) if with_hook else None
+        with pytest.raises(ValidationError) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=hook)
+        assert str(rec.value) == "Expected `complex`, got `str` - at `key` in `$.value`"
+
+    @pytest.mark.parametrize("err_cls", [TypeError, ValueError, RuntimeError])
+    def test_custom_dict_keys_hook_errors(self, dictcls, err_cls):
+        class Ex(Struct):
+            value: dict[complex, int]
+
+        def dec_hook(typ, x):
+            assert typ is complex
+            raise err_cls("Oops!")
+
+        expected = ValidationError if err_cls in (TypeError, ValueError) else err_cls
+        with pytest.raises(expected) as rec:
+            convert({"value": dictcls({"x": 1})}, Ex, dec_hook=dec_hook)
+        if expected is ValidationError:
+            assert str(rec.value) == "Oops! - at `key` in `$.value`"
+            assert type(rec.value.__cause__) is err_cls
+        else:
+            assert str(rec.value) == "Oops!"
+
     def test_custom(self):
         def dec_hook(typ, x):
             assert typ is complex

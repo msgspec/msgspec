@@ -329,6 +329,6 @@ def test_valid(case):
 
 @pytest.mark.parametrize("case", invalid_cases, ids=itertools.count())
 def test_invalid(case):
-    expected_errors = (msgspec.DecodeError, UnicodeDecodeError, RecursionError)
+    expected_errors = (msgspec.DecodeError, RecursionError)
     with pytest.raises(expected_errors):
         msgspec.json.decode(case)

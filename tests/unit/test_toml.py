@@ -209,6 +209,16 @@ def test_decode_parse_error(msg):
 
 
 @needs_decode
+@pytest.mark.parametrize("buffer_type", [bytes, bytearray, memoryview])
+def test_decode_invalid_utf8(buffer_type):
+    with pytest.raises(msgspec.DecodeError, match="utf-8"):
+        msgspec.toml.decode(buffer_type(b"name = '\xff'"))
+    assert msgspec.toml.decode(buffer_type(b"name = 'caf\xc3\xa9'")) == {
+        "name": "caf\u00e9"
+    }
+
+
+@needs_decode
 def test_decode_validation_error():
     with pytest.raises(msgspec.ValidationError, match="Expected `str`"):
         msgspec.toml.decode(b"a = [1, 2, 3]", type=dict[str, list[str]])
