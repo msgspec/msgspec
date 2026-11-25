@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Raise `TypeError` instead of `AttributeError` from `msgspec.toml.encode` when
+  the object does not encode to a table.
 - Fix `KeyError` when decoding, converting, inspecting or generating JSON
   Schema for `attrs` classes with fields that have no annotation, such as
   `attrs.make_class("Point", ["x"])` or `attr.ib()`. Such fields are now treated
