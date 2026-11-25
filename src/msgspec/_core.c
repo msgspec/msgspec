@@ -13107,8 +13107,8 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
         goto cleanup;
     }
 
+    if (mpack_encode_array_header(self, len, "list") < 0) goto cleanup;
     if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup;
-    if (mpack_encode_array_header(self, len, "list") < 0) goto fullclean;
 
     for (Py_ssize_t i = 0; i < len; i++) {
 #ifdef Py_GIL_DISABLED
