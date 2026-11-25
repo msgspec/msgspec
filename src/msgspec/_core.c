@@ -23113,7 +23113,8 @@ convert_object_to_struct(
     /* int_keys: when `obj` is a `collections.abc.Mapping`, a field's integer
      * key is tried first, then its canonical decimal string ("1", as emitted
      * by `json.encode` / `to_builtins(str_keys=True)`), then its name
-     * (mirroring `convert_dict_to_struct`). Anything else is read by field
+     * (mirroring `convert_dict_to_struct`), in that order with or without
+     * `from_attributes`. Anything else is read by field
      * name alone: attribute lookups have no integer form, and for objects
      * that merely define `__getitem__` (`sqlite3.Row`, `array.array`, ...) an
      * integer is a position rather than a key. */
@@ -23148,13 +23149,6 @@ convert_object_to_struct(
 
         if (MS_UNLIKELY(int_keys != NULL) && PyTuple_GET_ITEM(int_keys, i) != Py_None) {
             field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
-            if (self->from_attributes) {
-                /* Attributes were asked for, so an attribute named after the
-                 * field wins over the integer key. */
-                attr = PyObject_GetAttr(obj, field);
-                if (attr != NULL) goto got_attr;
-                PyErr_Clear();
-            }
             /* The keys aren't attribute names, use item access directly */
             attr = PyObject_GetItem(obj, PyTuple_GET_ITEM(int_keys, i));
             if (attr != NULL) goto got_attr;
@@ -23674,8 +23668,9 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "``Struct`` fields configured with ``int_keys`` are matched by their integer\n"
 "key, by its canonical decimal string (e.g. ``\"1\"``), or by their field name.\n"
 "The integer key and its decimal string are only looked up in\n"
-"`collections.abc.Mapping` instances; any other object is read by field name\n"
-"alone.\n"
+"`collections.abc.Mapping` instances, in that order and ahead of the field\n"
+"name, whether or not ``from_attributes=True`` is set; any other object is\n"
+"read by field name alone.\n"
 "\n"
 "Examples\n"
 "--------\n"

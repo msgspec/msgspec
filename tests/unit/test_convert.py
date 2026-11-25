@@ -2336,7 +2336,7 @@ class TestStruct:
             def __getitem__(self, index):
                 return [10, 20][index]
 
-        # With `from_attributes`, an attribute named after the field wins
+        # `Row` isn't a `collections.abc.Mapping`, so it's read by field name
         assert convert(Row(x=7), Ex, from_attributes=True) == Ex(7)
         assert convert(Row(x=7), Req, from_attributes=True) == Req(7)
         # Without such an attribute the field is absent: `Row` isn't a
@@ -2344,6 +2344,43 @@ class TestStruct:
         assert convert(Row(), Ex, from_attributes=True) == Ex(0)
         with pytest.raises(ValidationError, match="missing required field `x`"):
             convert(Row(), Req, from_attributes=True)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    @pytest.mark.parametrize("key", [1, "1"])
+    @pytest.mark.parametrize("name", ["items", "keys", "get", "data"])
+    def test_struct_int_keys_mapping_attribute_named_like_field(
+        self, name, key, from_attributes
+    ):
+        """A mapping is read in the same order with or without
+        `from_attributes`: integer key, decimal string, field name. A method
+        or attribute of the mapping that shares a field's name (regression
+        test) doesn't shadow the field's integer key."""
+        Ex = msgspec.defstruct("Ex", [(name, int, 0)], int_keys={name: 1})
+        Req = msgspec.defstruct("Req", [(name, int)], int_keys={name: 1})
+
+        # `UserDict` has `items`, `keys`, `get` and `data` attributes
+        msg = UserDict({key: 5})
+        assert hasattr(msg, name)
+        assert convert(msg, Ex, from_attributes=from_attributes) == Ex(5)
+        assert convert(msg, Req, from_attributes=from_attributes) == Req(5)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_mapping_int_key_wins_over_attribute(
+        self, from_attributes
+    ):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class AttrDict(UserDict):
+            x = 7
+
+        def conv(msg):
+            return convert(AttrDict(msg), Ex, from_attributes=from_attributes)
+
+        assert conv({1: 5}) == Ex(5)
+        assert conv({"1": 5}) == Ex(5)
+        # The field name falls back to the usual attribute-then-item lookup
+        assert conv({}) == Ex(7)
 
     @pytest.mark.parametrize("from_attributes", [False, True])
     def test_struct_int_keys_positional_getitem_uses_names(self, from_attributes):

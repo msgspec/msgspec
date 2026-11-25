@@ -974,13 +974,12 @@ A few things to note:
   :mod:`msgspec.yaml` and :mod:`msgspec.toml`) get the compact keys as well.
   ``to_builtins`` keys int-keyed fields by their integer key, or by its decimal
   string when ``str_keys=True``. ``convert`` accepts the integer key, its
-  canonical decimal string, or the field name. This holds for any
-  `collections.abc.Mapping` instance, whether or not ``from_attributes=True``
-  is set. Every other object is read by field name alone, including ones with
-  a positional ``__getitem__`` such as `sqlite3.Row` or `array.array` (where an
-  integer is an index, not a key) and mapping-like classes that aren't
-  registered with the ABC. With ``from_attributes=True`` an attribute named
-  after the field takes precedence over the integer key.
+  canonical decimal string, or the field name, tried in that order. This holds
+  for any `collections.abc.Mapping` instance, whether or not
+  ``from_attributes=True`` is set. Every other object is read by field name
+  alone, including ones with a positional ``__getitem__`` such as `sqlite3.Row`
+  or `array.array` (where an integer is an index, not a key) and mapping-like
+  classes that aren't registered with the ABC.
 
   .. code-block:: python
 
