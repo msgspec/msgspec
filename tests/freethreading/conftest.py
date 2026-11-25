@@ -12,7 +12,7 @@ GIL_ENABLED = getattr(sys, "_is_gil_enabled", lambda: True)()
 
 def pytest_runtest_setup(item):
     if sys.version_info < (3, 14):
-        pytest.skip("requires python3.4 or newer")
+        pytest.skip("requires python3.14 or newer")
     if not IS_FREE_THREADED_BUILD:
         pytest.skip("requires a free-threaded (Py_GIL_DISABLED) build")
     if GIL_ENABLED:
