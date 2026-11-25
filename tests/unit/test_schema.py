@@ -38,6 +38,9 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+
+PY311 = sys.version_info[:2] >= (3, 11)
+
 T = TypeVar("T")
 
 
@@ -326,6 +329,25 @@ def test_abstract_mapping():
 
 def test_int_enum():
     class Example(enum.IntEnum):
+        C = 1
+        B = 3
+        A = 2
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {"Example": {"title": "Example", "enum": [1, 2, 3]}},
+    }
+
+
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
         C = 1
         B = 3
         A = 2
@@ -1560,6 +1582,54 @@ def test_dict_string_literal_key_schema(annotated):
         msgspec.json.decode(b'{"carrot": 1}', type=typ)
 
 
+@pytest.mark.parametrize("annotated", [False, True])
+@pytest.mark.parametrize(
+    "key_type, property_names",
+    [
+        (
+            Literal["apple"] | Literal["banana"],
+            {"anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}]},
+        ),
+        (
+            Annotated[Literal["apple"], Meta(title="fruit")] | Literal["banana"],
+            {
+                "anyOf": [
+                    {"title": "fruit", "enum": ["apple"]},
+                    {"enum": ["banana"]},
+                ]
+            },
+        ),
+        (
+            Annotated[Literal["apple"] | Literal["banana"], Meta(title="fruit")]
+            | Literal["cherry"],
+            {
+                "anyOf": [
+                    {
+                        "title": "fruit",
+                        "anyOf": [{"enum": ["apple"]}, {"enum": ["banana"]}],
+                    },
+                    {"enum": ["cherry"]},
+                ]
+            },
+        ),
+    ],
+)
+def test_dict_string_union_key_schema(key_type, property_names, annotated):
+    if annotated:
+        key_type = Annotated[key_type, Meta(description="allowed keys")]
+        property_names = {"description": "allowed keys", **property_names}
+
+    typ = dict[key_type, int]
+    schema = msgspec.json.schema(typ)
+    assert schema["propertyNames"] == property_names
+    assert msgspec.json.decode(b'{"apple": 1, "banana": 2}', type=typ) == {
+        "apple": 1,
+        "banana": 2,
+    }
+    with pytest.raises(msgspec.ValidationError):
+        msgspec.json.decode(b'{"carrot": 1}', type=typ)
+
+
 @pytest.mark.parametrize("base", [enum.Enum, str])
 @pytest.mark.parametrize("annotated", [False, True])
 def test_dict_string_enum_key_schema(base, annotated):
@@ -1596,7 +1666,7 @@ def test_dict_integer_keys_do_not_use_string_property_names():
         ONE = 1
         TWO = 2
 
-    for key_type in (int, Literal[1, 2], Number):
+    for key_type in (int, Literal[1, 2], Number, Literal["a"] | int):
         schema = msgspec.json.schema(dict[key_type, int])
         assert "propertyNames" not in schema
 

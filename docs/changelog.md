@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix a race when multiple threads first use the same type for decoding or
+  conversion.
+- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
+  decoded from JSON or MessagePack ({issue}`714`).
+- Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
+  metaclass is a subclass of `enum.EnumMeta`, which also broke
+  `msgspec.json.schema` for them.
 - Fix invalid JSON schemas containing empty `prefixItems` arrays for zero-field
   array-like structs and named tuples.
 - Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an

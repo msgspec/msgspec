@@ -74,11 +74,11 @@ bench = [
   "msgpack==1.2.4",
   "orjson==3.13.0",
   "ormsgpack==1.12.2",
-  "pydantic==2.14.1",
-  "python-rapidjson==1.25",
+  "pydantic==2.14.3",
+  "python-rapidjson==1.26",
   "pysimdjson==7.0.2",
   "requests",
-  "ujson==6.0.0",
+  "ujson==6.1.0",
 ]
 dev = [
   "rust-just",
@@ -108,9 +108,9 @@ test-prof = [
 ]
 test-typing = [
   { include-group = "test-base" },
-  "mypy==2.4.0",
+  "mypy==2.4.1",
   "pyright==1.1.414",
-  "pyrefly==1.4.0",
+  "pyrefly==1.4.1",
 ]
 test-unit = [
   { include-group = "test-base" },

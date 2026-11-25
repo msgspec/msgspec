@@ -225,6 +225,22 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     return names
 
 
+def _is_string_key_type(t: mi.Type) -> bool:
+    while isinstance(t, mi.Metadata):
+        t = t.type
+    if isinstance(t, mi.StrType):
+        return True
+    if isinstance(t, mi.LiteralType):
+        return all(isinstance(value, str) for value in t.values)
+    if isinstance(t, mi.EnumType):
+        return all(
+            isinstance(member.value, str) for member in t.cls.__members__.values()
+        )
+    if isinstance(t, mi.UnionType):
+        return all(_is_string_key_type(subtype) for subtype in t.types)
+    return False
+
+
 class _SchemaGenerator:
     def __init__(
         self,
@@ -323,19 +339,7 @@ class _SchemaGenerator:
         elif isinstance(t, (mi.DictType, mi.FrozenDictType)):
             schema["type"] = "object"
             # If keys have schema metadata or constraints, include them as propertyNames
-            key_type = t.key_type
-            while isinstance(key_type, mi.Metadata):
-                key_type = key_type.type
-            if (
-                isinstance(key_type, mi.StrType)
-                or isinstance(key_type, mi.LiteralType)
-                and all(isinstance(value, str) for value in key_type.values)
-                or isinstance(key_type, mi.EnumType)
-                and all(
-                    isinstance(member.value, str)
-                    for member in key_type.cls.__members__.values()
-                )
-            ):
+            if _is_string_key_type(t.key_type):
                 property_names = self.to_schema(t.key_type)
                 # Object property names are always strings, so omit the redundant type
                 property_names.pop("type", None)

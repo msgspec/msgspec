@@ -9,7 +9,9 @@ import uuid
 from base64 import b64encode
 from collections import UserDict
 from collections.abc import Mapping, MutableMapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from threading import Event
 from typing import (
     Annotated,
     Any,
@@ -1596,6 +1598,90 @@ class TestFrozenDict:
                 convert(frozendictcls({"x": x}), Ex)
 
 
+class TestSchemaCache:
+    @pytest.mark.skipif(sys.platform == "emscripten", reason="Threads unavailable")
+    @pytest.mark.parametrize("base", [TypedDict, Struct])
+    def test_concurrent_first_use_of_recursive_types(self, base):
+        resolving = Event()
+        resume = Event()
+
+        @dataclass
+        class Leaf:
+            value: "value_type()"
+
+            @staticmethod
+            def value_type():
+                if not resolving.is_set():
+                    resolving.set()
+                    assert resume.wait(timeout=10)
+                return int
+
+        class Tree(base):
+            branch: "Branch | None"
+
+        class Link(NamedTuple):
+            tree: Tree
+
+        @dataclass
+        class Branch:
+            link: Link
+            leaf: Leaf
+
+        Tree.__annotations__["branch"] = Branch | None
+        value = {"branch": {"link": [{"branch": None}], "leaf": {"value": 1}}}
+        expected = Tree(branch=Branch(Link(Tree(branch=None)), Leaf(1)))
+
+        with ThreadPoolExecutor(1) as pool:
+            first = pool.submit(convert, value, Tree)
+            try:
+                assert resolving.wait(timeout=10)
+                # Link is built, but refers back to the unfinished Tree.
+                for cls in (Tree, Branch, Link):
+                    assert "__msgspec_cache__" not in vars(cls)
+                decoder = msgspec.json.Decoder(Tree)
+                # A second build must reach Leaf even when Tree uses a Struct slot.
+                assert "__msgspec_cache__" in vars(Leaf)
+                assert decoder.decode(msgspec.json.encode(value)) == expected
+            finally:
+                resume.set()
+            assert first.result(timeout=10) == expected
+
+    def test_schema_kind_changes_during_build(self):
+        @dataclass
+        class Row(dict):
+            value: "field_type()"
+
+            @staticmethod
+            def field_type():
+                Row.__total__ = True
+                return int
+
+        # Reject the second Row before checking the invalid trailing annotation.
+        with pytest.raises(
+            RuntimeError, match="__msgspec_cache__ has been overwritten"
+        ):
+            msgspec.json.Decoder(tuple[Row, Row, 0])
+
+    @pytest.mark.parametrize("base", [TypedDict, Struct])
+    def test_cache_publication_error_is_retried(self, base):
+        class ReadOnlyCache(type):
+            def __setattr__(cls, name, value):
+                if name == "__msgspec_cache__":
+                    raise TypeError("cache is read-only")
+                super().__setattr__(name, value)
+
+        @dataclass
+        class Child(metaclass=ReadOnlyCache):
+            value: int
+
+        class Parent(base):
+            child: Child
+
+        for _ in range(2):
+            with pytest.raises(TypeError, match="cache is read-only"):
+                convert({"child": {"value": 1}}, Parent)
+
+
 class TestTypedDict:
     def test_typeddict_total_true(self, dictcls):
         class Ex(TypedDict):
@@ -1698,12 +1784,11 @@ class TestTypedDict:
 
         A.__annotations__["child"] = B
 
-        # A fails to build, but B keeps a reference to A's partial info
-        with pytest.raises(TypeError, match="not supported"):
-            convert({}, A)
-
-        with pytest.raises(TypeError, match="TypedDict type is incomplete"):
-            convert(GetItemObj(parent=GetItemObj()), B)
+        for typ, obj in [(A, {}), (B, GetItemObj(parent=GetItemObj()))]:
+            with pytest.raises(TypeError, match="more than one array-like"):
+                convert(obj, typ)
+            assert "__msgspec_cache__" not in vars(A)
+            assert "__msgspec_cache__" not in vars(B)
 
 
 class TestDataclass:

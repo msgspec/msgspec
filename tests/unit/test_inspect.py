@@ -39,6 +39,7 @@ if sys.version_info >= (3, 15):
     # and to not raise `F821`:
     from builtins import frozendict
 
+PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
@@ -394,6 +395,21 @@ def test_enum():
     class Example(enum.Enum):
         B = "z"
         A = "y"
+
+    assert mi.type_info(Example) == mi.EnumType(Example)
+
+
+@pytest.mark.parametrize("base_cls", [enum.Enum, enum.IntEnum])
+@pytest.mark.parametrize(
+    "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+)
+def test_enum_with_custom_enum_metaclass(base_cls, base_metacls):
+    class ChoicesMeta(base_metacls):
+        """My custom enum metaclass"""
+
+    class Example(base_cls, metaclass=ChoicesMeta):
+        B = 3
+        A = 2
 
     assert mi.type_info(Example) == mi.EnumType(Example)
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+from collections import ChainMap
+from types import MappingProxyType
 from typing import Generic, TypeVar
 
 import pytest
@@ -44,6 +46,34 @@ class TestGetClassAnnotations:
         """
         with temp_module(source) as mod:
             assert get_class_annotations(mod.Ex) == {"x": int, "y": float, "z": str}
+
+    def test_class_namespace_snapshot(self):
+        cls = None
+
+        class Key(str):
+            def __hash__(self):
+                # Drop a name between listing the keys and looking up their values.
+                if cls is not None and "transient" in vars(cls):
+                    del cls.transient
+                return super().__hash__()
+
+        namespace = {Key("marker"): None, "transient": None, "Alias": int}
+        namespace["__annotations__"] = {"field": "Alias"}
+        cls = type("Example", (), namespace)
+
+        assert get_class_annotations(cls) == {"field": int}
+
+    def test_custom_class_namespace(self):
+        class Meta(type):
+            @property
+            def __dict__(cls):
+                return MappingProxyType(ChainMap({"Alias": int}, super().__dict__))
+
+        class Ex(metaclass=Meta):
+            Alias = str
+            x: Alias
+
+        assert get_class_annotations(Ex) == {"x": int}
 
     def test_none_to_nonetype(self):
         class Ex:
