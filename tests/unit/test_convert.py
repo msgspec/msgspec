@@ -1964,6 +1964,34 @@ class TestDataclass:
 
 @pytest.mark.skipif(attrs is None, reason="attrs is not installed")
 class TestAttrs:
+    @pytest.mark.parametrize("kind", ["field", "type", "make_class"])
+    def test_attrs_without_annotations(self, kind):
+        if kind == "field":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field()
+
+        elif kind == "type":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field(type=int)
+
+        else:
+            Example = attrs.make_class("Example", ["a"])
+
+        assert convert({"a": 1}, Example) == Example(1)
+
+        if kind == "type":
+            with pytest.raises(
+                ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+            ):
+                convert({"a": "bad"}, Example)
+        else:
+            # No annotation means `Any`
+            assert convert({"a": "bad"}, Example) == Example("bad")
+
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_from_attributes
     def test_attrs(self, slots, mapcls, from_attributes):
