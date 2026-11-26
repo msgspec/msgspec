@@ -2808,6 +2808,74 @@ class TestStructPostInit:
             assert "- at `$[0]`" in str(rec.value)
 
 
+class TestObjectFieldAccess:
+    class AsStruct(Struct):
+        value: int = 0
+
+    @dataclass
+    class AsDataclass:
+        value: int = 0
+
+    @pytest.mark.parametrize("target", [AsStruct, AsDataclass])
+    @pytest.mark.parametrize("mapping", [False, True])
+    def test_property_error_propagates(self, target, mapping):
+        error = RuntimeError("could not read value")
+
+        class Source:
+            @property
+            def value(self):
+                raise error
+
+        class MappingSource(Source):
+            def __getitem__(self, key):
+                return {"value": 1}[key]
+
+        source = MappingSource() if mapping else Source()
+        with pytest.raises(RuntimeError) as exc:
+            convert(source, target, from_attributes=True)
+        assert exc.value is error
+
+    @pytest.mark.parametrize("target", [AsStruct, AsDataclass])
+    def test_item_error_propagates(self, target):
+        class Source:
+            def __getitem__(self, key):
+                raise ValueError("could not read value")
+
+        with pytest.raises(ValueError, match="could not read value"):
+            convert(Source(), target)
+
+    def test_renamed_field_error_propagates(self):
+        class Target(Struct):
+            value: int = msgspec.field(name="encoded")
+
+        class Source:
+            encoded = 1
+
+            @property
+            def value(self):
+                raise RuntimeError("could not read value")
+
+        with pytest.raises(RuntimeError, match="could not read value"):
+            convert(Source(), Target, from_attributes=True)
+
+    @pytest.mark.parametrize("union", [False, True])
+    def test_tag_error_propagates(self, union):
+        class First(Struct, tag=True):
+            pass
+
+        class Second(Struct, tag=True):
+            pass
+
+        class Source:
+            @property
+            def type(self):
+                raise RuntimeError("could not read tag")
+
+        target = First | Second if union else First
+        with pytest.raises(RuntimeError, match="could not read tag"):
+            convert(Source(), target, from_attributes=True)
+
+
 class TestLax:
     def test_lax_none(self):
         for x in ["null", "Null", "nUll", "nuLl", "nulL"]:

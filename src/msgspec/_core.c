@@ -22422,6 +22422,17 @@ convert_dict(
     return res;
 }
 
+/* Clear missing-field errors, leaving other lookup failures set. */
+static bool
+convert_field_missing(void) {
+    if (PyErr_ExceptionMatches(PyExc_AttributeError) ||
+        PyErr_ExceptionMatches(PyExc_KeyError)) {
+        PyErr_Clear();
+        return true;
+    }
+    return false;
+}
+
 static PyObject *
 convert_object_to_struct(
     ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
@@ -22442,10 +22453,7 @@ convert_object_to_struct(
             Py_DECREF(attr);
             if (!ok) return NULL;
         }
-        else {
-            /* Tag not present, ignore and continue */
-            PyErr_Clear();
-        }
+        else if (!convert_field_missing()) return NULL;
     }
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
@@ -22484,7 +22492,7 @@ convert_object_to_struct(
                 }
                 else {
                     /* No match. Try using the renamed name */
-                    PyErr_Clear();
+                    if (!convert_field_missing()) goto error;
                     attr = getter(obj, encode_field);
                     if (attr != NULL) {
                         /* Got a match, lock-in using renamed names */
@@ -22501,7 +22509,7 @@ convert_object_to_struct(
             Py_DECREF(attr);
         }
         else {
-            PyErr_Clear();
+            if (!convert_field_missing()) goto error;
             PyObject *default_val = NULL;
             if (MS_LIKELY(i >= (nfields - ndefaults))) {
                 default_val = PyTuple_GET_ITEM(
@@ -22554,7 +22562,7 @@ convert_object_to_struct_union(
         if (info == NULL) return NULL;
         return convert_object_to_struct(self, obj, info, path, getter, true);
     }
-    ms_missing_required_field(tag_field, path);
+    if (convert_field_missing()) ms_missing_required_field(tag_field, path);
     return NULL;
 }
 
@@ -22584,7 +22592,7 @@ convert_object_to_dataclass(
         PyObject *attr = getter(obj, field);
         PyObject *val;
         if (attr == NULL) {
-            PyErr_Clear();
+            if (!convert_field_missing()) goto error;
             if (MS_LIKELY(i >= (nfields - ndefaults))) {
                 PyObject *default_val = PyTuple_GET_ITEM(
                     info->defaults, i - (nfields - ndefaults)
@@ -22721,8 +22729,7 @@ Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
 static PyObject *
 getattr_then_getitem(PyObject *obj, PyObject *key) {
     PyObject *out = PyObject_GetAttr(obj, key);
-    if (out == NULL) {
-        PyErr_Clear();
+    if (out == NULL && convert_field_missing()) {
         out = PyObject_GetItem(obj, key);
     }
     return out;
