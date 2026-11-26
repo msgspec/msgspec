@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix a reference leak when building a decoder for a `tuple` subclass whose
+  `_fields` attribute is not a `tuple`.
 - Fix JSON Schema descriptions taken from multi-line docstrings keeping the
   indentation of every line after the first on Python 3.12 and older, when the
   summary starts on the line with the opening quotes. Tabs in such docstrings
