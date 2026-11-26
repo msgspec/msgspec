@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix `KeyError` when decoding, converting, inspecting or generating JSON
+  Schema for `attrs` classes with fields that have no annotation, such as
+  `attrs.make_class("Point", ["x"])` or `attr.ib()`. Such fields are now treated
+  as `Any`, or as the type passed to `attr.ib(type=...)`.
 - Fix a race when multiple threads first use the same type for decoding or
   conversion.
 - Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings

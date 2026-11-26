@@ -4338,6 +4338,72 @@ class TestAttrs:
         ):
             dec.decode(proto.encode({"a": "bad"}))
 
+    @pytest.mark.parametrize("kind", ["field", "type", "make_class"])
+    def test_decode_attrs_without_annotations(self, proto, kind):
+        if kind == "field":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field()
+
+        elif kind == "type":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field(type=int)
+
+        else:
+            Example = attrs.make_class("Example", ["a"])
+
+        dec = proto.Decoder(Example)
+        assert dec.decode(proto.encode({"a": 1})) == Example(1)
+
+        # Missing fields error
+        with pytest.raises(ValidationError, match="missing required field `a`"):
+            dec.decode(proto.encode({}))
+
+        msg = proto.encode({"a": "bad"})
+        if kind == "type":
+            with pytest.raises(
+                ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+            ):
+                dec.decode(msg)
+        else:
+            # No annotation means `Any`
+            assert dec.decode(msg) == Example("bad")
+
+    def test_decode_attrs_mixed_annotations(self, proto):
+        @attrs.define(auto_attribs=False)
+        class Example:
+            a: int = attrs.field()
+            b = attrs.field(default="x")
+            c = attrs.field(type=str, default="y")
+
+        dec = proto.Decoder(Example)
+        res = dec.decode(proto.encode({"a": 1, "b": [2]}))
+        assert res == Example(1, [2], "y")
+
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+        ):
+            dec.decode(proto.encode({"a": "bad"}))
+        with pytest.raises(
+            ValidationError, match=r"Expected `str`, got `int` - at `\$.c`"
+        ):
+            dec.decode(proto.encode({"a": 1, "c": 2}))
+
+    def test_decode_attrs_generic_without_annotation(self, proto):
+        @attrs.define(auto_attribs=False)
+        class G(Generic[T]):
+            x = attrs.field(type=T)
+
+        dec = proto.Decoder(G[int])
+        assert dec.decode(proto.encode({"x": 1})) == G(1)
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.x`"
+        ):
+            dec.decode(proto.encode({"x": "s"}))
+
     @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
     def test_decode_attrs_defaults(self, proto, frozen, slots):

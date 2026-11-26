@@ -1024,6 +1024,34 @@ def test_dataclass_or_attrs(module):
     }
 
 
+def test_attrs_without_annotations():
+    attrs = pytest.importorskip("attrs")
+
+    @attrs.define(auto_attribs=False)
+    class Example:
+        a = attrs.field()
+        b = attrs.field(type=int)
+        c: str = attrs.field()
+        d = attrs.field(default=1)
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {
+            "Example": {
+                "title": "Example",
+                "type": "object",
+                "properties": {
+                    "a": {},
+                    "b": {"type": "integer"},
+                    "c": {"type": "string"},
+                    "d": {"default": 1},
+                },
+                "required": ["a", "b", "c"],
+            }
+        },
+    }
+
+
 @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
 def test_generic_dataclass_or_attrs(module):
     m = pytest.importorskip(module)

@@ -405,11 +405,28 @@ def get_dataclass_info(obj):
     else:
         from attrs import NOTHING, Factory
 
+        # Only needed for fields without an annotation, built on first use
+        owners = None
         fields_with_validators = []
 
         for field in cls.__attrs_attrs__:
             name = field.name
-            typ = hints[name]
+            if name in hints:
+                typ = hints[name]
+            elif field.type is None:
+                # Fields made with `attr.ib()` or `make_class` have no annotation
+                typ = typing.Any
+            else:
+                if owners is None:
+                    _, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
+                    # The class that defines each field, most derived last
+                    owners = {
+                        a.name: c
+                        for c in reversed(cls.__mro__)
+                        for a in getattr(c, "__attrs_attrs__", ())
+                        if not a.inherited
+                    }
+                typ = _apply_params(field.type, typevar_mappings.get(owners[name], {}))
             default = field.default
             if default is not NOTHING:
                 if isinstance(default, Factory):
