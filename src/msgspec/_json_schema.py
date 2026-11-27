@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import textwrap
 from collections.abc import Callable, Iterable
+from inspect import cleandoc
 from typing import Any, Final
 
 from . import inspect as mi, to_builtins
@@ -173,7 +174,11 @@ def _get_doc(t: mi.Type) -> str:
     doc = getattr(cls, "__doc__", "")
     if not doc:
         return ""
-    doc = textwrap.dedent(doc).strip("\r\n")
+    # Python 3.13+ strips the indentation of docstrings when compiling, older
+    # versions keep it on every line but the first. `cleandoc` removes that
+    # indentation, `dedent` first blanks whitespace only lines so they are
+    # trimmed like blank ones.
+    doc = cleandoc(textwrap.dedent(doc))
     if isinstance(t, mi.EnumType):
         if doc == "An enumeration.":
             return ""
