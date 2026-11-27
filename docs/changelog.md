@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix an inner `Meta` taking precedence over an outer one in `msgspec.inspect`
+  and JSON Schema when the inner one is in a union with `UnsetType`, such as
+  `Annotated[UserId | UnsetType, Meta(description="...")]`, or is the bound of
+  a `TypeVar`.
 - Fix JSON Schema descriptions taken from multi-line docstrings keeping the
   indentation of every line after the first on Python 3.12 and older, when the
   summary starts on the line with the opening quotes. Tabs in such docstrings

@@ -6,11 +6,11 @@ import textwrap
 import types
 import uuid
 from contextlib import contextmanager
-from typing import Annotated, NewType
+from typing import Annotated, NewType, TypeVar
 
 import pytest
 
-from msgspec import Meta
+from msgspec import Meta, UnsetType
 
 emscripten_stack_limited = pytest.mark.skipif(
     sys.platform == "emscripten",
@@ -55,18 +55,25 @@ WRAP_KINDS = [
     "newtype_twice",
     pytest.param("alias", marks=py312_plus),
     pytest.param("alias_twice", marks=py312_plus),
+    "unset_union",
+    "typevar_bound",
 ]
 
 
 @contextmanager
 def wrapped_type(kind, inner):
-    """Yield `inner` wrapped in zero, one or two `NewType` or `type` aliases."""
+    """Yield `inner` wrapped in zero, one or two `NewType` or `type` aliases,
+    in a union with `UnsetType`, or as the bound of a `TypeVar`."""
     if kind == "annotated":
         yield inner
     elif kind == "newtype":
         yield NewType("A", inner)
     elif kind == "newtype_twice":
         yield NewType("B", NewType("A", inner))
+    elif kind == "unset_union":
+        yield inner | UnsetType
+    elif kind == "typevar_bound":
+        yield TypeVar("T", bound=inner)
     else:
         code = "type A = INNER"
         if kind == "alias_twice":
