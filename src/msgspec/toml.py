@@ -105,6 +105,10 @@ def encode(
         enc_hook=enc_hook,
         order=order,
     )
+    if not isinstance(msg, dict):
+        raise TypeError(
+            f"TOML documents must be tables, got an object of type {type(obj).__name__}"
+        )
     return toml.dumps(msg).encode("utf-8")
 
 
