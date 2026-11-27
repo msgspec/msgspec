@@ -1994,3 +1994,37 @@ def test_multiline_docstring():
             }
         },
     }
+
+
+def test_multiline_docstring_summary_on_first_line():
+    class Example(msgspec.Struct):
+        pass
+
+    # A docstring as Python 3.12 and older store it: the compiler keeps the
+    # indentation of every line but the first
+    Example.__doc__ = "Summary line.\n\n    More **details**.\n    "
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"]["description"] == (
+        "Summary line.\n\nMore **details**."
+    )
+
+
+@pytest.mark.parametrize(
+    "doc, expected",
+    [
+        # Only whitespace: no description
+        ("   \n    ", None),
+        # Closing quotes indented deeper than the text
+        ("Summary.\n\nMore.\n  ", "Summary.\n\nMore."),
+        # A continuation line at column 0
+        ("Summary.\nNot indented.\n    ", "Summary.\nNot indented."),
+    ],
+)
+def test_docstring_trailing_whitespace_only_line(doc, expected):
+    class Example(msgspec.Struct):
+        pass
+
+    Example.__doc__ = doc
+
+    out = msgspec.json.schema(Example)["$defs"]["Example"]
+    assert out.get("description") == expected
