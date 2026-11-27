@@ -68,15 +68,15 @@ Compound types like :doc:`structs` are also supported:
 
     >>> msgspec.inspect.type_info(User)
     StructType(
-        cls=User,
+        cls=<class '__main__.User'>,
         fields=(
             Field(
                 name='name',
                 encode_name='name',
                 type=StrType(min_length=None, max_length=None, pattern=None),
                 required=True,
-                default=UNSET,
-                default_factory=UNSET
+                default=NODEFAULT,
+                default_factory=NODEFAULT
             ),
             Field(
                 name='groups',
@@ -87,8 +87,8 @@ Compound types like :doc:`structs` are also supported:
                     max_length=None
                 ),
                 required=False,
-                default=[],
-                default_factory=UNSET
+                default=NODEFAULT,
+                default_factory=<class 'list'>
             ),
             Field(
                 name='email',
@@ -101,7 +101,7 @@ Compound types like :doc:`structs` are also supported:
                 ),
                 required=False,
                 default=None,
-                default_factory=UNSET
+                default_factory=NODEFAULT
             )
         ),
         tag_field=None,
@@ -133,7 +133,8 @@ specific fields are merged into a single ``extra_json_schema`` dict.
             max_length=32,
             pattern='^[a-z_][a-z0-9_-]*$'
         ),
-        extra_json_schema={'description': 'A valid UNIX username'}
+        extra_json_schema={'description': 'A valid UNIX username'},
+        extra=None
     )
 
 Every type supported by ``msgspec`` has a corresponding `msgspec.inspect.Type`

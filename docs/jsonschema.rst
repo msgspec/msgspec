@@ -59,17 +59,6 @@ Example
       "type": "array",
       "items": {"$ref": "#/$defs/Product"},
       "$defs": {
-        "Dimensions": {
-          "title": "Dimensions",
-          "description": "Dimensions for a product, all measurements in centimeters",
-          "type": "object",
-          "properties": {
-            "length": {"type": "number", "exclusiveMinimum": 0},
-            "width": {"type": "number", "exclusiveMinimum": 0},
-            "height": {"type": "number", "exclusiveMinimum": 0}
-          },
-          "required": ["length", "width", "height"]
-        },
         "Product": {
           "title": "Product",
           "description": "A product in a catalog",
@@ -81,14 +70,26 @@ Example
             "tags": {
               "type": "array",
               "items": {"type": "string"},
+              "uniqueItems": true,
               "default": []
             },
             "dimensions": {
-              "anyOf": [{"type": "null"}, {"$ref": "#/$defs/Dimensions"}],
+              "anyOf": [{"$ref": "#/$defs/Dimensions"}, {"type": "null"}],
               "default": null
             }
           },
           "required": ["id", "name", "price"]
+        },
+        "Dimensions": {
+          "title": "Dimensions",
+          "description": "Dimensions for a product, all measurements in centimeters",
+          "type": "object",
+          "properties": {
+            "length": {"type": "number", "exclusiveMinimum": 0},
+            "width": {"type": "number", "exclusiveMinimum": 0},
+            "height": {"type": "number", "exclusiveMinimum": 0}
+          },
+          "required": ["length", "width", "height"]
         }
       }
     }
