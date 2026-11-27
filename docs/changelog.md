@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix an inner `Meta` taking precedence over an outer one in `msgspec.inspect`
+  and JSON Schema when the inner one is in a union with `UnsetType`, such as
+  `Annotated[UserId | UnsetType, Meta(description="...")]`, or is the bound of
+  a `TypeVar`.
 - Raise `TypeError` instead of `AttributeError` from `msgspec.toml.encode` when
   the object does not encode to a table.
 - Fix `title`, `description`, `examples`, `extra_json_schema` and `extra` from

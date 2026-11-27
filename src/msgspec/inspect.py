@@ -782,8 +782,6 @@ class _Translator:
 
         # Extract and merge components of any `Meta` annotations
         constrs = {}
-        extra_json_schema = {}
-        extra = {}
         for meta in metadata:
             for attr in (
                 "ge",
@@ -798,6 +796,19 @@ class _Translator:
             ):
                 if (val := getattr(meta, attr)) is not None:
                     constrs[attr] = val
+
+        out = self._translate_inner(t, args, **constrs)
+
+        # A union that collapses to one member (``X | UnsetType``) or a bound
+        # TypeVar can carry its own metadata. It is the inner layer, so start
+        # from it and let the `Meta` annotations found here win.
+        extra_json_schema = {}
+        extra = {}
+        if isinstance(out, Metadata):
+            extra_json_schema = dict(out.extra_json_schema or {})
+            extra = dict(out.extra or {})
+            out = out.type
+        for meta in metadata:
             for attr in ("title", "description", "examples"):
                 if (val := getattr(meta, attr)) is not None:
                     extra_json_schema[attr] = val
@@ -809,7 +820,6 @@ class _Translator:
             if meta.extra is not None:
                 extra.update(meta.extra)
 
-        out = self._translate_inner(t, args, **constrs)
         if extra_json_schema or extra:
             # If extra metadata is present, wrap the output type in a Metadata
             # wrapper object

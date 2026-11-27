@@ -901,8 +901,8 @@ def test_metadata_outer_wins_through_alias(kind):
         extra_json_schema={"x": "outer", "outer_only": 2},
     )
 
-    # The annotation closest to the use site wins, whether or not a NewType or
-    # type alias sits between the two
+    # The annotation closest to the use site wins, whether or not a NewType,
+    # type alias, union with UnsetType or TypeVar bound sits between the two
     with wrapped_type(kind, Annotated[int, inner]) as typ:
         res = mi.type_info(Annotated[typ, outer])
 
