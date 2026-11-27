@@ -35,6 +35,35 @@ if sys.version_info >= (3, 15):
 UTC = datetime.timezone.utc
 
 
+@pytest.mark.parametrize("ext", [False, True])
+@pytest.mark.parametrize(
+    "format, shape",
+    [("B", [8]), ("b", [8]), ("Q", [1]), ("d", [1]), ("B", [2, 4]), ("Q", [])],
+)
+def test_decode_memoryview_byte_layout(ext, format, shape):
+    payload = b"ab" if ext else b"abc"
+    msg = b"\xc9\x00\x00\x00\x02\x05ab" if ext else b"\xc6\x00\x00\x00\x03abc"
+    backing = bytearray(msg)
+    buf = memoryview(backing).cast(format, shape)
+    if ext:
+        view = msgspec.msgpack.decode(buf, ext_hook=lambda code, data: data)
+    else:
+        view = msgspec.msgpack.decode(buf, type=memoryview)
+    assert view.format == "B"
+    assert view.itemsize == 1
+    assert view.ndim == 1
+    assert view.shape == (len(payload),)
+    assert view.strides == (1,)
+    assert view.suboffsets == ()
+    assert view.c_contiguous and view.f_contiguous
+    assert view.nbytes == len(view) == len(payload)
+    del buf
+    assert view.tolist() == list(payload)
+    view[-1] = ord("z")
+    assert backing[-1] == ord("z")
+    assert view.tobytes() == payload[:-1] + b"z"
+
+
 class FruitInt(enum.IntEnum):
     APPLE = 1
     BANANA = 2

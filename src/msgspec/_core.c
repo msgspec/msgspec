@@ -16015,6 +16015,30 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     return ms_validation_error("str", type, path);
 }
 
+static inline PyObject *
+mpack_decode_memoryview(DecoderState *self, char *data, Py_ssize_t size) {
+    PyObject *view = PyMemoryView_GetContiguous(self->buffer_obj, PyBUF_READ, 'C');
+    if (view == NULL) return NULL;
+    Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
+    if (MS_UNLIKELY(
+        !PyBytes_CheckExact(self->buffer_obj) && (
+            buffer->ndim != 1 || buffer->itemsize != 1 ||
+            buffer->format[0] != 'B' || buffer->format[1] != '\0'
+        )
+    )) {
+        /* Casting also updates the memoryview's cached contiguity flags. */
+        PyObject *cast = PyObject_CallMethod(view, "cast", "s", "B");
+        Py_DECREF(view);
+        if (cast == NULL) return NULL;
+        view = cast;
+        buffer = PyMemoryView_GET_BUFFER(view);
+    }
+    buffer->buf = data;
+    buffer->len = size;
+    buffer->shape = &(buffer->len);
+    return view;
+}
+
 static PyObject *
 mpack_decode_bin(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
@@ -16036,15 +16060,7 @@ mpack_decode_bin(
         return ms_decode_uuid_from_bytes(s, size, path);
     }
     else if (type->types & MS_TYPE_MEMORYVIEW) {
-        PyObject *view = PyMemoryView_GetContiguous(
-            self->buffer_obj, PyBUF_READ, 'C'
-        );
-        if (view == NULL) return NULL;
-        Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
-        buffer->buf = s;
-        buffer->len = size;
-        buffer->shape = &(buffer->len);
-        return view;
+        return mpack_decode_memoryview(self, s, size);
     }
 
     return ms_validation_error("bytes", type, path);
@@ -16897,7 +16913,6 @@ static PyObject *
 mpack_decode_ext(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
-    Py_buffer *buffer;
     char c_code = 0, *data_buf = NULL;
     long code;
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
@@ -16942,12 +16957,8 @@ mpack_decode_ext(
         pycode = PyLong_FromLong(code);
         if (pycode == NULL) goto done;
     }
-    view = PyMemoryView_GetContiguous(self->buffer_obj, PyBUF_READ, 'C');
+    view = mpack_decode_memoryview(self, data_buf, size);
     if (view == NULL) goto done;
-    buffer = PyMemoryView_GET_BUFFER(view);
-    buffer->buf = data_buf;
-    buffer->len = size;
-    buffer->shape = &(buffer->len);
 
     out = PyObject_CallFunctionObjArgs(self->ext_hook, pycode, view, NULL);
 done:
@@ -22422,6 +22433,17 @@ convert_dict(
     return res;
 }
 
+/* Clear missing-field errors, leaving other lookup failures set. */
+static bool
+convert_field_missing(void) {
+    if (PyErr_ExceptionMatches(PyExc_AttributeError) ||
+        PyErr_ExceptionMatches(PyExc_KeyError)) {
+        PyErr_Clear();
+        return true;
+    }
+    return false;
+}
+
 static PyObject *
 convert_object_to_struct(
     ConvertState *self, PyObject *obj, StructInfo *info, PathNode *path,
@@ -22442,10 +22464,7 @@ convert_object_to_struct(
             Py_DECREF(attr);
             if (!ok) return NULL;
         }
-        else {
-            /* Tag not present, ignore and continue */
-            PyErr_Clear();
-        }
+        else if (!convert_field_missing()) return NULL;
     }
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
@@ -22484,7 +22503,7 @@ convert_object_to_struct(
                 }
                 else {
                     /* No match. Try using the renamed name */
-                    PyErr_Clear();
+                    if (!convert_field_missing()) goto error;
                     attr = getter(obj, encode_field);
                     if (attr != NULL) {
                         /* Got a match, lock-in using renamed names */
@@ -22501,7 +22520,7 @@ convert_object_to_struct(
             Py_DECREF(attr);
         }
         else {
-            PyErr_Clear();
+            if (!convert_field_missing()) goto error;
             PyObject *default_val = NULL;
             if (MS_LIKELY(i >= (nfields - ndefaults))) {
                 default_val = PyTuple_GET_ITEM(
@@ -22554,7 +22573,7 @@ convert_object_to_struct_union(
         if (info == NULL) return NULL;
         return convert_object_to_struct(self, obj, info, path, getter, true);
     }
-    ms_missing_required_field(tag_field, path);
+    if (convert_field_missing()) ms_missing_required_field(tag_field, path);
     return NULL;
 }
 
@@ -22584,7 +22603,7 @@ convert_object_to_dataclass(
         PyObject *attr = getter(obj, field);
         PyObject *val;
         if (attr == NULL) {
-            PyErr_Clear();
+            if (!convert_field_missing()) goto error;
             if (MS_LIKELY(i >= (nfields - ndefaults))) {
                 PyObject *default_val = PyTuple_GET_ITEM(
                     info->defaults, i - (nfields - ndefaults)
@@ -22721,8 +22740,7 @@ Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
 static PyObject *
 getattr_then_getitem(PyObject *obj, PyObject *key) {
     PyObject *out = PyObject_GetAttr(obj, key);
-    if (out == NULL) {
-        PyErr_Clear();
+    if (out == NULL && convert_field_missing()) {
         out = PyObject_GetItem(obj, key);
     }
     return out;
