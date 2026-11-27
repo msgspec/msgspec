@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix `title`, `description`, `examples`, `extra_json_schema` and `extra` from
+  an inner `Meta` taking precedence over an outer one in `msgspec.inspect` and
+  JSON Schema when the inner one is behind a `NewType` or `type` alias. The
+  `Meta` closest to the use site now wins, as it does for nested `Annotated`.
 - Fix `KeyError` when decoding, converting, inspecting or generating JSON
   Schema for `attrs` classes with fields that have no annotation, such as
   `attrs.make_class("Point", ["x"])` or `attr.ib()`. Such fields are now treated

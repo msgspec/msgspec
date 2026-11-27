@@ -31,7 +31,15 @@ import pytest
 import msgspec
 from msgspec import Meta
 
-from .utils import py315_or_later_only, temp_module
+from .utils import (
+    THREE_KINDS,
+    WRAP_KINDS,
+    layered_type,
+    py315_or_later_only,
+    temp_module,
+    three_metas,
+    wrapped_type,
+)
 
 if sys.version_info >= (3, 15):
     # This is needed for `ruff` to recognize `frozendict` name
@@ -229,6 +237,55 @@ def test_newtype():
         "type": "string",
         "maxLength": 10,
     }
+
+
+@pytest.mark.parametrize("kind", WRAP_KINDS)
+def test_metadata_outer_wins_through_alias(kind):
+    inner = Meta(
+        title="inner title",
+        description="inner description",
+        examples=["inner"],
+        extra_json_schema={"x": "inner", "inner_only": 1},
+    )
+    outer = Meta(
+        title="outer title",
+        description="outer description",
+        examples=["outer"],
+        extra_json_schema={"x": "outer", "outer_only": 2},
+    )
+
+    # The annotation closest to the use site wins, whether or not a NewType or
+    # type alias sits between the two
+    with wrapped_type(kind, Annotated[int, inner]) as typ:
+        assert msgspec.json.schema(Annotated[typ, outer]) == {
+            "type": "integer",
+            "title": "outer title",
+            "description": "outer description",
+            "examples": ["outer"],
+            "x": "outer",
+            "inner_only": 1,
+            "outer_only": 2,
+        }
+
+
+@pytest.mark.parametrize("kind", THREE_KINDS)
+def test_metadata_three_layers_through_alias(kind):
+    inner, middle, outer = three_metas()
+
+    with layered_type(kind, inner, middle) as typ:
+        # Outer beats middle beats inner; keys set by fewer layers survive, and
+        # list values concatenate from inner to outer
+        assert msgspec.json.schema(Annotated[typ, outer]) == {
+            "type": "integer",
+            "title": "outer title",
+            "description": "middle description",
+            "examples": ["middle"],
+            "x": "outer",
+            "tags": ["i", "m", "o"],
+            "inner_only": 1,
+            "middle_only": 2,
+            "outer_only": 3,
+        }
 
 
 @pytest.mark.parametrize("typ", [list, tuple, List, Tuple])
