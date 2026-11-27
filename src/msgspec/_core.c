@@ -16015,6 +16015,30 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     return ms_validation_error("str", type, path);
 }
 
+static inline PyObject *
+mpack_decode_memoryview(DecoderState *self, char *data, Py_ssize_t size) {
+    PyObject *view = PyMemoryView_GetContiguous(self->buffer_obj, PyBUF_READ, 'C');
+    if (view == NULL) return NULL;
+    Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
+    if (MS_UNLIKELY(
+        !PyBytes_CheckExact(self->buffer_obj) && (
+            buffer->ndim != 1 || buffer->itemsize != 1 ||
+            buffer->format[0] != 'B' || buffer->format[1] != '\0'
+        )
+    )) {
+        /* Casting also updates the memoryview's cached contiguity flags. */
+        PyObject *cast = PyObject_CallMethod(view, "cast", "s", "B");
+        Py_DECREF(view);
+        if (cast == NULL) return NULL;
+        view = cast;
+        buffer = PyMemoryView_GET_BUFFER(view);
+    }
+    buffer->buf = data;
+    buffer->len = size;
+    buffer->shape = &(buffer->len);
+    return view;
+}
+
 static PyObject *
 mpack_decode_bin(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
@@ -16036,15 +16060,7 @@ mpack_decode_bin(
         return ms_decode_uuid_from_bytes(s, size, path);
     }
     else if (type->types & MS_TYPE_MEMORYVIEW) {
-        PyObject *view = PyMemoryView_GetContiguous(
-            self->buffer_obj, PyBUF_READ, 'C'
-        );
-        if (view == NULL) return NULL;
-        Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
-        buffer->buf = s;
-        buffer->len = size;
-        buffer->shape = &(buffer->len);
-        return view;
+        return mpack_decode_memoryview(self, s, size);
     }
 
     return ms_validation_error("bytes", type, path);
@@ -16897,7 +16913,6 @@ static PyObject *
 mpack_decode_ext(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
-    Py_buffer *buffer;
     char c_code = 0, *data_buf = NULL;
     long code;
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
@@ -16942,12 +16957,8 @@ mpack_decode_ext(
         pycode = PyLong_FromLong(code);
         if (pycode == NULL) goto done;
     }
-    view = PyMemoryView_GetContiguous(self->buffer_obj, PyBUF_READ, 'C');
+    view = mpack_decode_memoryview(self, data_buf, size);
     if (view == NULL) goto done;
-    buffer = PyMemoryView_GET_BUFFER(view);
-    buffer->buf = data_buf;
-    buffer->len = size;
-    buffer->shape = &(buffer->len);
 
     out = PyObject_CallFunctionObjArgs(self->ext_hook, pycode, view, NULL);
 done:
