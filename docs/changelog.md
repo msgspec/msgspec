@@ -6,6 +6,10 @@
   and JSON Schema when the inner one is in a union with `UnsetType`, such as
   `Annotated[UserId | UnsetType, Meta(description="...")]`, or is the bound of
   a `TypeVar`.
+- Fix JSON Schema descriptions taken from multi-line docstrings keeping the
+  indentation of every line after the first on Python 3.12 and older, when the
+  summary starts on the line with the opening quotes. Tabs in such docstrings
+  are now expanded to spaces on those versions, as they already are on 3.13+.
 - Raise `TypeError` instead of `AttributeError` from `msgspec.toml.encode` when
   the object does not encode to a table.
 - Fix `title`, `description`, `examples`, `extra_json_schema` and `extra` from
