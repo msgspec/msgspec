@@ -669,7 +669,9 @@ def _origin_args_metadata(t):
         origin = getattr(t, "__origin__", None)
         if origin is not None:
             if type(t) is _AnnotatedAlias:
-                metadata.extend(m for m in t.__metadata__ if type(m) is msgspec.Meta)
+                # Layers are unwrapped outermost first, but later metadata wins,
+                # so a layer behind a NewType or type alias goes in front
+                metadata[:0] = [m for m in t.__metadata__ if type(m) is msgspec.Meta]
                 t = origin
             elif origin == Final:
                 t = t.__args__[0]

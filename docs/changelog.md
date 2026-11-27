@@ -14,6 +14,16 @@
   raised, as without `order` ({pr}`1354`)
 - Fix invalid JSON when a `Struct` whose `tag_field` contains characters that
   must be escaped is encoded with `order="sorted"` ({pr}`1354`)
+- Fix JSON Schema descriptions taken from multi-line docstrings keeping the
+  indentation of every line after the first on Python 3.12 and older, when the
+  summary starts on the line with the opening quotes. Tabs in such docstrings
+  are now expanded to spaces on those versions, as they already are on 3.13+.
+- Raise `TypeError` instead of `AttributeError` from `msgspec.toml.encode` when
+  the object does not encode to a table.
+- Fix `title`, `description`, `examples`, `extra_json_schema` and `extra` from
+  an inner `Meta` taking precedence over an outer one in `msgspec.inspect` and
+  JSON Schema when the inner one is behind a `NewType` or `type` alias. The
+  `Meta` closest to the use site now wins, as it does for nested `Annotated`.
 - Fix `KeyError` when decoding, converting, inspecting or generating JSON
   Schema for `attrs` classes with fields that have no annotation, such as
   `attrs.make_class("Point", ["x"])` or `attr.ib()`. Such fields are now treated
