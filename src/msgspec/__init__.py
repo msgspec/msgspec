@@ -24,5 +24,5 @@ def field(*, default=NODEFAULT, default_factory=NODEFAULT, name=None):
 field.__doc__ = _Field.__doc__
 
 
-from . import inspect, json, msgpack, structs, toml, yaml
+from . import inspect, json, json5, msgpack, structs, toml, yaml
 from ._version import __version__
