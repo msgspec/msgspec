@@ -1,0 +1,75 @@
+name: ThreadSanitizer (free-threaded)
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+    paths:
+    - src/msgspec/**
+    - tests/**
+    - setup.py
+    - scripts/run_tsan.sh
+    - .github/workflows/tsan.yml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  tsan:
+    name: TSAN on CPython ${{ matrix.tag }}
+    # TODO(1249): Report-only until the known races are fixed.
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        tag:
+        - 3.14t
+        - 3.15t
+    permissions:
+      contents: read
+    env:
+      TSAN_IMAGE: ghcr.io/nascheme/cpython-tsan:${{ matrix.tag }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Relax ASLR for TSAN
+      run: sudo sysctl vm.mmap_rnd_bits=28
+
+    - name: Pull TSAN image
+      run: docker pull "${TSAN_IMAGE}"
+
+    - name: Build with TSAN and run tests
+      run: >-
+        docker run --rm
+        --volume "${GITHUB_WORKSPACE}:/src"
+        --workdir /src
+        "${TSAN_IMAGE}"
+        bash scripts/run_tsan.sh
+
+    - name: Publish race summary
+      if: always()
+      run: cat tsan-summary.txt >> "${GITHUB_STEP_SUMMARY}" || true
+
+    - name: Upload TSAN logs
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: tsan-logs-${{ matrix.tag }}
+        path: |-
+          tsan-logs/
+          tsan-summary.txt
+        if-no-files-found: warn
+        
