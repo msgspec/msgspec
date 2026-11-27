@@ -32,7 +32,15 @@ import pytest
 import msgspec
 from msgspec import Meta
 
-from .utils import py315_or_later_only, temp_module
+from .utils import (
+    THREE_KINDS,
+    WRAP_KINDS,
+    layered_type,
+    py315_or_later_only,
+    temp_module,
+    three_metas,
+    wrapped_type,
+)
 
 if sys.version_info >= (3, 15):
     # This is needed for `ruff` to recognize `frozendict` name
@@ -230,6 +238,55 @@ def test_newtype():
         "type": "string",
         "maxLength": 10,
     }
+
+
+@pytest.mark.parametrize("kind", WRAP_KINDS)
+def test_metadata_outer_wins_through_alias(kind):
+    inner = Meta(
+        title="inner title",
+        description="inner description",
+        examples=["inner"],
+        extra_json_schema={"x": "inner", "inner_only": 1},
+    )
+    outer = Meta(
+        title="outer title",
+        description="outer description",
+        examples=["outer"],
+        extra_json_schema={"x": "outer", "outer_only": 2},
+    )
+
+    # The annotation closest to the use site wins, whether or not a NewType or
+    # type alias sits between the two
+    with wrapped_type(kind, Annotated[int, inner]) as typ:
+        assert msgspec.json.schema(Annotated[typ, outer]) == {
+            "type": "integer",
+            "title": "outer title",
+            "description": "outer description",
+            "examples": ["outer"],
+            "x": "outer",
+            "inner_only": 1,
+            "outer_only": 2,
+        }
+
+
+@pytest.mark.parametrize("kind", THREE_KINDS)
+def test_metadata_three_layers_through_alias(kind):
+    inner, middle, outer = three_metas()
+
+    with layered_type(kind, inner, middle) as typ:
+        # Outer beats middle beats inner; keys set by fewer layers survive, and
+        # list values concatenate from inner to outer
+        assert msgspec.json.schema(Annotated[typ, outer]) == {
+            "type": "integer",
+            "title": "outer title",
+            "description": "middle description",
+            "examples": ["middle"],
+            "x": "outer",
+            "tags": ["i", "m", "o"],
+            "inner_only": 1,
+            "middle_only": 2,
+            "outer_only": 3,
+        }
 
 
 @pytest.mark.parametrize("typ", [list, tuple, List, Tuple])
@@ -1246,6 +1303,34 @@ def test_dataclass_or_attrs(module):
     }
 
 
+def test_attrs_without_annotations():
+    attrs = pytest.importorskip("attrs")
+
+    @attrs.define(auto_attribs=False)
+    class Example:
+        a = attrs.field()
+        b = attrs.field(type=int)
+        c: str = attrs.field()
+        d = attrs.field(default=1)
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {
+            "Example": {
+                "title": "Example",
+                "type": "object",
+                "properties": {
+                    "a": {},
+                    "b": {"type": "integer"},
+                    "c": {"type": "string"},
+                    "d": {"default": 1},
+                },
+                "required": ["a", "b", "c"],
+            }
+        },
+    }
+
+
 @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
 def test_generic_dataclass_or_attrs(module):
     m = pytest.importorskip(module)
@@ -2131,3 +2216,37 @@ def test_multiline_docstring():
             }
         },
     }
+
+
+def test_multiline_docstring_summary_on_first_line():
+    class Example(msgspec.Struct):
+        pass
+
+    # A docstring as Python 3.12 and older store it: the compiler keeps the
+    # indentation of every line but the first
+    Example.__doc__ = "Summary line.\n\n    More **details**.\n    "
+
+    assert msgspec.json.schema(Example)["$defs"]["Example"]["description"] == (
+        "Summary line.\n\nMore **details**."
+    )
+
+
+@pytest.mark.parametrize(
+    "doc, expected",
+    [
+        # Only whitespace: no description
+        ("   \n    ", None),
+        # Closing quotes indented deeper than the text
+        ("Summary.\n\nMore.\n  ", "Summary.\n\nMore."),
+        # A continuation line at column 0
+        ("Summary.\nNot indented.\n    ", "Summary.\nNot indented."),
+    ],
+)
+def test_docstring_trailing_whitespace_only_line(doc, expected):
+    class Example(msgspec.Struct):
+        pass
+
+    Example.__doc__ = doc
+
+    out = msgspec.json.schema(Example)["$defs"]["Example"]
+    assert out.get("description") == expected

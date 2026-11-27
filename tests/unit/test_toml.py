@@ -44,6 +44,10 @@ class ExStruct(msgspec.Struct):
     y: str
 
 
+class ExArrayStruct(msgspec.Struct, array_like=True):
+    x: int
+
+
 @dataclasses.dataclass
 class ExDataclass:
     x: int
@@ -169,6 +173,24 @@ def test_encode_error():
 
     with pytest.raises(TypeError, match="Encoding objects of type Oops is unsupported"):
         msgspec.toml.encode({"x": Oops()})
+
+
+@needs_encode
+@pytest.mark.parametrize("val", [[1, 2], 1, "x", None, ExArrayStruct(1)])
+def test_encode_non_table_error(val):
+    with pytest.raises(
+        TypeError, match="TOML documents must be tables, got an object of type"
+    ):
+        msgspec.toml.encode(val)
+
+
+@needs_encode
+@pytest.mark.parametrize(
+    "val",
+    [{"x": 1, "y": "a"}, ExStruct(1, "a"), ExDataclass(1, "a")],
+)
+def test_encode_table_output(val):
+    assert msgspec.toml.encode(val) == b'x = 1\ny = "a"\n'
 
 
 @needs_encode

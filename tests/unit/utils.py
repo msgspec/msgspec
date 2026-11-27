@@ -6,8 +6,11 @@ import textwrap
 import types
 import uuid
 from contextlib import contextmanager
+from typing import Annotated, NewType
 
 import pytest
+
+from msgspec import Meta
 
 emscripten_stack_limited = pytest.mark.skipif(
     sys.platform == "emscripten",
@@ -41,6 +44,84 @@ def temp_module(code):
         yield mod
     finally:
         sys.modules.pop(name, None)
+
+
+py312_plus = pytest.mark.skipif(sys.version_info < (3, 12), reason="3.12+ only")
+
+# Ways to wrap a type, for `wrapped_type`. `annotated` adds no alias layer.
+WRAP_KINDS = [
+    "annotated",
+    "newtype",
+    "newtype_twice",
+    pytest.param("alias", marks=py312_plus),
+    pytest.param("alias_twice", marks=py312_plus),
+]
+
+
+@contextmanager
+def wrapped_type(kind, inner):
+    """Yield `inner` wrapped in zero, one or two `NewType` or `type` aliases."""
+    if kind == "annotated":
+        yield inner
+    elif kind == "newtype":
+        yield NewType("A", inner)
+    elif kind == "newtype_twice":
+        yield NewType("B", NewType("A", inner))
+    else:
+        code = "type A = INNER"
+        if kind == "alias_twice":
+            code += "\ntype B = A"
+        with temp_module(code) as mod:
+            # Alias values are evaluated lazily, so this is seen on first use
+            mod.INNER = inner
+            yield mod.B if kind == "alias_twice" else mod.A
+
+
+THREE_KINDS = [
+    "annotated",
+    "newtype",
+    pytest.param("alias_of_newtype", marks=py312_plus),
+]
+
+
+def three_metas():
+    """`Meta` objects for an inner, middle and outer layer. Every attribute is
+    set by one, two or all three layers, to pin which layer wins."""
+    inner = Meta(
+        title="inner title",
+        description="inner description",
+        examples=["inner"],
+        extra={"k": "inner", "im": "inner", "inner_only": 1},
+        extra_json_schema={"x": "inner", "tags": ["i"], "inner_only": 1},
+    )
+    middle = Meta(
+        title="middle title",
+        description="middle description",
+        examples=["middle"],
+        extra={"k": "middle", "im": "middle", "middle_only": 2},
+        extra_json_schema={"x": "middle", "tags": ["m"], "middle_only": 2},
+    )
+    outer = Meta(
+        title="outer title",
+        extra={"k": "outer", "outer_only": 3},
+        extra_json_schema={"x": "outer", "tags": ["o"], "outer_only": 3},
+    )
+    return inner, middle, outer
+
+
+@contextmanager
+def layered_type(kind, inner, middle):
+    """Yield `int` with `inner` then `middle` added behind NewType or alias
+    layers, ready for an outer `Meta` to be added at the use site."""
+    base = Annotated[int, inner]
+    if kind == "annotated":
+        yield Annotated[base, middle]
+    elif kind == "newtype":
+        yield NewType("B", Annotated[NewType("A", base), middle])
+    else:
+        with temp_module("type A = VALUE") as mod:
+            mod.VALUE = Annotated[NewType("N", base), middle]
+            yield mod.A
 
 
 @contextmanager
