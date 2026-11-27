@@ -288,8 +288,19 @@ class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.msgpack.Encoder()
-        with pytest.raises(OverflowError):
-            enc.encode(x)
+        for obj in (x, [x]):
+            with pytest.raises(OverflowError):
+                enc.encode(obj)
+        assert enc.encode([0]) == b"\x91\x00"
+
+    def test_encode_integer_list(self):
+        msgpack = pytest.importorskip("msgpack")
+        expected = msgpack.packb(INTS)
+        enc = msgspec.msgpack.Encoder()
+        assert enc.encode(INTS) == expected
+        buf = bytearray()
+        enc.encode_into(INTS, buf)
+        assert buf == expected
 
     def rec_obj1(self):
         o = []

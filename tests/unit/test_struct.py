@@ -957,6 +957,20 @@ def test_struct_reference_counting():
     assert sys.getrefcount(data) <= 4
 
 
+def test_empty_struct_sorted_order_reused_and_collected():
+    cls = defstruct("Empty", [])
+    obj = cls()
+    ref = weakref.ref(cls)
+    json_encoder = msgspec.json.Encoder(order="sorted")
+    msgpack_encoder = msgspec.msgpack.Encoder(order="sorted")
+    for _ in range(3):
+        assert json_encoder.encode(obj) == b"{}"
+        assert msgpack_encoder.encode(obj) == b"\x80"
+    del cls, obj, json_encoder, msgpack_encoder
+    gc.collect()
+    assert ref() is None
+
+
 def test_struct_definition_does_not_leak_annotations():
     """Defining a struct type must not retain its `__annotations__` dict"""
 

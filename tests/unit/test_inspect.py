@@ -733,6 +733,28 @@ def test_attrs():
     assert mi.type_info(Example) == sol
 
 
+def test_attrs_without_annotations():
+    attrs = pytest.importorskip("attrs")
+
+    @attrs.define(auto_attribs=False)
+    class Example:
+        a = attrs.field()
+        b = attrs.field(type=int)
+        c: str = attrs.field()
+        d = attrs.field(default=1)
+
+    sol = mi.DataclassType(
+        Example,
+        fields=(
+            mi.Field("a", "a", mi.AnyType()),
+            mi.Field("b", "b", mi.IntType()),
+            mi.Field("c", "c", mi.StrType()),
+            mi.Field("d", "d", mi.AnyType(), required=False, default=1),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+
 @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
 def test_generic_dataclass_or_attrs(module):
     m = pytest.importorskip(module)

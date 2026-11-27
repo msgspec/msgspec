@@ -3,6 +3,7 @@
 # We default to all non-profiling test suites and we run unit tests first.
 testpaths = [
   "tests/unit",
+  "tests/freethreading",
 ]
 # Turn all warnings into errors.
 filterwarnings = [

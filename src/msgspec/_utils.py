@@ -157,6 +157,21 @@ def _get_class_mro_and_typevar_mappings(obj):
     return cls.__mro__, mapping
 
 
+def _copy_class_namespace(cls):
+    namespace = vars(cls)
+    if isinstance(namespace, types.MappingProxyType):
+        # A normal class namespace delegates copy() to its dict under the dict lock.
+        try:
+            snapshot = namespace.copy()
+        except AttributeError:
+            pass
+        else:
+            if type(snapshot) is dict:
+                return snapshot
+    # A metaclass may expose a custom mapping for __dict__.
+    return dict(namespace)
+
+
 def get_class_annotations(obj):
     """Get the annotations for a class.
 
@@ -189,7 +204,7 @@ def get_class_annotations(obj):
             continue
 
         mapping = typevar_mappings.get(cls)
-        cls_locals = dict(vars(cls))
+        cls_locals = _copy_class_namespace(cls)
 
         # resolve type parameters (e.g. class Foo[T]: pass)
         type_params = getattr(cls, "__type_params__", ())
@@ -390,11 +405,28 @@ def get_dataclass_info(obj):
     else:
         from attrs import NOTHING, Factory
 
+        # Only needed for fields without an annotation, built on first use
+        owners = None
         fields_with_validators = []
 
         for field in cls.__attrs_attrs__:
             name = field.name
-            typ = hints[name]
+            if name in hints:
+                typ = hints[name]
+            elif field.type is None:
+                # Fields made with `attr.ib()` or `make_class` have no annotation
+                typ = typing.Any
+            else:
+                if owners is None:
+                    _, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
+                    # The class that defines each field, most derived last
+                    owners = {
+                        a.name: c
+                        for c in reversed(cls.__mro__)
+                        for a in getattr(c, "__attrs_attrs__", ())
+                        if not a.inherited
+                    }
+                typ = _apply_params(field.type, typevar_mappings.get(owners[name], {}))
             default = field.default
             if default is not NOTHING:
                 if isinstance(default, Factory):

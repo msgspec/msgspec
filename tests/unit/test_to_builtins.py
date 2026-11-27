@@ -323,6 +323,14 @@ class TestToBuiltins:
         res = to_builtins(in_type())
         assert res == out_type()
 
+    def test_empty_list_results_are_independent(self):
+        msg = []
+        first = to_builtins(msg)
+        second = to_builtins(msg)
+        assert first is not msg and second is not msg and first is not second
+        first.append(1)
+        assert msg == [] and second == []
+
     @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     def test_sequence_unsupported_item(self, in_type):
         msg = in_type([1, Bad(), 3])

@@ -345,6 +345,63 @@ class TestDecoder:
             dec.decode(b"[]")
 
 
+class TestInvalidUTF8:
+    @pytest.mark.parametrize("raw", [b"\xff", b"\xed\xa0\x80"])
+    def test_invalid_utf8_strings(self, proto, raw):
+        marker = "x" * len(raw)
+        buf = proto.encode(marker).replace(marker.encode(), raw)
+        decoder = proto.Decoder()
+        for decode in [proto.decode, decoder.decode]:
+            with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+                decode(buf)
+        assert decoder.decode(proto.encode("caf\u00e9")) == "caf\u00e9"
+
+    def test_invalid_utf8_releases_buffer(self, proto):
+        buf = bytearray(proto.encode("x").replace(b"x", b"\xff"))
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf)
+        # Resizing a bytearray fails while its buffer is still exported
+        buf.extend(b"x")
+
+    @pytest.mark.parametrize(
+        "obj, target",
+        [
+            ("MARKER", str),
+            ("MARKER", decimal.Decimal),
+            ("MARKER", Literal["apple", "banana"]),
+            ("MARKER", FruitStr),
+            ({"MARKER": 1}, dict),
+            ({"MARKER": 1}, dict[Literal["apple"], int]),
+            ({"value": ["MARKER"]}, dict[str, list[str]]),
+        ],
+    )
+    def test_invalid_utf8_typed(self, proto, obj, target):
+        buf = proto.encode(obj).replace(b"MARKER", b"\xffXXXXX")
+        decoder = proto.Decoder(target)
+        for decode in [lambda b: proto.decode(b, type=target), decoder.decode]:
+            with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+                decode(buf)
+
+    def test_invalid_utf8_unknown_field(self, proto):
+        class Ex(Struct, forbid_unknown_fields=True):
+            x: int = 0
+
+        buf = proto.encode({"MARKER": 1}).replace(b"MARKER", b"\xffXXXXX")
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf, type=Ex)
+
+    def test_invalid_utf8_union_tag(self, proto):
+        class A(Struct, tag="a"):
+            x: int
+
+        class B(Struct, tag="b"):
+            x: int
+
+        buf = proto.encode({"type": "MARKER", "x": 1}).replace(b"MARKER", b"\xffXXXXX")
+        with pytest.raises(msgspec.DecodeError, match="Invalid UTF-8"):
+            proto.decode(buf, type=A | B)
+
+
 @pytest.mark.skipif(
     PY312,
     reason=(
@@ -1517,6 +1574,24 @@ class TestStructUnion:
         assert len(cache) == 1
         assert frozenset((Test1, Test2)) in cache
 
+    def test_failed_recursive_schema_does_not_cache_struct_union(self):
+        from msgspec._core import _struct_lookup_cache as cache
+
+        source = """
+        from msgspec import Struct
+
+        class Leaf(Struct, tag=True):
+            pass
+
+        class Node(Struct, tag=True):
+            child: "Node | Leaf"
+            bad: list | tuple
+        """
+        with temp_module(source) as mod:
+            with pytest.raises(TypeError, match="more than one array-like"):
+                msgspec.json.Decoder(mod.Node)
+            assert frozenset((mod.Node, mod.Leaf)) not in cache
+
     def test_struct_union_cache_evicted(self, proto):
         from msgspec._core import _struct_lookup_cache as cache
 
@@ -1538,7 +1613,7 @@ class TestStructUnion:
             return frozenset(typ)
 
         first = call_with_new_types()
-        assert first in cache
+        first_lookup = cache[first]
 
         # Fill up the cache
         for _ in range(MAX_CACHE_SIZE - 1):
@@ -1555,6 +1630,12 @@ class TestStructUnion:
         assert len(cache) == MAX_CACHE_SIZE
         assert first not in cache
         assert frozenset(new) in cache
+
+        # An already oversized cache must return to its limit in FIFO order.
+        cache[first] = first_lookup
+        before = list(cache)
+        latest = call_with_new_types()
+        assert list(cache) == before[2:] + [latest]
 
 
 class TestGenericStruct:
@@ -4267,6 +4348,72 @@ class TestAttrs:
             ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
             dec.decode(proto.encode({"a": "bad"}))
+
+    @pytest.mark.parametrize("kind", ["field", "type", "make_class"])
+    def test_decode_attrs_without_annotations(self, proto, kind):
+        if kind == "field":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field()
+
+        elif kind == "type":
+
+            @attrs.define(auto_attribs=False)
+            class Example:
+                a = attrs.field(type=int)
+
+        else:
+            Example = attrs.make_class("Example", ["a"])
+
+        dec = proto.Decoder(Example)
+        assert dec.decode(proto.encode({"a": 1})) == Example(1)
+
+        # Missing fields error
+        with pytest.raises(ValidationError, match="missing required field `a`"):
+            dec.decode(proto.encode({}))
+
+        msg = proto.encode({"a": "bad"})
+        if kind == "type":
+            with pytest.raises(
+                ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+            ):
+                dec.decode(msg)
+        else:
+            # No annotation means `Any`
+            assert dec.decode(msg) == Example("bad")
+
+    def test_decode_attrs_mixed_annotations(self, proto):
+        @attrs.define(auto_attribs=False)
+        class Example:
+            a: int = attrs.field()
+            b = attrs.field(default="x")
+            c = attrs.field(type=str, default="y")
+
+        dec = proto.Decoder(Example)
+        res = dec.decode(proto.encode({"a": 1, "b": [2]}))
+        assert res == Example(1, [2], "y")
+
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+        ):
+            dec.decode(proto.encode({"a": "bad"}))
+        with pytest.raises(
+            ValidationError, match=r"Expected `str`, got `int` - at `\$.c`"
+        ):
+            dec.decode(proto.encode({"a": 1, "c": 2}))
+
+    def test_decode_attrs_generic_without_annotation(self, proto):
+        @attrs.define(auto_attribs=False)
+        class G(Generic[T]):
+            x = attrs.field(type=T)
+
+        dec = proto.Decoder(G[int])
+        assert dec.decode(proto.encode({"x": 1})) == G(1)
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.x`"
+        ):
+            dec.decode(proto.encode({"x": "s"}))
 
     @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
