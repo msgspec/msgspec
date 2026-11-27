@@ -9610,6 +9610,19 @@ ms_get_dataclass_fields(MsgspecState *mod, PyTypeObject *type, PyObject *obj) {
     return fields;
 }
 
+/* MinGW extension modules declare PyAPI_FUNC without
+ * __declspec(dllimport) (see CPython's exports.h), so taking the
+ * address of PyObject_GenericGetAttr yields a linker-generated import
+ * thunk inside this module instead of the function in libpython.
+ * Pointer comparisons against type slots must resolve the real
+ * address through the import address table instead. */
+#ifdef __MINGW32__
+extern void *__imp_PyObject_GenericGetAttr;
+#  define MSGSPEC_IS_GENERIC_GETATTR(type)     ((type)->tp_getattro == (getattrofunc)__imp_PyObject_GenericGetAttr)
+#else
+#  define MSGSPEC_IS_GENERIC_GETATTR(type)     ((type)->tp_getattro == PyObject_GenericGetAttr)
+#endif
+
 static bool
 dataclass_iter_setup(DataclassIter *iter, PyObject *obj, PyObject *fields) {
     iter->dict = NULL;
@@ -9624,9 +9637,7 @@ dataclass_iter_setup(DataclassIter *iter, PyObject *obj, PyObject *fields) {
     iter->fields_pos = 0;
     iter->dict_pos = 0;
     iter->fastpath = false;
-    iter->standard_getattr = (
-        Py_TYPE(obj)->tp_getattro == PyObject_GenericGetAttr
-    );
+    iter->standard_getattr = MSGSPEC_IS_GENERIC_GETATTR(Py_TYPE(obj));
     if (iter->standard_getattr) {
         iter->dict = PyObject_GenericGetDict(obj, NULL);
         if (iter->dict == NULL) {
