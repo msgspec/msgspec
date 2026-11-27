@@ -1,3 +1,4 @@
+import array
 import datetime
 import decimal
 import enum
@@ -7,7 +8,7 @@ import sys
 import uuid
 from base64 import b64encode
 from collections import UserDict
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Event
@@ -2294,6 +2295,277 @@ class TestStruct:
         res = convert(msg, self.Account, from_attributes=from_attributes)
         assert res == self.Account(first="alice", last="munro", age=91)
 
+    @pytest.mark.parametrize("mapcls", [dict, SubDict, GetItemObj])
+    def test_struct_int_keys(self, mapcls):
+        class Ex(Struct, int_keys={"x": 1, "y": 2}, rename={"z": "zed"}):
+            x: int
+            y: int = 0
+            z: int = 0
+
+        sol = Ex(1, 2, 3)
+        # Integer keys, as produced by `to_builtins` / a msgpack-like protocol
+        assert convert(mapcls({1: 1, 2: 2, "zed": 3}), Ex) == sol
+        # Field names are still accepted as an alias
+        assert convert(mapcls({"x": 1, "y": 2, "zed": 3}), Ex) == sol
+        # Mixed
+        assert convert(mapcls({1: 1, "y": 2, "zed": 3}), Ex) == sol
+        # Round trips through `to_builtins`, with both int and decimal-string keys
+        assert convert(mapcls(to_builtins(sol)), Ex) == sol
+        assert convert(mapcls(to_builtins(sol, str_keys=True)), Ex) == sol
+
+    def test_struct_int_keys_decimal_strings(self):
+        """Canonical decimal strings ("1") resolve to the int-keyed field, as
+        emitted by `to_builtins(..., str_keys=True)` / `json.encode`. Any other
+        string is matched as a field name."""
+
+        class Ex(Struct, int_keys={"x": 1, "y": -2}):
+            x: int
+            y: int = 0
+
+        assert convert({"1": 1, "-2": 2}, Ex) == Ex(1, 2)
+        # Non-canonical spellings are unknown field names, not int keys
+        assert convert({"01": 5, "x": 1}, Ex) == Ex(1)
+        assert convert({"-0": 5, "x": 1}, Ex) == Ex(1)
+        assert convert({"9223372036854775808": 5, "x": 1}, Ex) == Ex(1)
+
+    @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+    @pytest.mark.parametrize("key", [99, -1, 2**63, 2**70, -(2**70)])
+    def test_struct_int_keys_unknown_int_key(self, forbid_unknown_fields, key):
+        class Ex(
+            Struct, int_keys={"x": 1}, forbid_unknown_fields=forbid_unknown_fields
+        ):
+            x: int
+
+        msg = {1: 1, key: 2}
+        if forbid_unknown_fields:
+            with pytest.raises(ValidationError, match=f"unknown field `{key}`"):
+                convert(msg, Ex)
+        else:
+            assert convert(msg, Ex) == Ex(1)
+
+    def test_struct_int_keys_bool_key_rejected(self):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int
+
+        with pytest.raises(ValidationError, match="Expected `str` - at `key` in `\\$`"):
+            convert({True: 1}, Ex)
+
+    def test_struct_without_int_keys_rejects_int_key(self):
+        class Ex(Struct):
+            x: int
+
+        with pytest.raises(ValidationError, match="Expected `str` - at `key` in `\\$`"):
+            convert({1: 1}, Ex)
+
+    def test_struct_int_keys_from_attributes_uses_names(self):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int
+
+        assert convert(GetAttrObj(x=1), Ex, from_attributes=True) == Ex(1)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    @pytest.mark.parametrize("mapcls", [UserDict, GetItemObj])
+    def test_struct_int_keys_mapping_falls_back_to_name(self, mapcls, from_attributes):
+        class Ex(Struct, int_keys={"x": 1, "y": -2}):
+            x: int
+            y: int = 0
+
+        def conv(msg):
+            return convert(mapcls(msg), Ex, from_attributes=from_attributes)
+
+        # Non-dict mappings: the integer key is tried first, then its canonical
+        # decimal string, then the field name. `from_attributes` doesn't change
+        # this, a mapping is still a mapping.
+        assert conv({1: 1, "y": 2}) == Ex(1, 2)
+        assert conv({1: 1, -2: 2}) == Ex(1, 2)
+        assert conv({"1": 1, "-2": 2}) == Ex(1, 2)
+        assert conv({"x": 1}) == Ex(1)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            conv({"y": 2})
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    @pytest.mark.parametrize("mapcls", [UserDict, GetItemObj])
+    def test_struct_int_keys_mapping_decimal_string_precedence(
+        self, mapcls, from_attributes
+    ):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+            y: int = 0
+
+        def conv(msg, type=Ex):
+            return convert(mapcls(msg), type, from_attributes=from_attributes)
+
+        # Neither the integer key nor its decimal string is silently ignored in
+        # favor of a default (regression test)
+        assert conv({1: 5}) == Ex(5)
+        assert conv({"1": 5}) == Ex(5)
+        # The decimal string is preferred over the field name
+        assert conv({"1": 5, "x": 6}) == Ex(5)
+        # The integer key wins over the decimal string
+        assert conv({1: 4, "1": 5, "x": 6}) == Ex(4)
+        # Non-canonical spellings are not int keys
+        assert conv({"01": 5}) == Ex(0)
+
+        # A required field supplied only as its integer key or decimal string
+        # is not missing
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        assert conv({1: 5}, Req) == Req(5)
+        assert conv({"1": 5}, Req) == Req(5)
+
+    @pytest.mark.parametrize("key", [1, "1"])
+    @pytest.mark.parametrize("mapcls", [dict, UserDict, GetItemObj])
+    def test_struct_int_keys_nested_mapping_from_attributes(self, mapcls, key):
+        class Inner(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        class Outer(Struct):
+            inner: Inner
+            req: Req
+
+        # A mapping nested in an attribute-only object is still read by its
+        # integer keys
+        msg = GetAttrObj(inner=mapcls({key: 5}), req=mapcls({key: 6}))
+        res = convert(msg, Outer, from_attributes=True)
+        assert res == Outer(Inner(5), Req(6))
+
+    def test_struct_int_keys_from_attributes_attribute_and_item_access(self):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        class Row:
+            """Offers both attribute and positional item access"""
+
+            def __init__(self, **attrs):
+                self.__dict__.update(attrs)
+
+            def __getitem__(self, index):
+                return [10, 20][index]
+
+        # `Row` isn't a `collections.abc.Mapping`, so it's read by field name
+        assert convert(Row(x=7), Ex, from_attributes=True) == Ex(7)
+        assert convert(Row(x=7), Req, from_attributes=True) == Req(7)
+        # Without such an attribute the field is absent: `Row` isn't a
+        # `collections.abc.Mapping`, so the integer key isn't read as a position
+        assert convert(Row(), Ex, from_attributes=True) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            convert(Row(), Req, from_attributes=True)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    @pytest.mark.parametrize("key", [1, "1"])
+    @pytest.mark.parametrize("name", ["items", "keys", "get", "data"])
+    def test_struct_int_keys_mapping_attribute_named_like_field(
+        self, name, key, from_attributes
+    ):
+        """A mapping is read in the same order with or without
+        `from_attributes`: integer key, decimal string, field name. A method
+        or attribute of the mapping that shares a field's name (regression
+        test) doesn't shadow the field's integer key."""
+        Ex = msgspec.defstruct("Ex", [(name, int, 0)], int_keys={name: 1})
+        Req = msgspec.defstruct("Req", [(name, int)], int_keys={name: 1})
+
+        # `UserDict` has `items`, `keys`, `get` and `data` attributes
+        msg = UserDict({key: 5})
+        assert hasattr(msg, name)
+        assert convert(msg, Ex, from_attributes=from_attributes) == Ex(5)
+        assert convert(msg, Req, from_attributes=from_attributes) == Req(5)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_mapping_int_key_wins_over_attribute(
+        self, from_attributes
+    ):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class AttrDict(UserDict):
+            x = 7
+
+        def conv(msg):
+            return convert(AttrDict(msg), Ex, from_attributes=from_attributes)
+
+        assert conv({1: 5}) == Ex(5)
+        assert conv({"1": 5}) == Ex(5)
+        # The field name falls back to the usual attribute-then-item lookup
+        assert conv({}) == Ex(7)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_positional_getitem_uses_names(self, from_attributes):
+        """Integer keys are only looked up in `collections.abc.Mapping`
+        instances. For anything else with a `__getitem__` an integer is a
+        position, so the fields are read by name alone."""
+
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Req(Struct, int_keys={"x": 1}):
+            x: int
+
+        def conv(obj, type=Ex):
+            return convert(obj, type, from_attributes=from_attributes)
+
+        sqlite3 = pytest.importorskip("sqlite3")
+
+        con = sqlite3.connect(":memory:")
+        con.row_factory = sqlite3.Row
+        try:
+            row = con.execute("select 22 as x, 11 as y").fetchone()
+            other = con.execute("select 5 as a, 6 as b").fetchone()
+        finally:
+            con.close()
+
+        # Column `x` is used, not `row[1]` (column `y`)
+        assert conv(row) == Ex(22)
+        assert conv(row, Req) == Req(22)
+        # Without an `x` column the field is absent, `row[1]` isn't used
+        assert conv(other) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            conv(other, Req)
+
+        arr = array.array("i", [10, 20])
+        assert conv(arr) == Ex(0)
+        with pytest.raises(ValidationError, match="missing required field `x`"):
+            conv(arr, Req)
+
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    def test_struct_int_keys_unregistered_mapping_uses_names(self, from_attributes):
+        class Ex(Struct, int_keys={"x": 1}):
+            x: int = 0
+
+        class Unregistered:
+            """Mapping-like, but not a `collections.abc.Mapping`"""
+
+            def __init__(self, data):
+                self._data = data
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+            def __len__(self):
+                return len(self._data)
+
+            def keys(self):
+                return self._data.keys()
+
+        def conv(msg):
+            return convert(Unregistered(msg), Ex, from_attributes=from_attributes)
+
+        assert conv({"x": 5}) == Ex(5)
+        assert conv({1: 5}) == Ex(0)
+        assert conv({"1": 5}) == Ex(0)
+        assert conv({1: 4, "1": 5, "x": 6}) == Ex(6)
+
+        # Registering the class with the ABC opts in to integer keys
+        Mapping.register(Unregistered)
+        assert conv({1: 5}) == Ex(5)
+        assert conv({"1": 5}) == Ex(5)
+
     @mapcls_from_attributes_and_array_like
     def test_struct_gc_maybe_untracked_on_decode(
         self, mapcls, from_attributes, array_like
@@ -2559,6 +2831,23 @@ class TestStructArray:
 
 
 class TestStructUnion:
+    @pytest.mark.parametrize("from_attributes", [False, True])
+    @pytest.mark.parametrize("mapcls", [dict, UserDict, GetItemObj])
+    def test_struct_union_int_keys(self, mapcls, from_attributes):
+        class A(Struct, tag=True, int_keys={"a": 1}):
+            a: int
+
+        class B(Struct, tag=True, int_keys={"b": 1}):
+            b: int
+
+        def conv(msg):
+            return convert(mapcls(msg), A | B, from_attributes=from_attributes)
+
+        assert conv({"type": "A", 1: 1}) == A(1)
+        assert conv({"type": "B", 1: 2}) == B(2)
+        assert conv({"type": "B", "1": 2}) == B(2)
+        assert conv(to_builtins(B(3))) == B(3)
+
     @pytest.mark.parametrize(
         "tag1, tag2, unknown",
         [

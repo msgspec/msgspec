@@ -29,6 +29,11 @@ class ExStruct(msgspec.Struct):
     y: str
 
 
+class ExIntKeysStruct(msgspec.Struct, int_keys={"a": 1, "b": 2}):
+    a: int
+    b: str
+
+
 @dataclasses.dataclass
 class ExDataclass:
     x: int
@@ -108,6 +113,7 @@ def test_roundtrip_any(val):
         ({"one": 2}, dict[str, int]),
         ({1: "two"}, dict[int, str]),
         (ExStruct(1, "two"), ExStruct),
+        (ExIntKeysStruct(1, "two"), ExIntKeysStruct),
         (ExDataclass(1, "two"), ExDataclass),
     ],
 )
@@ -115,6 +121,15 @@ def test_roundtrip_typed(val, type):
     msg = msgspec.yaml.encode(val)
     res = msgspec.yaml.decode(msg, type=type)
     assert res == val
+
+
+def test_roundtrip_struct_int_keys():
+    """`int_keys` structs are written with integer keys
+    and decoded back through the same keys."""
+    val = ExIntKeysStruct(1, "two")
+    msg = msgspec.yaml.encode(val)
+    assert msgspec.yaml.decode(msg) == {1: 1, 2: "two"}
+    assert msgspec.yaml.decode(msg, type=ExIntKeysStruct) == val
 
 
 @py315_or_later_only
