@@ -2,88 +2,118 @@
 
 ## Unreleased
 
+## Version 0.23.0 (unreleased)
+
+### New features
+
+- Support converting non-dict mappings to `TypedDict` types with `convert`
+  ({pr}`1240`).
+- Include JSON Schema defaults for dataclass and `attrs` fields with builtin
+  `list`, `dict`, `set` or `bytearray` default factories ({pr}`1222`).
+
+### Bug fixes
+
 - Fix a reference leak when building a decoder for a `tuple` subclass whose
-  `_fields` attribute is not a `tuple`.
+  `_fields` attribute is not an exact `tuple` ({pr}`1377`).
+- Return one-dimensional unsigned-byte views for MessagePack binary values
+  decoded as `memoryview` and extension data passed to `ext_hook`, including
+  non-byte and multidimensional input buffers. Preserve shared storage and its
+  lifetime ({pr}`1373`).
+- Fix MessagePack list encoding races on free-threaded Python builds
+  ({pr}`1252`).
+- Fix races when types are first used concurrently for decoding or conversion,
+  and avoid reusing incomplete recursive `TypedDict` state after schema
+  construction fails ({pr}`1359`, {pr}`1258`).
+- Treat `attrs` fields without annotations as `Any`, or as their
+  `attr.ib(type=...)` type, during decoding, conversion, inspection and JSON
+  Schema generation ({pr}`1367`).
+- Propagate unexpected field-access and dictionary-lookup errors during
+  dataclass encoding, object conversion and sorted output
+  ({pr}`1271`, {pr}`1323`, {pr}`1369`).
+- Fix module namespace resolution and missing-annotation errors when defining
+  or inspecting `Struct` types ({pr}`1271`).
+- Apply inherited generic `TypedDict` arguments to subclass fields and resolve
+  PEP 695 type parameters correctly with postponed annotations, without
+  substituting same-named module-level `TypeVar` objects
+  ({pr}`1230`, {pr}`1130`).
+- Preserve `TypedDict` requiredness, constraints and schema metadata when
+  `Annotated` appears outside `Required` or `NotRequired` ({pr}`1321`).
+- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 input
+  decoded as JSON, MessagePack or TOML ({pr}`1331`, {pr}`1270`).
+- Raise `DecodeError` for invalid YAML scalar values that previously raised
+  `ValueError`, `LookupError` or `AttributeError` during parsing ({pr}`1337`).
+- Raise `TypeError` instead of `AttributeError` from `toml.encode` when the
+  converted top-level value is not a table ({pr}`1370`).
+- Avoid shrinking `Encoder.encode_into` buffer capacity at an existing offset,
+  zero-fill gaps before an offset, and remove stale trailing contents after
+  failed encoding
+  ({pr}`1310`).
+- Quote `Decimal` JSON dictionary keys, including when
+  `decimal_format="number"`, and reject non-finite `Decimal` values in number
+  mode ({pr}`1216`, {pr}`1263`).
+- Honor `str_keys=True` for dictionary keys even when their types appear in
+  `builtin_types`, including date and time keys in TOML
+  ({pr}`1217`).
+- Apply `dec_hook` when converting custom dictionary-key types ({pr}`1238`).
+- Raise path-aware `ValidationError` for unhashable set items or converted
+  dictionary keys, and reject objects without a `keys` attribute when converting
+  to a dictionary
+  ({pr}`1296`, {pr}`1309`).
+- Reject embedded NUL bytes in datetime and time strings, and report epoch
+  timestamps or rounding beyond year 9999 as `ValidationError`
+  ({pr}`1314`, {pr}`1212`).
+- Reject overflowing day counts when decoding ISO 8601 durations
+  ({pr}`1320`).
+- Correct encoding of UTC offsets within a minute of +/-24 hours, which were
+  previously written as `Z` ({pr}`1298`).
+- Use a fast path for subnormal JSON float parsing and initialize the portable
+  leading-zero-count fallback ({pr}`1237`, {pr}`1264`).
+- Preserve outer descriptive `Meta` values when `Annotated` layers are separated
+  by `NewType` or type aliases in inspection and JSON Schema. Validation
+  constraints are unchanged ({pr}`1371`).
 - Fix JSON Schema descriptions taken from multi-line docstrings keeping the
   indentation of every line after the first on Python 3.12 and older, when the
   summary starts on the line with the opening quotes. Tabs in such docstrings
-  are now expanded to spaces on those versions, as they already are on 3.13+.
-- Raise `TypeError` instead of `AttributeError` from `msgspec.toml.encode` when
-  the object does not encode to a table.
-- Fix `title`, `description`, `examples`, `extra_json_schema` and `extra` from
-  an inner `Meta` taking precedence over an outer one in `msgspec.inspect` and
-  JSON Schema when the inner one is behind a `NewType` or `type` alias. The
-  `Meta` closest to the use site now wins, as it does for nested `Annotated`.
-- Fix `KeyError` when decoding, converting, inspecting or generating JSON
-  Schema for `attrs` classes with fields that have no annotation, such as
-  `attrs.make_class("Point", ["x"])` or `attr.ib()`. Such fields are now treated
-  as `Any`, or as the type passed to `attr.ib(type=...)`.
-- Fix a race when multiple threads first use the same type for decoding or
-  conversion.
-- Raise `DecodeError` instead of `UnicodeDecodeError` for invalid UTF-8 strings
-  decoded from JSON or MessagePack ({issue}`714`).
-- Fix `msgspec.inspect.type_info` returning `CustomType` for enums whose
-  metaclass is a subclass of `enum.EnumMeta`, which also broke
-  `msgspec.json.schema` for them.
-- Fix invalid JSON schemas containing empty `prefixItems` arrays for zero-field
-  array-like structs and named tuples.
-- Fix `Encoder.encode_into` shrinking the buffer's capacity when passed an
-  `offset` inside the buffer. An `offset` past the end of the buffer now fills
-  the gap with zeros instead of leaving it uninitialized, and a failed encode no
-  longer leaves the buffer's old contents past the written output.
-- Fix `TypedDict` fields with `Annotated` outside `Required` or `NotRequired`
-  raising `TypeError`, preserving constraints and schema metadata.
-- Fix decoding ISO 8601 durations with very large day counts, which could
-  overflow and return an incorrect `timedelta` or raise `OverflowError` instead
-  of `ValidationError`.
-- Fix JSON Schema generation for distinct types sharing the same module and
-  qualified name, such as dynamically generated structs.
-- Include string Literal and Enum dictionary key constraints in generated JSON
-  Schema `propertyNames`.
-- Fix encoding of `datetime` and `time` values whose UTC offset is within a
-  minute of +/-24 hours. These were written as `Z`, moving the instant by a
-  full day; they now round to the closest valid offset (`+23:59`/`-23:59`).
-- Fix JSON Schema references for dynamically defined types with empty names,
-  including recursive types that previously raised `RecursionError`.
-- Fix generic `TypedDict` subclasses dropping the base type argument, so
-  `class Sub(Base[int])` now validates inherited fields as `int`. Postponed
-  PEP 695 annotations on those subclasses resolve instead of raising
-  `NameError` ({issue}`1191`).
-- Fix invalid `json` that was produced when converting non-finite `Decimal`
-  objects with `decimal_format="number"` ({issue}`1262`)
-- Fix a crash `repr()` call for structs with `repr_omit_defaults=True`
-  and partial inner state, now proper `AttributeError`
-  is raised instead ({pr}`1257`)
-- Fix the error state left set when looking up `ClassVar` on a module-level
-  `typing` name that is not the real `typing` module. On CPython builds with
-  assertions enabled this terminated the interpreter. The lookup error now
-  propagates as intended ({issue}`1221`)
-- Support converting non-dict mappings (such as `asyncpg.Record`) to `TypedDict`
-  types with `convert`, matching the existing support for structs and
-  dataclasses ({issue}`1239`)
-- Fix a `NameError` when resolving a generic `TypedDict` defined with PEP 695
-  type parameter syntax (`class Foo[T](TypedDict)`) under
-  `from __future__ import annotations` on Python 3.12/3.13. Also prevent a
-  same-named module-level `TypeVar` from shadowing the PEP 695 type parameter,
-  which could silently affect decoding on Python 3.12+ ({pr}`1130`).
-- Fix a typing false negative that allowed assigning attributes
-  to `READONLY` and C level getters ({pr}`1244`)
-- Support `TypeForm[]` type instead of `Type[]` in decoders,
-  requires `mypy>=2.1` ({pr}`1245`)
-- Fix how we detect `NamedTuple` subclasses,
-  now we also check `_fields` to exist and to be a `tuple`
-  and `_field_defaults` to exist and to be a `dict` ({pr}`1259`)
-- Fix a possible crash when `Meta(pattern='...')`
-  was used in loops ({pr}`1256`)
-- Fix a possible crash with `defstruct` with empty `module=`
-  and complex typing forms ({pr}`1271`)
-- Fix a possible crash when iterating over `@dataclass` instances
-  with complex `__dict__` objects ({pr}`1271`)
-- Fix a possible crash when too big ints are passed
-  into `Meta`'s constructor ({pr}`1260`)
-- Fix `msgpack` encoding of dicts with `frozendict` keys on Python 3.15, which
-  raised `TypeError` although the decoder produces such keys for
-  `dict[frozendict[K, V], T]` ({issue}`1280`)
+  are now expanded to spaces on those versions, as they already are on 3.13+
+  ({pr}`1375`, {pr}`1379`).
+- Support enums with custom metaclasses in inspection and JSON Schema
+  ({pr}`1346`).
+- Require valid `_fields` and `_field_defaults` metadata when identifying named
+  tuples, and use the same checks during inspection ({pr}`1259`, {pr}`1313`).
+- Generate distinct JSON Schema component names for types that share a module
+  and qualified name, and support empty component names, including recursive
+  types ({pr}`1225`, {pr}`1274`).
+- Omit empty `prefixItems` arrays from JSON schemas for fieldless array-like
+  structs and named tuples ({pr}`1360`).
+- Preserve string `Literal`, enum and union dictionary-key constraints in
+  JSON Schema `propertyNames` ({pr}`1273`, {pr}`1355`).
+- Include declared zero and composite `Flag` and `IntFlag` members in generated
+  JSON schemas ({pr}`1229`).
+- Copy dictionaries returned by `schema_hook` before adding field defaults,
+  avoiding mutation of the returned top-level dictionary ({pr}`1339`).
+- Correct JSON and MessagePack decoder stubs to use `TypeForm` for supported
+  type expressions. With mypy 2.1, enable
+  `--enable-incomplete-feature=TypeForm`; mypy 2.2 enables it by default
+  ({pr}`1245`).
+- Mark read-only attributes as `Final` in type stubs ({pr}`1244`).
+- Fix object lifetime handling for `Meta(pattern=...)` constraints and report
+  missing fields in `Struct.__rich_repr__` before comparing defaults
+  ({pr}`1256`, {pr}`1257`).
+- Propagate errors from `ClassVar` lookup instead of leaving an exception set
+  during `Struct` creation ({pr}`1223`, {pr}`1269`).
+- Fix error handling for oversized `Meta` numeric arguments, very large integer
+  `multiple_of` constraints and failed truth-value conversions
+  ({pr}`1260`, {pr}`1265`).
+- Propagate allocation failure when decoding ASCII JSON strings ({pr}`1241`).
+- Correct fixed-size type metadata for `Raw` ({pr}`1268`).
+- Fix reference leaks in JSON `encode_lines` iterators, replaced regex
+  constraints, UUID conversion error paths, Python 3.14 union resolution and
+  MessagePack sorted-encoding error paths
+  ({pr}`1284`, {pr}`1261`, {pr}`1327`, {pr}`1248`).
+- Release temporary import references during module initialization, including
+  references to `uuid` and `decimal` ({pr}`1081`, {pr}`1268`).
+- Fix MessagePack encoding of dictionary keys typed as `frozendict` on Python
+  3.15 ({pr}`1283`).
 
 ## Version 0.22.0 (2026-09-29)
 
