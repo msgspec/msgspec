@@ -2093,6 +2093,18 @@ class TestNamedTuple:
             with pytest.raises(msgspec.ValidationError, match=klass.__name__):
                 msgspec.json.decode(b"[1, 2]", type=klass)
 
+    @pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="needs refcounts")
+    def test_namedtuple_like_fields_not_tuple_no_leak(self):
+        class FieldsNotTuple(tuple):
+            _fields = ["a", "b"]
+
+        fields = FieldsNotTuple._fields
+        msgspec.json.Decoder(FieldsNotTuple)
+        before = sys.getrefcount(fields)
+        for _ in range(10):
+            msgspec.json.Decoder(FieldsNotTuple)
+        assert sys.getrefcount(fields) == before
+
 
 class TestDict:
     def test_encode_dict_raises_non_string_or_numeric_keys(self):
