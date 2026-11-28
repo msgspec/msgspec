@@ -66,7 +66,7 @@
   indentation of every line after the first on Python 3.12 and older, when the
   summary starts on the line with the opening quotes. Tabs in such docstrings
   are now expanded to spaces on those versions, as they already are on 3.13+
-  ({pr}`1375`).
+  ({pr}`1375`, {pr}`1379`).
 - Support enums with custom metaclasses in inspection and JSON Schema
   ({pr}`1346`).
 - Require valid `_fields` and `_field_defaults` metadata when identifying named
