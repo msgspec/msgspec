@@ -516,6 +516,8 @@ typedef struct {
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
+    PyObject *str___msgspec_encode__;
+    PyObject *str___msgspec_decode__;
 #if PY312_PLUS
     PyObject *str___value__;
 #endif
@@ -2894,6 +2896,7 @@ AssocList_Sort(AssocList* list) {
 // Despite the fact that `frozendict` was added in 3.15,
 // this type is always defined for order consistency:
 #define MS_TYPE_FROZENDICT          ((1ull << 38) | (1ull << 39))
+#define MS_TYPE_DECODE_METHOD         (1ull << 40)
 
 /* Aliases for commonly used types */
 #if PY315_PLUS
@@ -4317,7 +4320,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
     /* If a custom type is used, this node may only contain that type and `None */
     if (
         state->custom_obj != NULL &&
-        state->types & ~(MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_NONE)
+        state->types & ~(MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_NONE | MS_TYPE_DECODE_METHOD)
     ) {
         PyErr_Format(
             PyExc_TypeError,
@@ -5204,6 +5207,13 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
+static bool
+has_builtin_decode_hook(TypeNodeCollectState *state, PyObject *t){
+    return (
+        PyObject_HasAttr(t, state->mod->str___msgspec_decode__)
+    );
+}
+
 static MS_INLINE int
 normalize_types_generic_alias(TypeNodeCollectState *state, PyObject **t, PyObject *origin, PyObject *args) {
     // if '*t' is a 'types.GenericAlias', replace it (in place) with an equivalent
@@ -5456,6 +5466,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             out = typenode_collect_dataclass(state, t);
         }
     }
+
     else {
         if (origin != NULL) {
             if (!PyType_Check(origin)) goto invalid;
@@ -5463,9 +5474,14 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         else {
             if (!PyType_Check(t)) goto invalid;
         }
+        uint64_t custom_flags = (origin != NULL) ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM;
+        if (has_builtin_decode_hook(state, t)){
+            custom_flags |= MS_TYPE_DECODE_METHOD;
+        }
+
         out = typenode_collect_custom(
             state,
-            (origin != NULL) ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM,
+            custom_flags,
             t
         );
     }
@@ -10365,16 +10381,36 @@ ms_decode_int_enum_or_literal_pyint(PyObject *val, TypeNode *type, PathNode *pat
     return IntLookup_GetPyIntOrError(lookup, val, path);
 }
 
+
+static MS_NOINLINE PyObject* 
+ms_decode_try_dunder(PyObject* custom_cls, MsgspecState* st, PyObject* obj, PathNode* path){
+    PyObject* out = NULL;
+    PyObject* dunder_decode = PyObject_GetAttr(custom_cls, st->str___msgspec_decode__);
+    if (dunder_decode != NULL) {
+        out = PyObject_CallOneArg(dunder_decode, obj);
+        Py_DECREF(dunder_decode);
+        if (out == NULL) {
+            ms_maybe_wrap_validation_error(path);
+            return NULL;
+        }
+    } else {
+        /* Cleanse previous PyObject_GetAttr exception. */
+        PyErr_Clear();
+    }
+    return out;
+}
+
 static MS_NOINLINE PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
     bool generic = type->types & MS_TYPE_CUSTOM_GENERIC;
-
+    bool has_decode_method = type->types & MS_TYPE_DECODE_METHOD;
     if (obj == NULL) return NULL;
 
     if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
 
+    MsgspecState *st = msgspec_get_global_state();
     custom_obj = TypeNode_get_custom(type);
 
     if (dec_hook != NULL) {
@@ -10384,14 +10420,11 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
             ms_maybe_wrap_validation_error(path);
             return NULL;
         }
-    }
-    else {
+    } else {
         out = obj;
     }
-
     /* Generic classes must be checked based on __origin__ */
     if (generic) {
-        MsgspecState *st = msgspec_get_global_state();
         custom_cls = PyObject_GetAttr(custom_obj, st->str___origin__);
         if (custom_cls == NULL) {
             Py_DECREF(out);
@@ -10400,6 +10433,13 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     }
     else {
         custom_cls = custom_obj;
+    }
+    
+    if (has_decode_method){
+        PyObject* temp = ms_decode_try_dunder(custom_cls, st, obj, path);
+        if (temp != NULL){
+            out = temp;
+        }
     }
 
     /* Check that the decoded value matches the expected type */
@@ -12897,6 +12937,8 @@ PyDoc_STRVAR(Encoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"    If an object implements a ``__msgspec_encode__`` hook it is utilized as a\n"
+"    final option.\n"
 "decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
 "    they're encoded as strings, if 'number', they're encoded as floats. If\n"
@@ -13989,6 +14031,18 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
         Py_DECREF(temp);
         return status;
     }
+    if (PyObject_HasAttr(obj, self->mod->str___msgspec_encode__)){
+        int status = -1;
+        PyObject* temp;
+        temp = PyObject_CallMethodNoArgs(obj, self->mod->str___msgspec_encode__);
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = mpack_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
+
     return ms_encode_err_type_unsupported(type);
 }
 
@@ -14111,6 +14165,8 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"    If an object implements a ``__msgspec_encode__`` hook it is utilized as a\n"
+"    final option.\n"
 "order : {None, 'deterministic', 'sorted'}, optional\n"
 "    The ordering to use when encoding unordered compound types.\n"
 "\n"
@@ -14155,6 +14211,8 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"    If an object implements a ``__msgspec_encode__`` hook it is utilized as a\n"
+"    final option.\n"
 "decimal_format : {'string', 'number'} or callable, optional\n"
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
 "    they're encoded as strings, if 'number', they're encoded as floats. If\n"
@@ -15177,6 +15235,17 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
         Py_DECREF(temp);
         return status;
     }
+    if (PyObject_HasAttr(obj, self->mod->str___msgspec_encode__)){
+        int status = -1;
+        PyObject* temp;
+        temp = PyObject_CallMethodNoArgs(obj, self->mod->str___msgspec_encode__);
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = json_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
     return ms_encode_err_type_unsupported(type);
 }
 
@@ -15351,6 +15420,8 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"    If an object implements a ``__msgspec_encode__`` hook it is utilized as a\n"
+"    final option.\n"
 "order : {None, 'deterministic', 'sorted'}, optional\n"
 "    The ordering to use when encoding unordered compound types.\n"
 "\n"
@@ -15431,6 +15502,8 @@ PyDoc_STRVAR(Decoder__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
 "    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"    If an object implements ``__msgspec_deocde__`` class method it will be utilized\n"
+"    as a final option.\n"
 "ext_hook : callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -17238,6 +17311,8 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
 "    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"    If an object implements ``__msgspec_deocde__`` class method it will be utilized\n"
+"    as a final option.\n"
 "ext_hook : callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -17416,6 +17491,8 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
 "    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"    If an object implements ``__msgspec_deocde__`` class method it will be utilized\n"
+"    as a final option.\n"
 "float_hook : callable, optional\n"
 "    An optional callback for handling decoding untyped float literals. Should\n"
 "    have the signature ``float_hook(val: str) -> Any``, where ``val`` is the\n"
@@ -20322,6 +20399,8 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
 "    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"    If an object implements ``__msgspec_deocde__`` class method it will be utilized\n"
+"    as a final option.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -21032,6 +21111,21 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         Py_DECREF(temp);
         return out;
     }
+    PyObject* encode_dunder = PyObject_GetAttr(obj, self->mod->str___msgspec_encode__);
+    if (encode_dunder != NULL){
+        PyObject *out = NULL;
+        PyObject *temp;
+        temp = PyObject_CallNoArgs(encode_dunder);
+        Py_DECREF(encode_dunder);
+        if (temp == NULL) return NULL;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            out = to_builtins(self, temp, is_key);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return out;
+    }
+
     else {
         ms_encode_err_type_unsupported(type);
         return NULL;
@@ -21163,6 +21257,8 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"    If an object implements a ``__msgspec_encode__`` hook it is utilized as a\n"
+"    final option.\n"
 "order : {None, 'deterministic', 'sorted'}, optional\n"
 "    The ordering to use when converting unordered compound types.\n"
 "\n"
@@ -22977,6 +23073,8 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
 "    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"    If an object implements ``__msgspec_deocde__`` class method it will be utilized\n"
+"    as a final option.\n"
 "builtin_types: Iterable[type], optional\n"
 "    Useful for wrapping other serialization protocols. An iterable of types to\n"
 "    treat as additional builtin types. Passing a type here indicates that the\n"
@@ -23171,6 +23269,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
+    Py_CLEAR(st->str___msgspec_encode__);
+    Py_CLEAR(st->str___msgspec_decode__);
 #if PY312_PLUS
     Py_CLEAR(st->str___value__);
 #endif
@@ -23542,6 +23642,9 @@ PyInit__core(void)
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
+    CACHED_STRING(str___msgspec_encode__, "__msgspec_encode__");
+    CACHED_STRING(str___msgspec_decode__, "__msgspec_decode__");
+
 #if PY312_PLUS
     CACHED_STRING(str___value__, "__value__");
 #endif
