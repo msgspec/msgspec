@@ -4,14 +4,21 @@
 
 ## Version 0.23.0 (unreleased)
 
+### New features
+
+- Support converting non-dict mappings to `TypedDict` types with `convert`
+  ({pr}`1240`).
+- Include JSON Schema defaults for dataclass and `attrs` fields with builtin
+  `list`, `dict`, `set` or `bytearray` default factories ({pr}`1222`).
+
+### Bug fixes
+
 - Fix a reference leak when building a decoder for a `tuple` subclass whose
   `_fields` attribute is not an exact `tuple` ({pr}`1377`).
 - Return one-dimensional unsigned-byte views for MessagePack binary values
   decoded as `memoryview` and extension data passed to `ext_hook`, including
   non-byte and multidimensional input buffers. Preserve shared storage and its
   lifetime ({pr}`1373`).
-- Support converting non-dict mappings to `TypedDict` types with `convert`
-  ({pr}`1240`).
 - Fix MessagePack list encoding races on free-threaded Python builds
   ({pr}`1252`).
 - Fix races when types are first used concurrently for decoding or conversion,
@@ -82,8 +89,6 @@
   JSON Schema `propertyNames` ({pr}`1273`, {pr}`1355`).
 - Include declared zero and composite `Flag` and `IntFlag` members in generated
   JSON schemas ({pr}`1229`).
-- Include JSON Schema defaults for dataclass and `attrs` fields with builtin
-  `list`, `dict`, `set` or `bytearray` default factories ({pr}`1222`).
 - Copy dictionaries returned by `schema_hook` before adding field defaults,
   avoiding mutation of the returned top-level dictionary ({pr}`1339`).
 - Correct JSON and MessagePack decoder stubs to use `TypeForm` for supported
