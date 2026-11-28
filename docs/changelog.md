@@ -85,6 +85,9 @@
   raised `TypeError` although the decoder produces such keys for
   `dict[frozendict[K, V], T]` ({issue}`1280`)
 
+- Render non-finite float values in generated JSON Schema field defaults as
+  `null`, matching their JSON-encoded form, including nested defaults.
+
 ## Version 0.22.0 (2026-09-29)
 
 - **BREAKING**: Setting `gc=False` on a struct type that has a weakref slot,
