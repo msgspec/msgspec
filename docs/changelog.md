@@ -4,6 +4,8 @@
 
 ## Version 0.23.0 (unreleased)
 
+- Fix a reference leak when building a decoder for a `tuple` subclass whose
+  `_fields` attribute is not an exact `tuple` ({pr}`1377`).
 - Return one-dimensional unsigned-byte views for MessagePack binary values
   decoded as `memoryview` and extension data passed to `ext_hook`, including
   non-byte and multidimensional input buffers. Preserve shared storage and its
