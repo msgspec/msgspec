@@ -3,7 +3,9 @@ import decimal
 import enum
 import json
 import math
+import subprocess
 import sys
+import textwrap
 import typing
 import uuid
 from base64 import b64encode
@@ -2240,6 +2242,7 @@ def test_multiline_docstring_summary_on_first_line():
         ("Summary.\n\nMore.\n  ", "Summary.\n\nMore."),
         # A continuation line at column 0
         ("Summary.\nNot indented.\n    ", "Summary.\nNot indented."),
+        ("Summary.\n\n\tMore\ttext.\n\t", "Summary.\n\nMore    text."),
     ],
 )
 def test_docstring_trailing_whitespace_only_line(doc, expected):
@@ -2250,3 +2253,56 @@ def test_docstring_trailing_whitespace_only_line(doc, expected):
 
     out = msgspec.json.schema(Example)["$defs"]["Example"]
     assert out.get("description") == expected
+
+
+def test_docstring_nonstandard_indentation():
+    import inspect
+
+    class Example(msgspec.Struct):
+        pass
+
+    Example.__doc__ = "\u00a0Summary.\n\n  \u2003More details.\n"
+    expected = inspect.cleandoc(textwrap.dedent(Example.__doc__))
+    assert msgspec.json.schema(Example)["$defs"]["Example"]["description"] == expected
+
+
+@pytest.mark.skipif(
+    not getattr(subprocess, "_can_fork_exec", True),
+    reason="subprocess support required",
+)
+def test_docstring_schema_does_not_import_inspect():
+    script = textwrap.dedent(
+        r"""
+        import importlib.util
+        import os
+        import sys
+
+        assert "inspect" not in sys.modules
+        spec = importlib.util.spec_from_file_location(
+            "msgspec", sys.argv[1],
+            submodule_search_locations=[os.path.dirname(sys.argv[1])],
+        )
+        msgspec = importlib.util.module_from_spec(spec)
+        sys.modules["msgspec"] = msgspec
+        spec.loader.exec_module(msgspec)
+        assert "inspect" not in sys.modules
+
+        class Example(msgspec.Struct):
+            x: int
+
+        for doc, expected in [
+            ("Summary.\n\n\tMore.\n", "Summary.\n\nMore."),
+            ("Summary.\n\n    More\u00a0details: \u2603.", "Summary.\n\nMore\u00a0details: \u2603."),
+        ]:
+            Example.__doc__ = doc
+            assert msgspec.json.schema(Example)["$defs"]["Example"]["description"] == expected
+        assert "inspect" not in sys.modules
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", script, msgspec.__file__],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

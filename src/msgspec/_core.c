@@ -5168,7 +5168,10 @@ is_namedtuple_class(TypeNodeCollectState *state, PyObject *t) {
         PyErr_Clear();
         return false;
     }
-    if (!PyTuple_CheckExact(fields)) return false;
+    if (!PyTuple_CheckExact(fields)) {
+        Py_DECREF(fields);
+        return false;
+    }
     Py_DECREF(fields);
 
     PyObject *defaults = PyObject_GetAttr(t, state->mod->str__field_defaults);
